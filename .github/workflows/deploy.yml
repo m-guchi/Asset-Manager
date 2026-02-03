@@ -70,9 +70,9 @@ jobs:
 
       - name: Deploy with rsync
         run: |
-          # rsyncで転送
           # node_modulesは転送せず、サーバー側でインストールする
-          rsync -avz -e "ssh -p ${{ secrets.VPS_PORT }}" ./dist/ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/home/guchi/app/asset-manager
+          # --delete オプションを追加して、ローカルに無い余計なファイルをサーバーから削除する（クリーンアップ）
+          rsync -avz --delete -e "ssh -p ${{ secrets.VPS_PORT }}" ./dist/ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/home/guchi/app/asset-manager
 
       - name: Post-deployment tasks
         uses: appleboy/ssh-action@v1.0.3
