@@ -90,7 +90,7 @@ jobs:
             echo "Updating .env file..."
             rm -f .env
             echo "DATABASE_URL=\"${{ secrets.DATABASE_URL }}\"" > .env
-            echo "PORT=3000" >> .env
+            echo "PORT=3102" >> .env
 
             # DBマイグレーション実行
             # Prisma関連は node_modules/.bin/prisma がないので npx で実行したいが
