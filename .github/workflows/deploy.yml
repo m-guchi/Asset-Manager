@@ -71,8 +71,8 @@ jobs:
       - name: Deploy with rsync
         run: |
           # node_modulesは転送せず、サーバー側でインストールする
-          # --delete オプションを追加して、ローカルに無い余計なファイルをサーバーから削除する（クリーンアップ）
-          rsync -avz --delete -e "ssh -p ${{ secrets.VPS_PORT }}" ./dist/ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/home/guchi/app/asset-manager
+          # --delete オプションを追加するが、node_modules は維持する（毎回ゼロからインストールになるのを防ぐ）
+          rsync -avz --delete --exclude 'node_modules' -e "ssh -p ${{ secrets.VPS_PORT }}" ./dist/ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/home/guchi/app/asset-manager
 
       - name: Post-deployment tasks
         uses: appleboy/ssh-action@v1.0.3
@@ -92,9 +92,8 @@ jobs:
 
             # 依存関係のインストール（本番用のみ）
             echo "Installing production dependencies..."
-            # npm ciだとpackage-lock.jsonとの不整合で失敗する場合があるため、安全にinstallを使う
-            # --productionをつけることでdevDependencies（tailwindcssなど）をスキップ
-            npm install --production --no-audit --prefer-offline
+            # --production の代わりに --omit=dev を使用（警告対応）
+            npm install --omit=dev --no-audit --prefer-offline
 
             # DBマイグレーション実行
             echo "Running migrations..."
