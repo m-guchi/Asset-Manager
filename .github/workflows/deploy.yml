@@ -88,6 +88,7 @@ jobs:
             
             # .envを強制的に再作成（Secretsから）
             echo "Updating .env file..."
+            rm -f .env
             echo "DATABASE_URL=\"${{ secrets.DATABASE_URL }}\"" > .env
             echo "PORT=3000" >> .env
 
