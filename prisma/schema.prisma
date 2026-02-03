@@ -1,0 +1,66 @@
+// This is your Prisma schema file
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
+model Category {
+  id           Int           @id @default(autoincrement())
+  name         String
+  color        String
+  order        Int           @default(0)
+  isCash       Boolean       @default(false)
+  isLiability  Boolean       @default(false)
+  parentId     Int?
+  parent       Category?     @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children     Category[]    @relation("CategoryHierarchy")
+  tags         Tag[]
+  assets       Asset[]
+  transactions Transaction[]
+
+  @@index([parentId])
+}
+
+model Tag {
+  id         Int        @id @default(autoincrement())
+  name       String     @unique
+  color      String?
+  categories Category[]
+  tagGroups  TagGroup[]
+}
+
+model TagGroup {
+  id   Int    @id @default(autoincrement())
+  name String
+  tags Tag[]
+}
+
+model Asset {
+  id           Int      @id @default(autoincrement())
+  categoryId   Int
+  currentValue Float
+  recordedAt   DateTime @default(now())
+  category     Category @relation(fields: [categoryId], references: [id])
+}
+
+model Transaction {
+  id           Int             @id @default(autoincrement())
+  categoryId   Int
+  type         TransactionType
+  amount       Float
+  transactedAt DateTime        @default(now())
+  memo         String?
+  category     Category        @relation(fields: [categoryId], references: [id])
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAW
+  VALUATION
+}

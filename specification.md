@@ -1,0 +1,122 @@
+# Project Definition: Asset Manager
+
+## 1. プロジェクト概要
+Asset Manager は、ユーザーが手動で評価額と入出金履歴を入力し、「真の取得原価」に基づいた資産推移と損益を可視化するWebアプリケーション。
+
+## 2. 技術スタック
+- **Framework**: Next.js (App Router)
+- **Styling**: Tailwind CSS, shadcn/ui
+- **Database**: MySQL (Prisma ORM)
+- **Charts**: Recharts
+- **Infrastructure**: AWS Lightsail (Ubuntu) + PM2
+
+## 3. データベース・スキーマ (MySQL / Prisma)
+```prisma
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 資産カテゴリ
+model Category {
+  id           Int           @id @default(autoincrement())
+  name         String        // 例: 米国株, ビットコイン
+  color        String        // グラフ用カラーコード
+  isCash       Boolean       @default(false) // trueの場合、常に損益0として扱う
+  isLiability  Boolean       @default(false) // trueの場合、負債として扱う
+  tags         Tag[]         // 多対多: 複数のタグ（例:「株式」「ドル建て」）に所属可
+  assets       Asset[]
+  transactions Transaction[]
+}
+
+// 分析用タグ（旧グループ）
+model Tag {
+  id           Int        @id @default(autoincrement())
+  name         String     // 例: 資産クラス, 通貨, リスク資産
+  color        String?    // タグごとの固定色（nullの場合は自動割り当て）
+  categories   Category[]
+  tagGroups    TagGroup[] // このタグが含まれるタググループ
+}
+
+// タググループ（グラフ表示用プリセット）
+model TagGroup {
+  id           Int    @id @default(autoincrement())
+  name         String // 例: 「通貨別ポートフォリオ」「リスク資産配分」
+  tags         Tag[]  // このグループに含まれるタグの集合
+}
+
+
+// 評価額の履歴 (推移グラフ用)
+model Asset {
+  id           Int      @id @default(autoincrement())
+  categoryId   Int
+  category     Category @relation(fields: [categoryId], references: [id])
+  currentValue Decimal  @db.Decimal(15, 2)
+  recordedAt   DateTime @default(now())
+}
+
+// 入出金履歴 (取得原価計算用)
+model Transaction {
+  id           Int             @id @default(autoincrement())
+  categoryId   Int
+  category     Category        @relation(fields: [categoryId], references: [id])
+  type         TransactionType // DEPOSIT (追加) / WITHDRAW (引き出し)
+  amount       Decimal         @db.Decimal(15, 2)
+  transactedAt DateTime        @default(now())
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAW
+}
+```
+
+## 4. コア・ロジック：取得原価（Cost Basis）の算出
+カテゴリごとに履歴を走査し、以下のアルゴリズムで現在の原価を計算する。
+
+**入金（DEPOSIT）が発生した時:**
+$$新しい原価 = 直前の原価 + 入金額$$
+
+**出金（WITHDRAW）が発生した時:**
+（部分解約に対応するため、損益率を維持して原価を減らす）
+$$新しい原価 = 直前の原価 \times (1 - \frac{出金額}{直前の評価額})$$
+
+### 現金カテゴリの特例（isCash = true）
+「現金」として設定されたカテゴリは、**常に「取得原価 ＝ 現在評価額」** とみなす。
+これにより、入出金履歴の有無にかかわらず、評価損益は常に **0円 / 0%** となる。総資産額には加算されるが、ポートフォリオ全体の損益額には影響を与えない。
+
+## 5. 画面・機能要件
+
+### Dashboard (メイン画面)
+- **全体サマリー**: 総資産、総損益額、総損益率の表示。
+- **資産構成比**: 現在の時価に基づくドーナツチャート（Recharts）。
+    - 集計軸を「カテゴリ別」と「タグ別」で切り替え可能。
+    - 保存された「タググループ（View）」を選択して表示切り替え。
+- **資産推移**: 過去の資産額変動チャート（Area Chart）。
+    - **機能追加**: 「取得原価」のラインを表示し、含み益を可視化。
+    - **機能追加**: 「カテゴリ/タグ別」の積み上げチャート（Stacked Area）への切り替え機能。
+        - 選択したタググループ内訳の推移を確認可能にする。
+- **カテゴリ別一覧**: 各カテゴリの現在値、原価、損益をカード形式で表示。
+    - **機能追加**: カードクリックで「資産詳細画面」へ遷移。
+
+### Asset Detail (資産詳細画面) - NEW
+- 特定のカテゴリ（資産）にフォーカスしたダッシュボード。
+- **個別サマリー**: 対象資産の現在値、原価、損益サマリー。
+- **個別資産推移**: 対象資産のみの時価・原価推移グラフ。
+- **取引履歴一覧**: 対象資産に関連する Transaction のリスト。
+
+### Inputs (データ入力)
+- **評価額更新**: 定期的な時価の入力。
+- **履歴登録**: 「いつ」「どのカテゴリに」「いくら入れたか/出したか」の登録。
+- **マスタ管理 (Assets)**: 
+    - **タグ管理**: タグの新規作成・編集・削除。タグごとの色指定。
+    - **カテゴリ設定**: 名称、色、損益0モード、タグ付与（作成済みのタグから選択）。
+    - **タググループ設定**: チャート表示用の「タグの組み合わせ（プリセット）」を作成・編集する機能。
+
+## 6. デプロイ設定 (AWS Lightsail / PM2)
+- **環境差異**: .env で WSL2 と Ubuntu 本番環境の DATABASE_URL を切り分ける。
+- **永続化**: PM2 を使用し、サーバー再起動時にもアプリを自動復旧させる。
