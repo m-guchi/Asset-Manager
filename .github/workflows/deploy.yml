@@ -25,15 +25,18 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate
 
+      - name: Clean previous build artifacts
+        run: rm -rf .next
+
       - name: Build
         run: npm run build
         env:
+          # ビルド時に本番の接続情報を埋め込ませることで、万が一インライン化されても正しく動くようにする
           DATABASE_URL: ${{ secrets.DATABASE_URL }} 
 
       - name: Create archive
         run: |
           # 必要なファイルをすべてまとめてtar.gzにする
-          # .next などの隠しフォルダも確実に含まれる
           tar -czf deploy.tar.gz package.json package-lock.json public .next prisma next.config.ts
 
       - name: Upload artifact
@@ -100,6 +103,8 @@ jobs:
 
             # DBマイグレーション実行
             echo "Running migrations..."
+            # サーバー上でも念のため generate する
+            npx prisma generate
             npx prisma migrate deploy
 
             # PM2で再起動
