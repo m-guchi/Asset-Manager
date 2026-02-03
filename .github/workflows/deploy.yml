@@ -32,7 +32,7 @@ jobs:
         run: npm run build
         env:
           # デバッグ用: 直接正しい値を指定して、Secrets起因かどうかを特定する
-          DATABASE_URL: "mysql://asset-manager-user:Asset2026Manager@localhost:3306/asset_manager"
+          DATABASE_URL: "mysql://asset-manager-user:sG9L7j408qm5I0Rte41ASD91dsq@localhost:3306/asset_manager"
 
       - name: Create archive
         run: |
