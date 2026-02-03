@@ -107,6 +107,6 @@ jobs:
             # 専用の .env をロードさせる必要があるかも
             npx prisma migrate deploy
 
-            # PM2で再起動
+            # PM2で再起動（ポート明示指定）
             echo "Restarting PM2..."
-            pm2 restart asset-manager || pm2 start server.js --name asset-manager
+            PORT=3102 pm2 restart asset-manager --update-env || PORT=3102 pm2 start server.js --name asset-manager
