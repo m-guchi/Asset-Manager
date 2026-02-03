@@ -28,7 +28,7 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          DATABASE_URL: "mysql://dummy:dummy@localhost:3306/dummy" 
+          DATABASE_URL: ${{ secrets.DATABASE_URL }} 
 
       - name: Create archive
         run: |
@@ -79,6 +79,10 @@ jobs:
           script: |
             cd /home/guchi/app/asset-manager
             
+            # 古いファイルをクリーンアップ（設定ファイルやnode_modulesは残す）
+            echo "Cleaning up old files..."
+            rm -rf .next public package.json package-lock.json prisma next.config.ts
+
             # アーカイブを展開
             echo "Extracting archive..."
             tar -xzf deploy.tar.gz
