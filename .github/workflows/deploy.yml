@@ -28,24 +28,23 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # ビルド時にNext.jsがDB接続をチェックする場合のダミーなどが必要なら設定
           DATABASE_URL: "mysql://dummy:dummy@localhost:3306/dummy" 
 
-      - name: Prepare standalone build
+      - name: Prepare production artifacts
         run: |
-          # スタンドアロンビルドに必要な静的ファイルをコピー
-          cp -r public .next/standalone/public
-          cp -r .next/static .next/standalone/.next/static
-          
-          # マイグレーションに必要なファイルも同梱（または別途転送）
-          # ここではスタンドアロンフォルダにまとめてしまう
-          cp -r prisma .next/standalone/prisma
+          mkdir dist
+          cp package.json package-lock.json dist/
+          cp -r public dist/
+          cp -r .next dist/
+          cp -r prisma dist/
+          cp next.config.ts dist/ 
+          # next.config.tsが必要な場合があるため含める（JSの場合はnext.config.js）
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: build-artifact
-          path: .next/standalone
+          path: dist
           if-no-files-found: error
 
   deploy:
@@ -72,8 +71,7 @@ jobs:
       - name: Deploy with rsync
         run: |
           # rsyncで転送
-          # --delete は危険なので今回はつけない（.envなどが消えるのを防ぐため）
-          # 転送先ディレクトリ: /home/guchi/app/asset-manager
+          # node_modulesは転送せず、サーバー側でインストールする
           rsync -avz -e "ssh -p ${{ secrets.VPS_PORT }}" ./dist/ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/home/guchi/app/asset-manager
 
       - name: Post-deployment tasks
@@ -92,21 +90,18 @@ jobs:
             echo "DATABASE_URL=\"${{ secrets.DATABASE_URL }}\"" > .env
             echo "PORT=3102" >> .env
 
+            # 依存関係のインストール（本番用のみ）
+            echo "Installing production dependencies..."
+            # npm ciだとpackage-lock.jsonとの不整合で失敗する場合があるため、安全にinstallを使う
+            # --productionをつけることでdevDependencies（tailwindcssなど）をスキップ
+            npm install --production --no-audit --prefer-offline
+
             # DBマイグレーション実行
-            # Prisma関連は node_modules/.bin/prisma がないので npx で実行したいが
-            # standaloneには package.json はあるが npm install はしてない
-            # ただし serverExternalPackages 設定により prisma 本体はコピーされているはず...
-            # 安全のため、最小限の依存関係として prisma だけは必要かもしれない
-            # あるいは npx prisma を使うために一時的にインストールするか。
-            
-            # スタンドアロンビルドの場合、グローバルなprismaなどを使うか、
-            # schema.prismaがあるので npx prisma migrate deploy が通る環境が必要。
-            # サーバー側にはNodeが入っているので npx は使える。
-            
             echo "Running migrations..."
-            # 専用の .env をロードさせる必要があるかも
+            # npxはローカルインストールされたパッケージを使う
             npx prisma migrate deploy
 
-            # PM2で再起動（ポート明示指定）
+            # PM2で再起動（npm startを使用）
             echo "Restarting PM2..."
-            PORT=3102 pm2 restart asset-manager --update-env || PORT=3102 pm2 start server.js --name asset-manager
+            pm2 delete asset-manager || true
+            PORT=3102 pm2 start npm --name asset-manager -- start
