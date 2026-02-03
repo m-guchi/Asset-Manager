@@ -86,12 +86,10 @@ jobs:
           script: |
             cd /home/guchi/app/asset-manager
             
-            # .envが存在しない場合は作成（Secretsから）
-            if [ ! -f .env ]; then
-              echo "Creating .env file..."
-              echo "DATABASE_URL=\"${{ secrets.DATABASE_URL }}\"" >> .env
-              echo "PORT=3000" >> .env
-            fi
+            # .envを強制的に再作成（Secretsから）
+            echo "Updating .env file..."
+            echo "DATABASE_URL=\"${{ secrets.DATABASE_URL }}\"" > .env
+            echo "PORT=3000" >> .env
 
             # DBマイグレーション実行
             # Prisma関連は node_modules/.bin/prisma がないので npx で実行したいが
