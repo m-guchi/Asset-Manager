@@ -258,16 +258,27 @@ export default function AssetDetailPage() {
                     <div className="h-[300px] w-full">
                         {category && (
                             <ChartContainer
-                                config={{
-                                    value: {
-                                        label: "評価額",
-                                        color: category.color || "hsl(var(--primary))",
-                                    },
-                                    cost: {
-                                        label: "取得原価",
-                                        color: "hsl(var(--muted-foreground))",
-                                    },
-                                }}
+                                config={(() => {
+                                    const c: any = {
+                                        value: {
+                                            label: "評価額",
+                                            color: category.color || "hsl(var(--primary))",
+                                        },
+                                        cost: {
+                                            label: "取得原価",
+                                            color: "hsl(var(--muted-foreground))",
+                                        },
+                                    };
+                                    if (category.children && category.children.length > 0) {
+                                        category.children.forEach((child: any) => {
+                                            c[`child_${child.id}`] = {
+                                                label: child.name,
+                                                color: child.color || "#cccccc"
+                                            };
+                                        });
+                                    }
+                                    return c;
+                                })()}
                                 className="h-full w-full"
                             >
                                 <ComposedChart
@@ -291,7 +302,6 @@ export default function AssetDetailPage() {
                                         const cutoffTime = cutoff.getTime()
                                         const filtered = allData.filter((h: any) => h.date >= cutoffTime)
 
-                                        // Find point just before cutoff to anchor to the left edge
                                         const beforeCutoff = [...category.history]
                                             .reverse()
                                             .find((h: any) => new Date(h.date).getTime() < cutoffTime)
@@ -361,15 +371,32 @@ export default function AssetDetailPage() {
                                             />
                                         }
                                     />
-                                    <Area
-                                        type="linear"
-                                        dataKey="value"
-                                        name="評価額"
-                                        stroke="var(--color-value)"
-                                        fill="var(--color-value)"
-                                        fillOpacity={0.3}
-                                        strokeWidth={2}
-                                    />
+                                    {category.children && category.children.length > 0 ? (
+                                        category.children.map((child: any) => (
+                                            <Area
+                                                key={child.id}
+                                                type="monotone"
+                                                dataKey={`child_${child.id}`}
+                                                name={child.name}
+                                                stackId="1"
+                                                stroke={child.color}
+                                                fill={child.color}
+                                                fillOpacity={0.6}
+                                                strokeWidth={2}
+                                            />
+                                        ))
+                                    ) : (
+                                        <Area
+                                            type="linear"
+                                            dataKey="value"
+                                            name="評価額"
+                                            stroke="var(--color-value)"
+                                            fill="var(--color-value)"
+                                            fillOpacity={0.3}
+                                            strokeWidth={2}
+                                            stackId="1" // Consistent
+                                        />
+                                    )}
                                     {!category.isCash && (
                                         <Line
                                             type="monotone"

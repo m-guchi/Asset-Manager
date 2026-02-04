@@ -190,104 +190,211 @@ export async function getCategoryDetails(id: number) {
                         tagOption: true
                     } as any
                 },
-                assets: {
-                    orderBy: { recordedAt: 'asc' }
-                },
-                transactions: {
-                    orderBy: { transactedAt: 'asc' }
+                assets: { orderBy: { recordedAt: 'asc' } },
+                transactions: { orderBy: { transactedAt: 'asc' } },
+                children: {
+                    include: {
+                        assets: { orderBy: { recordedAt: 'asc' } },
+                        transactions: { orderBy: { transactedAt: 'asc' } }
+                    }
                 }
             }
         }) as any;
 
         if (!cat) return null;
 
-        const latestAsset = cat.assets.length > 0 ? cat.assets[cat.assets.length - 1] : null;
-        const currentValue = Number(latestAsset?.currentValue || 0);
+        // Helper to calc history for a single category node
+        const calculateHistoryForCategory = (c: any) => {
+            const historyMap = new Map<string, { date: Date, value: number, cost: number }>();
+            let runningCost = 0;
 
-        // Calculate current cost basis
-        let costBasis = 0;
-        if (cat.isCash) {
-            costBasis = currentValue;
-        } else {
-            costBasis = (cat.transactions as any[]).reduce((acc: number, t: any) => {
-                const amt = Number(t.amount);
-                if (t.type === 'DEPOSIT') return acc + amt;
-                if (t.type === 'WITHDRAW') return acc - amt;
-                return acc;
-            }, 0);
-        }
+            // 1. Transactions
+            (c.transactions || []).forEach((t: any) => {
+                if (t.type === 'DEPOSIT') runningCost += t.amount;
+                else if (t.type === 'WITHDRAW') runningCost -= t.amount;
 
-        // Build unified history
-        // We want a list of points where either valuation or cost changed
-        const historyMap = new Map<string, { date: Date, value: number, cost: number }>();
-
-        // 1. Process Transactions for Cost History
-        let runningCost = 0;
-        (cat.transactions as any[]).forEach((t: any) => {
-            if (t.type === 'DEPOSIT') runningCost += t.amount;
-            else if (t.type === 'WITHDRAW') runningCost -= t.amount;
-
-            const dateStr = t.transactedAt.toISOString().split('T')[0];
-            historyMap.set(dateStr, {
-                date: t.transactedAt,
-                value: 0, // Placeholder
-                cost: runningCost
-            });
-        });
-
-        // 2. Process Assets for Value History
-        (cat.assets as any[]).forEach((a: any) => {
-            const dateStr = a.recordedAt.toISOString().split('T')[0];
-            const existing = historyMap.get(dateStr);
-            if (existing) {
-                existing.value = a.currentValue;
-            } else {
-                // To get the cost at this point in time, we'd need to find the latest transaction before this asset record
-                const costAtTime = (cat.transactions as any[])
-                    .filter((t: any) => t.transactedAt <= a.recordedAt)
-                    .reduce((acc: number, t: any) => {
-                        const amt = Number(t.amount);
-                        if (t.type === 'DEPOSIT') return acc + amt;
-                        if (t.type === 'WITHDRAW') return acc - amt;
-                        return acc;
-                    }, 0);
-
+                const dateStr = t.transactedAt.toISOString().split('T')[0];
                 historyMap.set(dateStr, {
-                    date: a.recordedAt,
-                    value: a.currentValue,
-                    cost: costAtTime
+                    date: t.transactedAt,
+                    value: 0,
+                    cost: runningCost
                 });
-            }
-        });
-
-        // Convert map to sorted array and fill in gaps
-        const history = Array.from(historyMap.values())
-            .sort((a, b) => a.date.getTime() - b.date.getTime())
-            .map(h => ({
-                date: h.date.toISOString(),
-                value: h.value,
-                cost: h.cost
-            }));
-
-        // If history is empty, add current state as a single point
-        if (history.length === 0) {
-            history.push({
-                date: new Date().toISOString(),
-                value: currentValue,
-                cost: costBasis
             });
-        } else {
-            // Ensure values are continuous
+
+            // 2. Assets
+            (c.assets || []).forEach((a: any) => {
+                const dateStr = a.recordedAt.toISOString().split('T')[0];
+                const existing = historyMap.get(dateStr);
+                if (existing) {
+                    existing.value = a.currentValue;
+                } else {
+                    // Estimate cost at this point
+                    const costAtTime = (c.transactions || [])
+                        .filter((t: any) => t.transactedAt <= a.recordedAt)
+                        .reduce((acc: number, t: any) => {
+                            const amt = Number(t.amount);
+                            if (t.type === 'DEPOSIT') return acc + amt;
+                            if (t.type === 'WITHDRAW') return acc - amt;
+                            return acc;
+                        }, 0);
+
+                    historyMap.set(dateStr, {
+                        date: a.recordedAt,
+                        value: a.currentValue,
+                        cost: costAtTime
+                    });
+                }
+            });
+
+            const sorted = Array.from(historyMap.values())
+                .sort((a, b) => a.date.getTime() - b.date.getTime())
+                .map(h => ({
+                    date: h.date, // keep as Date object for merging
+                    value: h.value,
+                    cost: h.cost
+                }));
+
+            // Fill gaps
+            if (sorted.length === 0) {
+                // If it's a leaf usage but has no data, maybe return current? 
+                // But for aggregation we might just want empty. 
+                // Actually, if a child has 0 history, it's just 0.
+                return [];
+            }
+
+            const continuous: any[] = [];
             let lastValue = 0;
             let lastCost = 0;
-            history.forEach(h => {
+
+            // We don't necessarily need to fill every single day here, 
+            // just ensure the "points" are valid updates. 
+            // However, for stacking, we need a common timeline.
+            // Let's just return the change points. The merger will handle "last known value".
+
+            // Wait, for single category view we filled gaps. 
+            // Let's do a simple fill for the returned array to be clean
+            sorted.forEach(h => {
                 if (h.value === 0 && lastValue !== 0) h.value = lastValue;
                 else if (h.value !== 0) lastValue = h.value;
 
                 if (h.cost === 0 && lastCost !== 0) h.cost = lastCost;
                 else if (h.cost !== 0) lastCost = h.cost;
+                continuous.push(h);
             });
+            return continuous;
+        };
+
+        const hasChildren = cat.children && cat.children.length > 0;
+        let history: any[] = [];
+        let currentValue = 0;
+        let costBasis = 0;
+        let childrenInfo: any[] = [];
+
+        if (hasChildren) {
+            // Aggregate Children
+            childrenInfo = cat.children.map((c: any) => ({
+                id: c.id,
+                name: c.name,
+                color: c.color
+            }));
+
+            // Calculate history for each child
+            const childHistories = cat.children.map((c: any) => ({
+                id: c.id,
+                items: calculateHistoryForCategory(c)
+            }));
+
+            // Collect all unique dates
+            const allDates = new Set<string>();
+            childHistories.forEach((ch: any) => {
+                ch.items.forEach((i: any) => allDates.add(i.date.toISOString()));
+            });
+
+            const sortedDates = Array.from(allDates).sort();
+
+            // Merge
+            const runningValues: Record<number, number> = {};
+            const runningCosts: Record<number, number> = {};
+
+            history = sortedDates.map(dateStr => {
+                const d = new Date(dateStr);
+                const point: any = { date: dateStr, value: 0, cost: 0 };
+
+                childHistories.forEach((ch: any) => {
+                    // Update running value if this child has an entry on this date
+                    const entry = ch.items.find((i: any) => i.date.toISOString() === dateStr);
+                    if (entry) {
+                        runningValues[ch.id] = entry.value;
+                        runningCosts[ch.id] = entry.cost;
+                    }
+                    // Apply current running value
+                    point[`child_${ch.id}`] = runningValues[ch.id] || 0;
+                    point.value += (runningValues[ch.id] || 0);
+                    point.cost += (runningCosts[ch.id] || 0);
+                });
+
+                return point;
+            });
+
+            // Consolidate current totals
+            currentValue = cat.children.reduce((sum: number, c: any) => {
+                const lastAsset = c.assets[c.assets.length - 1];
+                return sum + (lastAsset?.currentValue || 0);
+            }, 0);
+
+            // Recalculate cost basis
+            costBasis = history.length > 0 ? history[history.length - 1].cost : 0;
+
+        } else {
+            // Single Category Logic
+            const rawHistory = calculateHistoryForCategory(cat);
+            history = rawHistory.map(h => ({
+                date: h.date.toISOString(),
+                value: h.value,
+                cost: h.cost
+            }));
+
+            const latestAsset = cat.assets.length > 0 ? cat.assets[cat.assets.length - 1] : null;
+            currentValue = Number(latestAsset?.currentValue || 0);
+            costBasis = rawHistory.length > 0 ? rawHistory[rawHistory.length - 1].cost : 0;
+
+            // Use fallback logic for costBasis if history is empty but standard calculation exists
+            if (history.length === 0 && cat.isCash) {
+                costBasis = currentValue;
+                history.push({
+                    date: new Date().toISOString(),
+                    value: currentValue,
+                    cost: costBasis
+                });
+            }
         }
+
+        // Transactions (Show parent's direct + children's?) 
+        // For now, let's just show own + children's flattened
+        const allTransactions = [
+            ...(cat.transactions || []),
+            ...(hasChildren ? cat.children.flatMap((c: any) => c.transactions || []) : [])
+        ].map((t: any) => ({
+            id: `tx-${t.id}`,
+            date: t.transactedAt.toISOString(),
+            type: t.type,
+            amount: t.amount,
+            memo: t.memo,
+            // Point in time val is hard to map for combined, leave 0 or try to find matching history
+            pointInTimeValuation: 0
+        }));
+
+        const allAssets = [
+            ...(cat.assets || []),
+            ...(hasChildren ? cat.children.flatMap((c: any) => c.assets || []) : [])
+        ].map((a: any) => ({
+            id: `as-${a.id}`,
+            date: a.recordedAt.toISOString(),
+            type: 'VALUATION',
+            amount: 0,
+            pointInTimeValuation: a.currentValue,
+            memo: '評価額更新'
+        }));
 
         return {
             id: cat.id,
@@ -299,24 +406,8 @@ export async function getCategoryDetails(id: number) {
             costBasis,
             tags: (cat.tags as any[]).map((t: any) => t.tagOption?.name),
             history,
-            transactions: [
-                ...(cat.transactions as any[]).map((t: any) => ({
-                    id: `tx-${t.id}`,
-                    date: t.transactedAt.toISOString(),
-                    type: t.type,
-                    amount: t.amount,
-                    pointInTimeValuation: 0, // Injected below
-                    memo: t.memo
-                })),
-                ...(cat.assets as any[]).map((a: any) => ({
-                    id: `as-${a.id}`,
-                    date: a.recordedAt.toISOString(),
-                    type: 'VALUATION',
-                    amount: 0,
-                    pointInTimeValuation: a.currentValue,
-                    memo: '評価額更新'
-                }))
-            ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            children: childrenInfo,
+            transactions: [...allTransactions, ...allAssets].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
         };
     } catch (error) {
         console.error("Fetch detail error", error);
