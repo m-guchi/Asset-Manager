@@ -113,7 +113,7 @@ export default function Page() {
 
 
             {/* 2. Charts Section */}
-            <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+            <section className="grid gap-2 md:grid-cols-2 lg:grid-cols-7">
                 <div className="col-span-full md:col-span-1 lg:col-span-4 min-w-0">
                     <AssetHistoryChart data={historyData} tagGroups={tagGroups} />
                 </div>
