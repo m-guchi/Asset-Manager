@@ -11,133 +11,146 @@ interface HistoryPoint {
 
 export async function getHistoryData() {
     try {
-        // 1. Fetch all assets (history points) and transactions
-        const historyRecords = await prisma.asset.findMany({
-            include: {
-                category: {
-                    include: { tags: { include: { tagOption: true } } }
-                }
-            },
-            orderBy: { recordedAt: 'asc' }
-        })
+        console.log("[getHistoryData] Starting fetch...");
 
-        const categories = await prisma.category.findMany({
-            include: {
-                tags: { include: { tagOption: true } },
-                transactions: true
+        // 1. Fetch all data at once to minimize DB pressure
+        const [historyRecords, categories] = await Promise.all([
+            prisma.asset.findMany({ orderBy: { recordedAt: 'asc' } }),
+            prisma.category.findMany({
+                include: {
+                    tags: { include: { tagOption: true } },
+                    transactions: true
+                }
+            })
+        ]);
+
+        console.log(`[getHistoryData] Data loaded: ${historyRecords.length} records, ${categories.length} categories`);
+
+        if (!historyRecords.length || !categories.length) return [];
+
+        // 2. Normalize and sort dates
+        const dateSet = new Set<string>();
+        historyRecords.forEach(r => dateSet.add(r.recordedAt.toISOString().slice(0, 10)));
+        const sortedDates = Array.from(dateSet).sort();
+
+        // 3. Pre-calculate category relationships and effective tags
+        const childrenMap = new Map<number, number[]>();
+        const categoryMap = new Map<number, any>();
+        categories.forEach(cat => {
+            categoryMap.set(cat.id, cat);
+            if (cat.parentId) {
+                const siblings = childrenMap.get(cat.parentId) || [];
+                siblings.push(cat.id);
+                childrenMap.set(cat.parentId, siblings);
             }
-        })
+        });
 
-        if (historyRecords.length === 0) return []
+        const effectiveTagCache = new Map<number, string[]>();
+        const getEffectiveTags = (id: number): string[] => {
+            if (effectiveTagCache.has(id)) return effectiveTagCache.get(id)!;
+            const cat = categoryMap.get(id);
+            if (!cat) return [];
+            let tags = cat.tags.map((t: any) => t.tagOption?.name).filter(Boolean);
+            if (tags.length === 0 && cat.parentId) {
+                tags = getEffectiveTags(cat.parentId);
+            }
+            effectiveTagCache.set(id, tags);
+            return tags;
+        };
 
-        // 2. Extract unique dates (normalized to YYYY-MM-DD)
-        const uniqueDates = Array.from(new Set(historyRecords.map((r: any) => r.recordedAt.toISOString().slice(0, 10)))).sort() as string[]
+        // 4. Initial state
+        const latestValues = new Map<number, number>();
+        const latestCostBasis = new Map<number, number>();
 
-        // 3. For each date, calculate the state of ALL assets
-        // We use a map to keep track of the LATEST value for each category
-        const latestValues: Record<number, number> = {}
-        const latestCostBasis: Record<number, number> = {}
+        // Helper to sum own + children values (Recursive but safe)
+        const getConsolidated = (id: number, valSource: Map<number, number>, costSource: Map<number, number>, visited = new Set<number>()): { val: number, cost: number } => {
+            if (visited.has(id)) return { val: 0, cost: 0 }; // Circularity protection
+            visited.add(id);
 
-        const result: HistoryPoint[] = uniqueDates.map((dateStr: string) => {
-            const dateObj = new Date(dateStr)
+            const cat = categoryMap.get(id);
+            if (!cat) return { val: 0, cost: 0 };
 
-            // 1. Update own values for this date
-            const recordsOnThisDate = historyRecords.filter((r: any) => r.recordedAt.toISOString().slice(0, 10) === dateStr)
-            recordsOnThisDate.forEach((r: any) => {
-                latestValues[r.categoryId] = Number(r.currentValue)
-            })
+            const multiplier = cat.isLiability ? -1 : 1;
+            let val = (valSource.get(id) || 0) * multiplier;
+            let cost = (costSource.get(id) || 0) * (cat.isLiability ? 0 : 1);
 
-            // 2. Calculate own cost basis for this date
-            categories.forEach((cat: any) => {
+            const children = childrenMap.get(id) || [];
+            children.forEach(childId => {
+                const res = getConsolidated(childId, valSource, costSource, visited);
+                val += res.val;
+                cost += res.cost;
+            });
+
+            return { val, cost };
+        };
+
+        // 5. Generate points
+        const points: HistoryPoint[] = sortedDates.map(dateStr => {
+            const dateObj = new Date(dateStr);
+            const dateStrNormalized = dateStr;
+
+            // Update this date's values
+            historyRecords
+                .filter(r => r.recordedAt.toISOString().slice(0, 10) === dateStrNormalized)
+                .forEach(r => latestValues.set(r.categoryId, Number(r.currentValue)));
+
+            // Update cost basis (cumulative transactions)
+            categories.forEach(cat => {
                 if (cat.isCash) {
-                    latestCostBasis[cat.id] = (latestValues[cat.id] || 0)
+                    latestCostBasis.set(cat.id, latestValues.get(cat.id) || 0);
                 } else {
-                    latestCostBasis[cat.id] = (cat.transactions || [])
-                        .filter((trx: any) => new Date(trx.transactedAt) <= dateObj)
-                        .reduce((sum: number, trx: any) => {
-                            if (trx.type === 'DEPOSIT') return sum + Number(trx.amount)
-                            if (trx.type === 'WITHDRAW') return sum - Number(trx.amount)
-                            return sum
-                        }, 0)
+                    const cost = (cat.transactions || [])
+                        .filter((t: any) => new Date(t.transactedAt) <= dateObj)
+                        .reduce((sum: number, t: any) => {
+                            const amt = Number(t.amount);
+                            return t.type === 'DEPOSIT' ? sum + amt : (t.type === 'WITHDRAW' ? sum - amt : sum);
+                        }, 0);
+                    latestCostBasis.set(cat.id, cost);
                 }
-            })
+            });
 
-            // 3. Hierarchical Aggregation for the totals
-            // We need to calculate consolidated values (Self + Children) to avoid double counting
-            const consolidatedValues: Record<number, number> = {}
-            const consolidatedCosts: Record<number, number> = {}
+            const point: HistoryPoint = { date: dateStr, totalAssets: 0, totalCost: 0 };
 
-            categories.forEach((cat: any) => {
-                // Start with own value
-                // FIX: If category has children, we ignore its OWN value to prevent double counting 
-                // (assuming parent acts as a folder and shouldn't satisfy assets directly if it has sub-assets)
-                const hasChildren = categories.some((c: any) => c.parentId === cat.id);
-                let val = hasChildren ? 0 : (latestValues[cat.id] || 0);
+            // Tag Aggregation (Per Category Contribution)
+            categories.forEach(cat => {
+                const val = (latestValues.get(cat.id) || 0) * (cat.isLiability ? -1 : 1);
+                if (val !== 0) {
+                    const tags = getEffectiveTags(cat.id);
+                    tags.forEach(t => {
+                        const key = `tag_${t}`;
+                        point[key] = (Number(point[key]) || 0) + val;
+                    });
+                }
+            });
 
-                // Use actual cost basis logic (or ignore for parents if needed)
-                let cost = hasChildren ? 0 : (latestCostBasis[cat.id] || 0);
+            // Total Aggregation (Roots only)
+            let grossAssets = 0;
+            let liabilities = 0;
+            let totalCost = 0;
 
-                // Add values from all children
-                const children = categories.filter((c: any) => c.parentId === cat.id)
-                children.forEach((child: any) => {
-                    // For children, we take their own values (assuming 2 levels max or recursive)
-                    // Note: If 3 levels, this logic needs recursion, but currently seems 2 levels.
-                    // To be safe, look up child's raw value.
-                    val += (latestValues[child.id] || 0)
-                    cost += (latestCostBasis[child.id] || 0)
-                })
-
-                consolidatedValues[cat.id] = val
-                consolidatedCosts[cat.id] = cost
-            })
-
-            const point: HistoryPoint = { date: dateStr, totalAssets: 0, totalCost: 0 }
-
-            // 4. Calculate Final Totals using only TOP-LEVEL categories (to avoid double counting)
-            categories.forEach((cat: any) => {
-                const multiplier = cat.isLiability ? -1 : 1
-
-                // Breakdown by Tag (Use own values to avoid double counting if multiple items in hierarchy have same tag)
-                const hasChildren = categories.some((c: any) => c.parentId === cat.id);
-                const val = hasChildren ? 0 : (latestValues[cat.id] || 0)
-                const tags = (cat as any).tags || []
-                tags.forEach((tag: any) => {
-                    const tagName = String(tag.tagOption?.name || "")
-                    if (!tagName) return
-                    const key = `tag_${tagName}`
-                    if (!point[key]) point[key] = 0
-                    point[key] = Number(point[key]) + (val * multiplier)
-                })
-
-                // Breakdown by Category Name (Use consolidated values for top-level, or own values for children)
-                // Dashboard usually shows Top-level names in the chart
-                const catName = String(cat.name)
+            categories.forEach(cat => {
                 if (!cat.parentId) {
-                    // This is a top-level category
-                    const aggVal = consolidatedValues[cat.id]
-                    const aggCost = consolidatedCosts[cat.id]
-
-                    // EXCLUDE liabilities from the main totals per user request
-                    if (!cat.isLiability) {
-                        point.totalAssets += aggVal
-                        point.totalCost += aggCost
+                    const res = getConsolidated(cat.id, latestValues, latestCostBasis);
+                    if (cat.isLiability) {
+                        liabilities += Math.abs(res.val);
+                    } else {
+                        grossAssets += res.val;
+                        totalCost += Math.max(0, res.cost);
                     }
-
-                    if (!point[catName]) point[catName] = 0
-                    point[catName] = Number(point[catName]) + (aggVal * multiplier)
-                } else {
-                    // For children, we don't add to totals, but we can keep their own name breakdown if needed
-                    if (!point[catName]) point[catName] = 0
-                    point[catName] = Number(point[catName]) + (val * multiplier)
                 }
-            })
+            });
 
-            return point
-        })
+            point.totalAssets = grossAssets;
+            point.totalCost = totalCost;
+            point.netWorth = grossAssets - liabilities;
 
-        return result
+            return point;
+        });
+
+        console.log(`[getHistoryData] Finished. Points generated: ${points.length}`);
+        return points;
     } catch (error) {
-        console.error("Failed to fetch history data:", error)
-        return []
+        console.error("[getHistoryData] CRITICAL ERROR:", error);
+        return [];
     }
 }

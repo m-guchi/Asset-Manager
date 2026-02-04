@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { Plus, Tag as TagIcon, LayoutGrid, Trash2, Edit2, Loader2, Save, ChevronUp, ChevronDown, AlertCircle, GripVertical, Check, X, ArrowDownUp, Settings2 } from "lucide-react"
+import { Plus, Tag as TagIcon, LayoutGrid, Trash2, Edit2, Loader2, Save, ChevronUp, ChevronDown, AlertCircle, GripVertical, Check, X, ArrowDownUp, Settings2, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -20,6 +20,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "sonner"
 import { getCategories, saveCategory, deleteCategory, updateCategoryOrder, reorderCategoriesAction } from "../actions/categories"
 import { getTagGroups, saveTagGroup, deleteTagGroup, reorderTagGroupsAction, getAssetsForTagGroup, updateAssetTagMappings } from "../actions/tags" // Removed getTags
@@ -59,9 +60,12 @@ function AssetsContent() {
     const [tagGroups, setTagGroups] = useState<any[]>([])
     const [isLoading, setIsLoading] = useState(true)
 
-    const fetchData = useCallback(async () => {
-        setIsLoading(true)
+    const fetchData = useCallback(async (silent = false) => {
+        if (!silent && categories.length === 0 && tagGroups.length === 0) {
+            setIsLoading(true)
+        }
         try {
+            console.log("Fetching asset management data...");
             const [catData, groupData] = await Promise.all([
                 getCategories(),
                 getTagGroups()
@@ -74,7 +78,7 @@ function AssetsContent() {
         } finally {
             setIsLoading(false)
         }
-    }, [])
+    }, [categories.length, tagGroups.length])
 
     useEffect(() => {
         fetchData()
@@ -123,7 +127,7 @@ function AssetsContent() {
                 </TabsContent>
 
                 <TabsContent value="groups" className="space-y-4">
-                    <TagGroupManagement tagGroups={tagGroups} onRefresh={fetchData} />
+                    <TagGroupManagement tagGroups={tagGroups} categories={categories} onRefresh={fetchData} />
                 </TabsContent>
             </Tabs>
         </div>
@@ -229,7 +233,6 @@ function CategoryManagement({ categories, tagGroups, onRefresh }: { categories: 
                             <TableRow>
                                 <TableHead>資産名</TableHead>
                                 <TableHead>種類</TableHead>
-                                <TableHead>設定（分類）</TableHead>
                                 <TableHead className="text-right">操作</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -253,15 +256,6 @@ function CategoryManagement({ categories, tagGroups, onRefresh }: { categories: 
                                             <Badge variant={cat.isLiability ? "destructive" : cat.isCash ? "outline" : "secondary"} className={isChild ? "opacity-70 scale-90" : ""}>
                                                 {cat.isLiability ? "負債" : cat.isCash ? "現金・預金" : "投資商品"}
                                             </Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-wrap gap-1">
-                                                {cat.tags?.map((tagName: string, idx: number) => (
-                                                    <Badge key={`${cat.id}-t-${idx}`} variant="outline" className="text-[10px] text-muted-foreground bg-white">
-                                                        {tagName}
-                                                    </Badge>
-                                                ))}
-                                            </div>
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">
@@ -494,7 +488,7 @@ function SortableCategoryItem({ category, children }: { category: any, children:
 // Tag Group Management (New Implementation)
 // ==========================================
 
-function TagGroupManagement({ tagGroups, onRefresh }: { tagGroups: any[], onRefresh: () => void }) {
+function TagGroupManagement({ tagGroups, onRefresh, categories }: { tagGroups: any[], onRefresh: () => void, categories: any[] }) {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [editingGroup, setEditingGroup] = useState<any>(null)
     const [isReordering, setIsReordering] = useState(false)
@@ -603,19 +597,34 @@ function TagGroupManagement({ tagGroups, onRefresh }: { tagGroups: any[], onRefr
                         <DialogTitle>{editingGroup ? "グループの編集" : "新規グループ作成"}</DialogTitle>
                         <DialogDescription>グループ名と、その選択肢を定義します。</DialogDescription>
                     </DialogHeader>
-                    <TagGroupForm initialData={editingGroup} onSave={async (data: any) => {
-                        await saveTagGroup(data)
-                        toast.success("保存しました")
-                        setIsDialogOpen(false)
-                        onRefresh()
-                    }} onCancel={() => setIsDialogOpen(false)} />
+                    <TagGroupForm initialData={editingGroup}
+                        onSave={async (data: any) => {
+                            await saveTagGroup(data)
+                            toast.success("保存しました")
+                            setIsDialogOpen(false)
+                            onRefresh()
+                        }}
+                        onApply={async (data: any) => {
+                            const result = await saveTagGroup(data)
+                            if (result.success) {
+                                toast.success("適用しました")
+                                onRefresh()
+                                // Update local editing state with returned group (has IDs)
+                                if (result.group) {
+                                    setEditingGroup(result.group)
+                                }
+                            } else {
+                                toast.error("保存に失敗しました")
+                            }
+                        }}
+                        onCancel={() => setIsDialogOpen(false)} />
                 </DialogContent>
             </Dialog>
         </Card>
     )
 }
 
-function TagGroupForm({ initialData, onSave, onCancel }: any) {
+function TagGroupForm({ initialData, onSave, onApply, onCancel }: any) {
     const [activeTab, setActiveTab] = useState("settings")
     const [name, setName] = useState(initialData?.name || "")
     // options: { id?: number, name: string, order: number }
@@ -623,6 +632,16 @@ function TagGroupForm({ initialData, onSave, onCancel }: any) {
         initialData?.options?.map((o: any) => ({ ...o })) || []
     )
     const [newOptionName, setNewOptionName] = useState("")
+
+    // Update state when initialData changes (e.g. after Apply)
+    useEffect(() => {
+        if (initialData) {
+            setName(initialData.name || "")
+            // Only update options if ID matches to avoid overwriting work in progress for new item?
+            // Actually Apply is "Save", so overwriting is correct as we want the new IDs.
+            setOptions(initialData.options?.map((o: any) => ({ ...o })) || [])
+        }
+    }, [initialData])
 
     const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
 
@@ -634,6 +653,12 @@ function TagGroupForm({ initialData, onSave, onCancel }: any) {
 
     const removeOption = (idx: number) => {
         setOptions(options.filter((_, i) => i !== idx))
+    }
+
+    const updateOptionName = (idx: number, newName: string) => {
+        const newOpts = [...options]
+        newOpts[idx].name = newName
+        setOptions(newOpts)
     }
 
     const handleDragEnd = (event: DragEndEvent) => {
@@ -680,7 +705,11 @@ function TagGroupForm({ initialData, onSave, onCancel }: any) {
                         <div className="border rounded-md p-2 space-y-2 max-h-[200px] overflow-y-auto">
                             {options.map((opt, idx) => (
                                 <div key={idx} className="flex items-center gap-2 bg-muted/40 p-2 rounded">
-                                    <span className="text-sm font-medium flex-1">{opt.name}</span>
+                                    <Input
+                                        value={opt.name}
+                                        onChange={(e) => updateOptionName(idx, e.target.value)}
+                                        className="h-8 flex-1 bg-background"
+                                    />
                                     <div className="flex gap-1">
                                         <Button size="icon" variant="ghost" className="h-6 w-6" disabled={idx === 0} onClick={() => moveOption(idx, 'up')}><ChevronUp className="h-3 w-3" /></Button>
                                         <Button size="icon" variant="ghost" className="h-6 w-6" disabled={idx === options.length - 1} onClick={() => moveOption(idx, 'down')}><ChevronDown className="h-3 w-3" /></Button>
@@ -704,6 +733,7 @@ function TagGroupForm({ initialData, onSave, onCancel }: any) {
 
                     <DialogFooter className="mt-4">
                         <Button variant="outline" onClick={onCancel}>キャンセル</Button>
+                        {onApply && <Button variant="secondary" onClick={() => onApply({ id: initialData?.id, name, options })}>適用</Button>}
                         <Button onClick={() => onSave({ id: initialData?.id, name, options })}>保存</Button>
                     </DialogFooter>
                 </TabsContent>
@@ -730,6 +760,39 @@ function TagGroupAssetManager({ groupId, options }: { groupId: number, options: 
     const [isLoading, setIsLoading] = useState(true)
     const [isSaving, setIsSaving] = useState(false)
     const [hasChanges, setHasChanges] = useState(false)
+    const [selectedAssetIds, setSelectedAssetIds] = useState<number[]>([])
+    const [searchTerm, setSearchTerm] = useState("")
+
+    const filteredAssets = assets.filter(a =>
+        a.name.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+
+    const toggleSelectAll = (checked: boolean) => {
+        if (checked) {
+            setSelectedAssetIds(filteredAssets.map(a => a.id))
+        } else {
+            setSelectedAssetIds([])
+        }
+    }
+
+    const toggleSelect = (id: number) => {
+        if (selectedAssetIds.includes(id)) {
+            setSelectedAssetIds(prev => prev.filter(i => i !== id))
+        } else {
+            setSelectedAssetIds(prev => [...prev, id])
+        }
+    }
+
+    const applyBulkType = (optionIdStr: string) => {
+        if (selectedAssetIds.length === 0) return
+        const optionId = optionIdStr === "unselected" ? null : parseInt(optionIdStr)
+        setAssets(prev => prev.map(a =>
+            selectedAssetIds.includes(a.id) ? { ...a, currentOptionId: optionId } : a
+        ))
+        setHasChanges(true)
+        setSelectedAssetIds([])
+        toast.success(`適用しました`)
+    }
 
     useEffect(() => {
         loadAssets()
@@ -793,26 +856,63 @@ function TagGroupAssetManager({ groupId, options }: { groupId: number, options: 
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center mb-2">
-                <p className="text-sm text-muted-foreground">各資産の分類を選択してください。</p>
+                <div className="flex-1 max-w-sm mr-4">
+                    <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="資産を検索..."
+                            className="pl-8 h-9"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                </div>
                 <Button size="sm" onClick={handleSave} disabled={!hasChanges || isSaving}>
                     {isSaving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
-                    一括保存
+                    保存
                 </Button>
+            </div>
+
+            <div className="flex items-center gap-2 p-2 bg-muted/20 rounded-md border mb-2">
+                <Checkbox
+                    checked={filteredAssets.length > 0 && selectedAssetIds.length === filteredAssets.length}
+                    onCheckedChange={toggleSelectAll}
+                />
+                <span className="text-sm text-muted-foreground mr-2">{selectedAssetIds.length > 0 ? `${selectedAssetIds.length}件選択中` : "すべて選択"}</span>
+
+                <Select onValueChange={applyBulkType} disabled={selectedAssetIds.length === 0}>
+                    <SelectTrigger className="h-8 w-[180px]">
+                        <SelectValue placeholder="一括適用..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="unselected">未設定にする</SelectItem>
+                        {options.map(opt => (
+                            opt.id ? <SelectItem key={opt.id} value={opt.id.toString()}>{opt.name}</SelectItem> : null
+                        ))}
+                    </SelectContent>
+                </Select>
             </div>
 
             <div className="border rounded-md overflow-hidden max-h-[400px] overflow-y-auto">
                 <Table>
                     <TableHeader className="bg-muted/50 sticky top-0 z-10">
                         <TableRow>
+                            <TableHead className="w-[40px]"></TableHead>
                             <TableHead className="w-[60%]">資産名</TableHead>
                             <TableHead>分類</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {assets.map(asset => {
+                        {filteredAssets.map(asset => {
                             const isChild = !!asset.parentId
                             return (
-                                <TableRow key={asset.id}>
+                                <TableRow key={asset.id} className={selectedAssetIds.includes(asset.id) ? "bg-muted/20" : ""}>
+                                    <TableCell className="w-[40px] p-2 text-center">
+                                        <Checkbox
+                                            checked={selectedAssetIds.includes(asset.id)}
+                                            onCheckedChange={() => toggleSelect(asset.id)}
+                                        />
+                                    </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
                                             {isChild && <div className="w-4" />}
@@ -831,9 +931,7 @@ function TagGroupAssetManager({ groupId, options }: { groupId: number, options: 
                                             <SelectContent>
                                                 <SelectItem value="unselected" className="text-muted-foreground">未設定</SelectItem>
                                                 {options.map((opt: any) => (
-                                                    <SelectItem key={opt.id || `temp-${opt.name}`} value={opt.id?.toString() || "temp"} disabled={!opt.id}>
-                                                        {opt.name}
-                                                    </SelectItem>
+                                                    opt.id ? <SelectItem key={opt.id} value={opt.id.toString()}>{opt.name}</SelectItem> : null
                                                 ))}
                                             </SelectContent>
                                         </Select>

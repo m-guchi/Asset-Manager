@@ -45,7 +45,7 @@ export function SummaryCards({
                     </div>
 
                     {/* Liability / Net Worth Breakdown */}
-                    <div className="flex flex-col gap-1 p-3 md:p-5 border-r border-b md:border-b-0 border-border/50 transition-colors hover:bg-muted/30 col-span-1">
+                    <div className="flex flex-col gap-1 p-3 md:p-5 border-b md:border-r md:border-b-0 border-border/50 transition-colors hover:bg-muted/30 col-span-1">
                         <div className="flex flex-col gap-1 pr-2">
                             <div className="flex justify-between items-baseline border-b border-border/30 pb-1">
                                 <span className="text-[9px] text-muted-foreground font-medium uppercase">負債</span>
@@ -77,7 +77,7 @@ export function SummaryCards({
                     </div>
 
                     {/* Profit Percent */}
-                    <div className="flex flex-col gap-1 p-4 md:p-6 transition-colors hover:bg-muted/30 col-span-1 border-b md:border-b-0">
+                    <div className="flex flex-col gap-1 p-4 md:p-6 transition-colors hover:bg-muted/30 col-span-1">
                         <div className="flex items-center gap-2 text-muted-foreground">
                             <Percent className="h-4 w-4" />
                             <span className="text-xs md:text-sm font-medium">損益率</span>
