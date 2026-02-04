@@ -41,9 +41,15 @@ import {
     CartesianGrid,
     XAxis,
     YAxis,
-    Tooltip,
-    ResponsiveContainer
+    ResponsiveContainer,
+    ComposedChart,
+    Line
 } from "recharts"
+import {
+    ChartContainer,
+    ChartTooltip,
+    ChartTooltipContent,
+} from "@/components/ui/chart"
 
 import { getCategoryDetails } from "../../actions/categories"
 import { updateValuation, addTransaction, deleteHistoryItem, updateHistoryItem } from "../../actions/assets"
@@ -250,104 +256,134 @@ export default function AssetDetailPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart
-                                data={(() => {
-                                    if (!category.history || category.history.length === 0) return []
-                                    const now = new Date()
-                                    const cutoff = new Date()
-                                    let isAll = false
-
-                                    // Normalize cutoff to start of day
-                                    cutoff.setHours(0, 0, 0, 0)
-
-                                    if (timeRange === "1M") cutoff.setMonth(now.getMonth() - 1)
-                                    else if (timeRange === "3M") cutoff.setMonth(now.getMonth() - 3)
-                                    else if (timeRange === "1Y") cutoff.setFullYear(now.getFullYear() - 1)
-                                    else isAll = true
-
-                                    const allData = category.history.map((h: any) => ({ ...h, date: new Date(h.date).getTime() }))
-                                    if (isAll) return allData
-
-                                    const cutoffTime = cutoff.getTime()
-                                    const filtered = allData.filter((h: any) => h.date >= cutoffTime)
-
-                                    // Find point just before cutoff to anchor to the left edge
-                                    const beforeCutoff = [...category.history]
-                                        .reverse()
-                                        .find((h: any) => new Date(h.date).getTime() < cutoffTime)
-
-                                    if (beforeCutoff) {
-                                        const startPoint = {
-                                            ...beforeCutoff,
-                                            date: cutoffTime
-                                        }
-                                        return [startPoint, ...filtered]
-                                    }
-                                    return filtered
-                                })()}
-                                margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                        {category && (
+                            <ChartContainer
+                                config={{
+                                    value: {
+                                        label: "評価額",
+                                        color: category.color || "hsl(var(--primary))",
+                                    },
+                                    cost: {
+                                        label: "取得原価",
+                                        color: "hsl(var(--muted-foreground))",
+                                    },
+                                }}
+                                className="h-full w-full"
                             >
-                                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                                <XAxis
-                                    dataKey="date"
-                                    type="number"
-                                    domain={['dataMin', 'dataMax']}
-                                    tickLine={false}
-                                    axisLine={false}
-                                    tickMargin={8}
-                                    className="text-[10px]"
-                                    tickFormatter={(tick) => {
-                                        const date = new Date(tick)
-                                        if (timeRange === "1M" || timeRange === "3M") {
-                                            return `${date.getMonth() + 1}/${date.getDate()}`
+                                <ComposedChart
+                                    data={(() => {
+                                        if (!category.history || category.history.length === 0) return []
+                                        const now = new Date()
+                                        const cutoff = new Date()
+                                        let isAll = false
+
+                                        // Normalize cutoff to start of day
+                                        cutoff.setHours(0, 0, 0, 0)
+
+                                        if (timeRange === "1M") cutoff.setMonth(now.getMonth() - 1)
+                                        else if (timeRange === "3M") cutoff.setMonth(now.getMonth() - 3)
+                                        else if (timeRange === "1Y") cutoff.setFullYear(now.getFullYear() - 1)
+                                        else isAll = true
+
+                                        const allData = category.history.map((h: any) => ({ ...h, date: new Date(h.date).getTime() }))
+                                        if (isAll) return allData
+
+                                        const cutoffTime = cutoff.getTime()
+                                        const filtered = allData.filter((h: any) => h.date >= cutoffTime)
+
+                                        // Find point just before cutoff to anchor to the left edge
+                                        const beforeCutoff = [...category.history]
+                                            .reverse()
+                                            .find((h: any) => new Date(h.date).getTime() < cutoffTime)
+
+                                        if (beforeCutoff) {
+                                            const startPoint = {
+                                                ...beforeCutoff,
+                                                date: cutoffTime
+                                            }
+                                            return [startPoint, ...filtered]
                                         }
-                                        return `${date.getFullYear()}/${date.getMonth() + 1}`
-                                    }}
-                                    minTickGap={30}
-                                />
-                                <YAxis
-                                    tickFormatter={(val) => `${(val / 10000).toFixed(0)}万`}
-                                    width={45}
-                                    tickLine={false}
-                                    axisLine={false}
-                                    tickMargin={4}
-                                    className="text-[10px]"
-                                />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}
-                                    itemStyle={{ color: 'var(--foreground)' }}
-                                    labelFormatter={(label) => {
-                                        const d = new Date(label)
-                                        return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
-                                    }}
-                                    formatter={(value: number, name: string) => [
-                                        `¥${value.toLocaleString()}`,
-                                        name
-                                    ]}
-                                />
-                                <Area
-                                    type="linear"
-                                    dataKey="value"
-                                    name="評価額"
-                                    stroke={category.color}
-                                    fill={category.color}
-                                    fillOpacity={0.3}
-                                    strokeWidth={2}
-                                />
-                                {!category.isCash && (
+                                        return filtered
+                                    })()}
+                                    margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                                >
+                                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                                    <XAxis
+                                        dataKey="date"
+                                        type="number"
+                                        domain={['dataMin', 'dataMax']}
+                                        tickLine={false}
+                                        axisLine={false}
+                                        tickMargin={8}
+                                        className="text-[10px]"
+                                        tickFormatter={(tick) => {
+                                            const date = new Date(tick)
+                                            if (timeRange === "1M" || timeRange === "3M") {
+                                                return `${date.getMonth() + 1}/${date.getDate()}`
+                                            }
+                                            return `${date.getFullYear()}/${date.getMonth() + 1}`
+                                        }}
+                                        minTickGap={30}
+                                    />
+                                    <YAxis
+                                        tickFormatter={(val) => `${(val / 10000).toFixed(0)}万`}
+                                        width={45}
+                                        tickLine={false}
+                                        axisLine={false}
+                                        tickMargin={4}
+                                        className="text-[10px]"
+                                    />
+                                    <ChartTooltip
+                                        cursor={false}
+                                        content={
+                                            <ChartTooltipContent
+                                                indicator="dot"
+                                                labelFormatter={(_, payload) => {
+                                                    if (!payload || !payload.length || !payload[0].payload) return "";
+                                                    const d = new Date(payload[0].payload.date);
+                                                    if (isNaN(d.getTime())) return "";
+                                                    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
+                                                }}
+                                                formatter={(value: any, name: any, item: any, index: any) => (
+                                                    <div className="flex w-full items-center justify-between gap-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <div
+                                                                className="h-2.5 w-2.5 rounded-[2px]"
+                                                                style={{ backgroundColor: item.color }}
+                                                            />
+                                                            <span className="text-muted-foreground">{name}</span>
+                                                        </div>
+                                                        <span className="font-mono font-medium tabular-nums text-foreground">
+                                                            ¥{Number(value).toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            />
+                                        }
+                                    />
                                     <Area
                                         type="linear"
-                                        dataKey="cost"
-                                        name="取得原価"
-                                        stroke="#888888"
-                                        fill="none"
+                                        dataKey="value"
+                                        name="評価額"
+                                        stroke="var(--color-value)"
+                                        fill="var(--color-value)"
+                                        fillOpacity={0.3}
                                         strokeWidth={2}
-                                        strokeDasharray="5 5"
                                     />
-                                )}
-                            </AreaChart>
-                        </ResponsiveContainer>
+                                    {!category.isCash && (
+                                        <Line
+                                            type="monotone"
+                                            dataKey="cost"
+                                            name="取得原価"
+                                            stroke="#888888"
+                                            strokeWidth={2}
+                                            strokeDasharray="4 4"
+                                            dot={false}
+                                        />
+                                    )}
+                                </ComposedChart>
+                            </ChartContainer>
+                        )}
                     </div>
                 </CardContent>
             </Card>
