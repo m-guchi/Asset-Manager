@@ -142,7 +142,7 @@ export function AssetHistoryChart({
                 <div className="w-full flex items-center gap-2 overflow-x-auto pb-0.5 mt-0.5 no-scrollbar max-w-full">
                     <div className="flex bg-muted/50 rounded-md p-0.5 border" onClick={(e) => e.stopPropagation()}>
                         <button
-                            onClick={(e) => { e.stopPropagation(); setMode("total"); }}
+                            onClick={(e) => { e.stopPropagation(); setMode("total"); setShowPercent(false); }}
                             className={`px-2 py-1 text-[10px] rounded-md transition-all whitespace-nowrap ${mode === "total"
                                 ? "bg-background text-foreground shadow-sm font-bold"
                                 : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
@@ -320,26 +320,31 @@ export function AssetHistoryChart({
                         {/* Controls Footer */}
                         <div className="flex items-center justify-between px-4 pb-4 mt-0 shrink-0">
                             <div className="flex bg-muted/50 rounded-md p-0.5 border">
-                                {["1M", "3M", "1Y", "ALL"].map((range) => (
-                                    <button
-                                        key={range}
-                                        onClick={() => setTimeRange(range)}
-                                        className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${timeRange === range
-                                            ? "bg-background text-foreground shadow-sm"
-                                            : "text-muted-foreground hover:text-foreground"}`}
-                                    >
-                                        {range === "ALL" ? "全期間" : range}
-                                    </button>
-                                ))}
+                                {["1M", "3M", "1Y", "ALL"].map((range) => {
+                                    const label = { "1M": "1ヶ月", "3M": "3ヶ月", "1Y": "1年", "ALL": "全期間" }[range] || range;
+                                    return (
+                                        <button
+                                            key={range}
+                                            onClick={() => setTimeRange(range)}
+                                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${timeRange === range
+                                                ? "bg-background text-foreground shadow-sm"
+                                                : "text-muted-foreground hover:text-foreground"}`}
+                                        >
+                                            {label}
+                                        </button>
+                                    )
+                                })}
                             </div>
-                            <button
-                                onClick={() => setShowPercent(!showPercent)}
-                                className={`px-3 py-1 text-[10px] font-bold rounded-md border transition-all ${showPercent
-                                    ? "bg-foreground text-background"
-                                    : "bg-background text-muted-foreground hover:text-foreground"}`}
-                            >
-                                100%
-                            </button>
+                            {mode === "tag" && (
+                                <button
+                                    onClick={() => setShowPercent(!showPercent)}
+                                    className={`px-3 py-1 text-[10px] font-bold rounded-md border transition-all ${showPercent
+                                        ? "bg-foreground text-background"
+                                        : "bg-background text-muted-foreground hover:text-foreground"}`}
+                                >
+                                    100%
+                                </button>
+                            )}
                         </div>
                     </div>
                 </ChartContainer>
