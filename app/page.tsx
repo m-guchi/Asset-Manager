@@ -91,10 +91,11 @@ export default function Page() {
     }
 
     return (
-        <div className="flex flex-col gap-4 p-2 md:p-4">
+        <div className="flex flex-col gap-2 p-2 md:p-4">
             {/* Database Setup Alert (Visible if no categories found) */}
             {/* 1. Summary Cards */}
-            <section className="mb-2 md:mb-4">
+            {/* 1. Summary Cards */}
+            <section>
                 <SummaryCards
                     netWorth={totalAssets} // Passing Gross Assets as the headline per request
                     totalAssets={totalAssets}
@@ -104,11 +105,7 @@ export default function Page() {
                 />
             </section>
 
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-end mb-2">
-                <div className="flex flex-wrap gap-2 pt-1">
-                    {/* Always allow seeding if database is empty or we are in development */}
-                </div>
-            </div>
+
 
 
 
