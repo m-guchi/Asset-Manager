@@ -24,7 +24,8 @@ interface HistoryPoint {
 interface TagGroup {
     id: number
     name: string
-    tags: string[]
+    tags?: string[]
+    options?: { id: number, name: string }[]
 }
 
 // Color Mapping
@@ -56,7 +57,8 @@ export function AssetHistoryChart({
 
     const activeKeys = React.useMemo(() => {
         if (mode === "tag") {
-            return tagGroups.find(g => g.id === selectedTagGroup)?.tags || []
+            const grp = tagGroups.find(g => g.id === selectedTagGroup)
+            return grp?.options?.map(o => o.name) || grp?.tags || []
         }
         return []
     }, [mode, selectedTagGroup, tagGroups])

@@ -8,7 +8,12 @@ export async function getCategories() {
         // 1. Fetch all categories first (flat)
         const allCategories = await prisma.category.findMany({
             include: {
-                tags: true,
+                tags: {
+                    include: {
+                        tagGroup: true,
+                        tagOption: true
+                    }
+                },
                 assets: {
                     orderBy: { recordedAt: 'desc' },
                     take: 1
@@ -46,13 +51,7 @@ export async function getCategories() {
 
         if (!categories || categories.length === 0) return [];
 
-        // 2. Fetch tag groups and tags for conflict check
-        let tagGroups: any[] = [];
-        try {
-            tagGroups = await prisma.tagGroup.findMany({ include: { items: { include: { tag: true } } } });
-        } catch (e) {
-            console.error("[getCategories] TagGroups fetch error:", e);
-        }
+        // Tag groups fetch for conflicts is removed as new schema handles it
 
         // 3. Manually map and aggregate (instead of deep include)
         const mapped = categories.map((cat: any) => {
@@ -100,14 +99,9 @@ export async function getCategories() {
                     }
                 });
 
-                // Tag conflict detection
+                // Tag conflict detection: Removed
                 const conflicts: string[] = [];
                 const catTags = cat.tags || [];
-                tagGroups.forEach(group => {
-                    const groupTagIds = (group.items || []).map((item: any) => item.tag?.id);
-                    const matchedTags = catTags.filter((t: any) => t && groupTagIds.includes(t.id));
-                    if (matchedTags.length > 1) conflicts.push(group.name);
-                });
 
                 return {
                     id: cat.id,
@@ -123,7 +117,13 @@ export async function getCategories() {
                     isLiability: !!cat.isLiability,
                     valuationOrder: cat.valuationOrder ?? 0,
                     isValuationTarget: cat.isValuationTarget ?? true,
-                    tags: catTags.map((t: any) => t?.name || ""),
+                    tags: catTags.map((t: any) => t.tagOption?.name || ""),
+                    tagSettings: catTags.map((t: any) => ({
+                        groupId: t.tagGroupId,
+                        groupName: t.tagGroup?.name,
+                        optionId: t.tagOptionId,
+                        optionName: t.tagOption?.name
+                    })),
                     conflicts
                 };
             } catch (err) {
@@ -160,8 +160,8 @@ export async function saveCategory(data: {
     order?: number
     isCash: boolean
     isLiability: boolean
-    tags: string[]
     parentId?: number | null
+    tagSettings: { groupId: number, optionId: number }[]
 }) {
     try {
         const baseData = {
@@ -173,22 +173,20 @@ export async function saveCategory(data: {
             parentId: data.parentId === 0 ? null : data.parentId,
         }
 
-        if (data.id) {
+        let categoryId = data.id
+
+        if (categoryId) {
+            // Update basic info
             await prisma.category.update({
-                where: { id: data.id },
-                data: {
-                    ...baseData,
-                    tags: {
-                        set: [],
-                        connectOrCreate: data.tags.map(tagName => ({
-                            where: { name: tagName },
-                            create: { name: tagName }
-                        }))
-                    }
-                }
+                where: { id: categoryId },
+                data: baseData
+            })
+            // Update Tags: Delete all and re-insert
+            await prisma.categoryTag.deleteMany({
+                where: { categoryId: categoryId }
             })
         } else {
-            // Find max order for new asset
+            // Create New
             const maxOrder = await prisma.category.aggregate({
                 _max: { order: true }
             })
@@ -198,14 +196,11 @@ export async function saveCategory(data: {
                 data: {
                     ...baseData,
                     order: data.order ?? nextOrder,
-                    tags: {
-                        connectOrCreate: data.tags.map(tagName => ({
-                            where: { name: tagName },
-                            create: { name: tagName }
-                        }))
-                    }
                 }
             })
+            categoryId = category.id
+
+            // Create initial asset record
             await prisma.asset.create({
                 data: {
                     categoryId: category.id,
@@ -213,6 +208,18 @@ export async function saveCategory(data: {
                 }
             })
         }
+
+        // Insert new tags
+        if (data.tagSettings && data.tagSettings.length > 0 && categoryId) {
+            await prisma.categoryTag.createMany({
+                data: data.tagSettings.map(s => ({
+                    categoryId: categoryId!, // ! is safe because we ensured it exists
+                    tagGroupId: s.groupId,
+                    tagOptionId: s.optionId
+                }))
+            })
+        }
+
         revalidatePath("/")
         revalidatePath("/assets")
         return { success: true }
@@ -221,6 +228,7 @@ export async function saveCategory(data: {
         return { success: false, error }
     }
 }
+
 
 export async function updateCategoryOrder(id: number, direction: 'up' | 'down') {
     try {
@@ -327,11 +335,12 @@ export async function getCategoryDetails(id: number) {
     try {
         if (!id || isNaN(id)) return null;
 
+
         // 1. Get the target category
         const category = await prisma.category.findUnique({
             where: { id },
             include: {
-                tags: true,
+                tags: { include: { tagOption: true } },
                 assets: { orderBy: { recordedAt: 'asc' } },
                 transactions: { orderBy: { transactedAt: 'desc' } }
             }
@@ -486,7 +495,7 @@ export async function getCategoryDetails(id: number) {
             ...category,
             currentValue: aggCurrentValue,
             costBasis: costBasis,
-            tags: (category.tags || []).map((t: any) => t?.name || ""),
+            tags: (category.tags || []).map((t: any) => t?.tagOption?.name || ""),
             history: combinedHistory,
             transactions: finalTransactions
         };
@@ -495,28 +504,7 @@ export async function getCategoryDetails(id: number) {
         return null;
     }
 }
-// --- Tag Groups ---
-export async function getTagGroups() {
-    try {
-        const groups = await prisma.tagGroup.findMany({
-            orderBy: { id: 'asc' },
-            include: {
-                items: {
-                    include: { tag: true },
-                    orderBy: { order: 'asc' }
-                }
-            }
-        })
-        return (groups || []).map((g: any) => ({
-            id: g.id,
-            name: g.name || "グループ名なし",
-            tags: (g.items || []).map((item: any) => item.tag.name)
-        }))
-    } catch (error) {
-        console.error("Failed to fetch tag groups:", error)
-        return []
-    }
-}
+
 
 export async function updateValuationSettingsAction(settings: { id: number, valuationOrder: number, isValuationTarget: boolean }[]) {
     try {

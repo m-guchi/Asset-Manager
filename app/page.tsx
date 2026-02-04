@@ -8,7 +8,8 @@ import { CategoryList } from "@/components/dashboard/category-list"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Pencil, RefreshCw } from "lucide-react"
-import { getCategories, getTagGroups } from "./actions/categories"
+import { getCategories } from "./actions/categories"
+import { getTagGroups } from "./actions/tags"
 import { getHistoryData } from "./actions/history"
 import { toast } from "sonner"
 
@@ -123,7 +124,7 @@ export default function Page() {
                     <AssetHistoryChart data={historyData} tagGroups={tagGroups} />
                 </div>
                 <div className="col-span-full md:col-span-1 lg:col-span-3 min-w-0">
-                    <AssetAllocationChart categories={topLevelCategories} tagGroups={tagGroups} />
+                    <AssetAllocationChart categories={topLevelCategories} allCategories={categories} tagGroups={tagGroups} />
                 </div>
             </section>
 
