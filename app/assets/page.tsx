@@ -86,7 +86,7 @@ function AssetsContent() {
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">資産管理</h1>
                     <p className="text-muted-foreground">
-                        資産（旧カテゴリ）、タグ、タググループの管理と一括評価額更新。
+                        資産、タグ、タググループの管理と一括評価額更新。
                     </p>
                 </div>
             </div>

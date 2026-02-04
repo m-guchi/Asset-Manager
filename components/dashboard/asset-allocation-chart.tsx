@@ -121,46 +121,29 @@ export function AssetAllocationChart({
         <Card className="flex flex-col">
             <CardHeader className="items-center pb-0 pt-4">
                 <CardTitle className="text-lg">資産構成比</CardTitle>
-                <div className="flex items-center gap-2 mt-1">
-                    <CardDescription className="text-[10px] md:text-xs">
-                        集計軸:
-                    </CardDescription>
+                <div className="w-full flex items-center gap-2 overflow-x-auto pb-1 mt-1 no-scrollbar max-w-full">
                     <div className="flex bg-muted/50 rounded-md p-0.5 border">
                         <button
                             onClick={() => setMode("category")}
-                            className={`px-2 py-0.5 text-[10px] rounded-sm transition-all ${mode === "category"
+                            className={`px-2 py-1 text-[10px] rounded-md transition-all whitespace-nowrap ${mode === "category"
                                 ? "bg-background text-foreground shadow-sm font-bold"
                                 : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
                         >
-                            資産別
+                            全体
                         </button>
-                        <button
-                            onClick={() => setMode("tag")}
-                            className={`px-2 py-0.5 text-[10px] rounded-sm transition-all ${mode === "tag"
-                                ? "bg-background text-foreground shadow-sm font-bold"
-                                : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
-                        >
-                            タグ別
-                        </button>
-                    </div>
-                </div>
-
-                {mode === "tag" && (
-                    <div className="flex flex-wrap gap-1 mt-1 justify-center">
                         {tagGroups.map(g => (
-                            <div
+                            <button
                                 key={g.id}
-                                className={`text-[9px] px-1.5 py-0.5 rounded cursor-pointer border transition-colors ${selectedTagGroup === g.id
-                                    ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-muted text-muted-foreground border-transparent hover:border-border"
-                                    }`}
-                                onClick={() => setSelectedTagGroup(g.id === selectedTagGroup ? null : g.id)}
+                                onClick={() => { setMode("tag"); setSelectedTagGroup(g.id); }}
+                                className={`px-2 py-1 text-[10px] rounded-md transition-all whitespace-nowrap ${mode === "tag" && selectedTagGroup === g.id
+                                    ? "bg-background text-foreground shadow-sm font-bold"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
                             >
                                 {g.name}
-                            </div>
+                            </button>
                         ))}
                     </div>
-                )}
+                </div>
             </CardHeader>
             <CardContent className="flex-1 pb-2 pt-0">
                 <ChartContainer

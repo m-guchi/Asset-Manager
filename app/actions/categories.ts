@@ -6,8 +6,7 @@ import { revalidatePath } from "next/cache"
 export async function getCategories() {
     try {
         // 1. Fetch all categories first (flat)
-        const categories = await prisma.category.findMany({
-            orderBy: { order: 'asc' },
+        const allCategories = await prisma.category.findMany({
             include: {
                 tags: true,
                 assets: {
@@ -17,6 +16,33 @@ export async function getCategories() {
                 transactions: true
             }
         });
+
+        // 2. Sort hierarchically (Parent -> Children) in memory
+        // First, separate parents and children
+        const roots = allCategories
+            .filter((c: any) => !c.parentId)
+            .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+
+        const childrenMap = new Map<number, any[]>();
+
+        allCategories.forEach((c: any) => {
+            if (c.parentId) {
+                const existing = childrenMap.get(c.parentId) || [];
+                existing.push(c);
+                childrenMap.set(c.parentId, existing);
+            }
+        });
+
+        const sortedCategories: any[] = [];
+        roots.forEach((root: any) => {
+            sortedCategories.push(root);
+            const children = childrenMap.get(root.id) || [];
+            // Sort children by their order as well
+            children.sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+            sortedCategories.push(...children);
+        });
+
+        const categories = sortedCategories; // Use this sorted list downstream
 
         if (!categories || categories.length === 0) return [];
 
@@ -54,6 +80,7 @@ export async function getCategories() {
                 let consolidatedCostBasis = ownCostBasis;
 
                 // Sub-assets aggregation (finding children manually)
+                // Note: We scan the full list because 'categories' is sorted but flat
                 const children = categories.filter((c: any) => c.parentId === cat.id);
                 children.forEach((child: any) => {
                     const childLatest = child.assets?.[0];
@@ -195,40 +222,83 @@ export async function saveCategory(data: {
 
 export async function updateCategoryOrder(id: number, direction: 'up' | 'down') {
     try {
-        const categories = await prisma.category.findMany({
-            orderBy: { order: 'asc' }
-        })
-        const index = categories.findIndex(c => c.id === id)
-        if (index === -1) return { success: false }
+        // 1. Get the target category to identify its parent
+        const targetCategory = await prisma.category.findUnique({
+            where: { id }
+        });
 
-        const target = categories[index]
-        let swapWith = null
+        if (!targetCategory) return { success: false };
 
+        // 2. Fetch all siblings (same parentId), strictly ordered
+        // If orders are duplicate, secondary sort by id guarantees stable order
+        const siblings = await prisma.category.findMany({
+            where: { parentId: targetCategory.parentId },
+            orderBy: [
+                { order: 'asc' },
+                { id: 'asc' }
+            ]
+        });
+
+        const index = siblings.findIndex(c => c.id === id);
+        if (index === -1) return { success: false };
+
+        // 3. Determine swap target
+        let swapIndex = -1;
         if (direction === 'up' && index > 0) {
-            swapWith = categories[index - 1]
-        } else if (direction === 'down' && index < categories.length - 1) {
-            swapWith = categories[index + 1]
+            swapIndex = index - 1;
+        } else if (direction === 'down' && index < siblings.length - 1) {
+            swapIndex = index + 1;
         }
 
-        if (swapWith) {
-            await prisma.$transaction([
-                prisma.category.update({
-                    where: { id: target.id },
-                    data: { order: swapWith.order }
-                }),
-                prisma.category.update({
-                    where: { id: swapWith.id },
-                    data: { order: target.order }
-                })
-            ])
+        if (swapIndex !== -1) {
+            // 4. Normalize orders and swap in memory
+            // Assign sequential orders to ALL siblings first to fix any "all zero" issues
+            const updates = siblings.map((sibling, idx) => ({
+                id: sibling.id,
+                order: idx // 0, 1, 2, ...
+            }));
+
+            // Swap the order values of target and swap-target in our updates array
+            const tempOrder = updates[index].order;
+            updates[index].order = updates[swapIndex].order;
+            updates[swapIndex].order = tempOrder;
+
+            // 5. Apply updates
+            await prisma.$transaction(
+                updates.map(u =>
+                    prisma.category.update({
+                        where: { id: u.id },
+                        data: { order: u.order }
+                    })
+                )
+            );
         }
 
-        revalidatePath("/")
-        revalidatePath("/assets")
-        return { success: true }
+        revalidatePath("/");
+        revalidatePath("/assets");
+        return { success: true };
     } catch (error) {
-        console.error("Failed to update order:", error)
-        return { success: false }
+        console.error("Failed to update order:", error);
+        return { success: false };
+    }
+}
+
+export async function reorderCategoriesAction(items: { id: number, order: number }[]) {
+    try {
+        await prisma.$transaction(
+            items.map(item =>
+                prisma.category.update({
+                    where: { id: item.id },
+                    data: { order: item.order }
+                })
+            )
+        );
+        revalidatePath("/");
+        revalidatePath("/assets");
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to batch reorder:", error);
+        return { success: false };
     }
 }
 
