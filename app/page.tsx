@@ -8,7 +8,8 @@ import { CategoryList } from "@/components/dashboard/category-list"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Pencil, RefreshCw } from "lucide-react"
-import { getCategories, getTagGroups } from "./actions/categories"
+import { getCategories } from "./actions/categories"
+import { getTagGroups } from "./actions/tags"
 import { getHistoryData } from "./actions/history"
 import { toast } from "sonner"
 
@@ -90,10 +91,11 @@ export default function Page() {
     }
 
     return (
-        <div className="flex flex-col gap-4 p-2 md:p-4">
+        <div className="flex flex-col gap-2 p-2 md:p-4">
             {/* Database Setup Alert (Visible if no categories found) */}
             {/* 1. Summary Cards */}
-            <section className="mb-2 md:mb-4">
+            {/* 1. Summary Cards */}
+            <section>
                 <SummaryCards
                     netWorth={totalAssets} // Passing Gross Assets as the headline per request
                     totalAssets={totalAssets}
@@ -103,34 +105,24 @@ export default function Page() {
                 />
             </section>
 
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-end mb-2">
-                <div className="flex flex-wrap gap-2 pt-1">
-                    {/* Always allow seeding if database is empty or we are in development */}
-                    {/* Always allow seeding if database is empty or we are in development */}
-                    <Link href="/assets/valuation">
-                        <Button size="sm" className="whitespace-nowrap">
-                            <Pencil className="mr-2 h-4 w-4" /> 評価額を一括更新
-                        </Button>
-                    </Link>
-                </div>
-            </div>
+
 
 
 
             {/* 2. Charts Section */}
-            <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+            <section className="grid gap-2 md:grid-cols-2 lg:grid-cols-7">
                 <div className="col-span-full md:col-span-1 lg:col-span-4 min-w-0">
                     <AssetHistoryChart data={historyData} tagGroups={tagGroups} />
                 </div>
                 <div className="col-span-full md:col-span-1 lg:col-span-3 min-w-0">
-                    <AssetAllocationChart categories={topLevelCategories} tagGroups={tagGroups} />
+                    <AssetAllocationChart categories={topLevelCategories} allCategories={categories} tagGroups={tagGroups} />
                 </div>
             </section>
 
             {/* 3. Category List */}
             <section>
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold tracking-tight">資産構成</h2>
+                    <h2 className="text-xl font-bold tracking-tight">アセット構成</h2>
                     <div className="flex gap-2">
                         <Button variant="ghost" size="sm" onClick={fetchData} title="データを更新">
                             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />

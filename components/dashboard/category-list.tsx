@@ -185,10 +185,10 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
         const isPositive = profit >= 0
 
         const cardContent = (
-            <Card className={`overflow-hidden h-full cursor-pointer hover:shadow-md transition-all border-l-0 relative group ${isChild ? 'bg-muted/30Scale text-sm' : ''} ${!isChild && isEditing ? 'select-none pointer-events-none' : ''}`}>
+            <Card className={`overflow-hidden h-full cursor-pointer hover:shadow-md transition-all border-l-0 relative group ${isChild ? 'bg-muted/30Scale' : ''} ${!isChild && isEditing ? 'select-none pointer-events-none' : ''}`}>
                 <div className="absolute left-0 top-0 bottom-0 w-1.5 transition-all group-hover:w-2" style={{ backgroundColor: category.color }} />
-                <CardHeader className={`flex flex-row items-center justify-between space-y-0 pb-0.5 pl-3 pt-2 ${isChild ? 'pb-0' : ''}`}>
-                    <CardTitle className={`${isChild ? 'text-[10px]' : 'text-xs'} font-medium flex items-center gap-2 text-muted-foreground/80`}>
+                <CardHeader className={`flex flex-row items-center justify-between space-y-0 pb-0 pl-3 pr-2 pt-1.5 ${isChild ? 'pt-1' : ''}`}>
+                    <CardTitle className={`${isChild ? 'text-[10px]' : 'text-xs'} font-medium flex items-center gap-2 text-muted-foreground/80 truncate`}>
                         {category.name}
                         {category.isLiability && <Badge variant="destructive" className="text-[8px] py-0 h-3.5">負債</Badge>}
                     </CardTitle>
@@ -206,17 +206,17 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
                         </TooltipProvider>
                     )}
                 </CardHeader>
-                <CardContent className={`pl-3 pr-3 ${isChild ? 'pb-1.5' : 'pb-2'}`}>
-                    <div className="flex items-baseline justify-between gap-2">
-                        <span className={`text-base font-bold tracking-tight ${category.isLiability ? "text-red-500" : ""}`}>
+                <CardContent className={`pl-3 pr-2 ${isChild ? 'pb-1' : 'pb-1.5'} pt-0`}>
+                    <div className="flex items-baseline justify-between gap-1.5">
+                        <span className={`${isChild ? 'text-sm' : 'text-base'} font-bold tracking-tight leading-none ${category.isLiability ? "text-red-500" : ""}`}>
                             {category.isLiability ? "-" : ""}¥{valueToUse.toLocaleString()}
                         </span>
 
-                        <span className={`text-xs font-bold whitespace-nowrap ${category.isCash ? "text-muted-foreground" : (isPositive ? "text-green-500" : "text-red-500")}`}>
+                        <span className={`${isChild ? 'text-[10px]' : 'text-xs'} font-bold whitespace-nowrap leading-none ${category.isCash ? "text-muted-foreground" : (isPositive ? "text-green-500" : "text-red-500")}`}>
                             {category.isCash ? '±0' : (
                                 <>
                                     {isPositive ? '+' : ''}¥{profit.toLocaleString()}
-                                    <span className="text-[9px] ml-1 opacity-70 font-normal">
+                                    <span className="text-[10px] ml-0.5 opacity-70 font-normal">
                                         ({isPositive ? '+' : ''}{profitPercent.toFixed(1)}%)
                                     </span>
                                 </>
@@ -241,7 +241,7 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
     if (categories.length === 0) return null
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-2">
             {/* Toolbar */}
             <div className="flex justify-end gap-2 text-sm">
                 {!isEditing ? (
@@ -270,7 +270,7 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
                     strategy={rectSortingStrategy}
                     disabled={!isEditing}
                 >
-                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                    <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
                         {topLevel.map((parent) => {
                             const children = categories.filter(c => c.parentId === parent.id)
                             const parentCard = renderCategoryCard(parent);

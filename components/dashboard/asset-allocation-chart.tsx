@@ -32,7 +32,8 @@ interface Category {
 interface TagGroup {
     id: number
     name: string
-    tags: string[]
+    tags?: string[]
+    options?: { id: number, name: string }[]
 }
 
 const chartConfigBase = {
@@ -43,9 +44,11 @@ const chartConfigBase = {
 
 export function AssetAllocationChart({
     categories,
+    allCategories = [],
     tagGroups = []
 }: {
     categories: any[],
+    allCategories?: any[],
     tagGroups?: TagGroup[]
 }) {
     const [mode, setMode] = React.useState<"category" | "tag">("category")
@@ -59,17 +62,20 @@ export function AssetAllocationChart({
     }, [mode, tagGroups, selectedTagGroup])
 
     const availableTags = React.useMemo(() => {
-        return Array.from(new Set(categories.flatMap(d => d.tags))).sort()
-    }, [categories])
+        // Use allCategories for tag extraction to include child tags
+        const source = allCategories.length > 0 ? allCategories : categories
+        return Array.from(new Set(source.flatMap(d => d.tags))).sort()
+    }, [categories, allCategories])
 
     // Logic to transform data based on mode
     const chartData = React.useMemo(() => {
         if (mode === "category") {
+            // Default mode: Use top-level categories (aggregated values)
             return categories
                 .filter(c => c.currentValue > 0)
                 .map(c => ({
                     name: c.name,
-                    value: c.currentValue,
+                    value: c.currentValue, // Top-level uses aggregated currentValue
                     fill: c.color || "var(--chart-1)",
                     isLiability: !!c.isLiability
                 }))
@@ -77,10 +83,21 @@ export function AssetAllocationChart({
             const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
             if (!activeGroup) return []
 
-            return activeGroup.tags.map((tagName, i) => {
-                const groupCategories = categories.filter(c => c.tags.includes(tagName))
+            // Tag mode: Use ALL categories (flat list) and sum OWN values to avoid double counting
+            const sourceData = allCategories.length > 0 ? allCategories : categories;
+
+            // Support both new 'options' structure and legacy 'tags' array
+            const targetTags = activeGroup.options?.map(o => o.name) || activeGroup.tags || []
+
+            return targetTags.map((tagName: string, i: number) => {
+                const groupCategories = sourceData.filter(c => c.tags.includes(tagName))
                 const total = groupCategories
-                    .reduce((sum, c) => sum + (c.isLiability ? -c.currentValue : c.currentValue), 0)
+                    .reduce((sum, c) => {
+                        // Use ownValue for granular aggregation
+                        // If ownValue is missing (legacy), fallback to currentValue but that might double count if hierarchy exists
+                        const val = (c.ownValue !== undefined) ? c.ownValue : c.currentValue;
+                        return sum + (c.isLiability ? -val : val)
+                    }, 0)
 
                 return {
                     name: tagName,
@@ -90,7 +107,7 @@ export function AssetAllocationChart({
                 }
             }).filter(d => d.value > 0)
         }
-    }, [categories, mode, selectedTagGroup, tagGroups])
+    }, [categories, allCategories, mode, selectedTagGroup, tagGroups])
 
     const activeGroupName = tagGroups.find(g => g.id === selectedTagGroup)?.name || "タグ別"
 
@@ -120,8 +137,7 @@ export function AssetAllocationChart({
 
     return (
         <Card className="flex flex-col">
-            <CardHeader className="items-center pb-0 pt-4">
-                <CardTitle className="text-lg">資産構成比</CardTitle>
+            <CardHeader className="items-center pb-2 pt-4">
                 <div className="w-full flex items-center gap-2 overflow-x-auto pb-1 mt-1 no-scrollbar max-w-full">
                     <div className="flex bg-muted/50 rounded-md p-0.5 border">
                         <button
@@ -181,7 +197,7 @@ export function AssetAllocationChart({
                                     >
                                         {`${name}`}
                                         <tspan x={x} dy="1.2em" className="fill-muted-foreground font-normal">
-                                            {`¥${(value / 10000).toLocaleString()}万`}
+                                            {`¥${Math.round(value / 10000).toLocaleString()}万`}
                                         </tspan>
                                     </text>
                                 );

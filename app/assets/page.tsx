@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { Plus, Tag as TagIcon, LayoutGrid, Trash2, Edit2, Loader2, Save, ChevronUp, ChevronDown, AlertCircle, GripVertical, Check, X, ArrowDownUp } from "lucide-react"
+import { Plus, Tag as TagIcon, LayoutGrid, Trash2, Edit2, Loader2, Save, ChevronUp, ChevronDown, AlertCircle, GripVertical, Check, X, ArrowDownUp, Settings2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select"
 import { toast } from "sonner"
 import { getCategories, saveCategory, deleteCategory, updateCategoryOrder, reorderCategoriesAction } from "../actions/categories"
-import { getTags, saveTag, deleteTag, getTagGroups, saveTagGroup, deleteTagGroup } from "../actions/tags"
+import { getTagGroups, saveTagGroup, deleteTagGroup, reorderTagGroupsAction, getAssetsForTagGroup, updateAssetTagMappings } from "../actions/tags" // Removed getTags
 import { updateValuation } from "../actions/assets"
 import {
     Tooltip,
@@ -56,20 +56,17 @@ function AssetsContent() {
     const activeTab = searchParams.get("tab") || "categories"
 
     const [categories, setCategories] = useState<any[]>([])
-    const [tags, setTags] = useState<any[]>([])
     const [tagGroups, setTagGroups] = useState<any[]>([])
     const [isLoading, setIsLoading] = useState(true)
 
     const fetchData = useCallback(async () => {
         setIsLoading(true)
         try {
-            const [catData, tagData, groupData] = await Promise.all([
+            const [catData, groupData] = await Promise.all([
                 getCategories(),
-                getTags(),
                 getTagGroups()
             ])
             setCategories(catData)
-            setTags(tagData)
             setTagGroups(groupData)
         } catch (err) {
             console.error("Fetch error:", err)
@@ -104,7 +101,7 @@ function AssetsContent() {
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">資産管理</h1>
                     <p className="text-muted-foreground">
-                        資産、タグ、タググループの管理。
+                        資産と、分類（グループ）の管理を行います。
                     </p>
                 </div>
             </div>
@@ -113,20 +110,20 @@ function AssetsContent() {
                 <TabsList>
                     <TabsTrigger value="categories" className="flex items-center gap-2">
                         <LayoutGrid className="h-4 w-4" />
-                        資産
+                        資産一覧
                     </TabsTrigger>
-                    <TabsTrigger value="tags" className="flex items-center gap-2">
-                        <TagIcon className="h-4 w-4" />
-                        タグ
+                    <TabsTrigger value="groups" className="flex items-center gap-2">
+                        <Settings2 className="h-4 w-4" />
+                        分類設定
                     </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="categories" className="space-y-4">
-                    <CategoryManagement categories={categories} tags={tags} onRefresh={fetchData} />
+                    <CategoryManagement categories={categories} tagGroups={tagGroups} onRefresh={fetchData} />
                 </TabsContent>
 
-                <TabsContent value="tags" className="space-y-4">
-                    <TagManagement tags={tags} tagGroups={tagGroups} onRefresh={fetchData} />
+                <TabsContent value="groups" className="space-y-4">
+                    <TagGroupManagement tagGroups={tagGroups} onRefresh={fetchData} />
                 </TabsContent>
             </Tabs>
         </div>
@@ -146,7 +143,8 @@ export default function AssetsPage() {
     )
 }
 
-function CategoryManagement({ categories, tags, onRefresh }: { categories: any[], tags: any[], onRefresh: () => void }) {
+
+function CategoryManagement({ categories, tagGroups, onRefresh }: { categories: any[], tagGroups: any[], onRefresh: () => void }) {
     const [isReordering, setIsReordering] = useState(false)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [editingCategory, setEditingCategory] = useState<any>(null)
@@ -177,13 +175,11 @@ function CategoryManagement({ categories, tags, onRefresh }: { categories: any[]
         }
     }
 
-
-
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                    <CardTitle>資産管理</CardTitle>
+                    <CardTitle>資産一覧</CardTitle>
                 </div>
                 <div className="flex items-center gap-2">
                     {!isReordering ? (
@@ -202,13 +198,13 @@ function CategoryManagement({ categories, tags, onRefresh }: { categories: any[]
                                         追加
                                     </Button>
                                 </DialogTrigger>
-                                <DialogContent>
+                                <DialogContent className="max-h-[90vh] overflow-y-auto">
                                     <DialogHeader>
                                         <DialogTitle>{editingCategory ? "資産の編集" : "新規資産作成"}</DialogTitle>
                                     </DialogHeader>
                                     <CategoryForm
                                         initialData={editingCategory}
-                                        allTags={tags}
+                                        tagGroups={tagGroups}
                                         allCategories={categories}
                                         onSave={handleSave}
                                         onCancel={() => setIsDialogOpen(false)}
@@ -231,19 +227,17 @@ function CategoryManagement({ categories, tags, onRefresh }: { categories: any[]
                     <Table>
                         <TableHeader>
                             <TableRow>
-
-                                <TableHead>名前</TableHead>
-                                <TableHead>タイプ</TableHead>
-                                <TableHead>タグ</TableHead>
+                                <TableHead>資産名</TableHead>
+                                <TableHead>種類</TableHead>
+                                <TableHead>設定（分類）</TableHead>
                                 <TableHead className="text-right">操作</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {categories.map((cat, idx) => {
+                            {categories.map((cat) => {
                                 const isChild = !!cat.parentId
                                 return (
                                     <TableRow key={cat.id} className={isChild ? "bg-muted/30" : ""}>
-
                                         <TableCell className="font-medium p-0">
                                             <div className={`flex items-center gap-2 px-4 py-3 ${isChild ? "ml-6" : ""}`}>
                                                 <Link
@@ -253,21 +247,6 @@ function CategoryManagement({ categories, tags, onRefresh }: { categories: any[]
                                                     <div className="h-3 w-3 rounded-full" style={{ backgroundColor: cat.color }} />
                                                     <span className={isChild ? "text-sm text-muted-foreground" : "font-bold"}>{cat.name}</span>
                                                 </Link>
-                                                {cat.conflicts && cat.conflicts.length > 0 && (
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <AlertCircle className="h-4 w-4 text-destructive animate-pulse cursor-help" />
-                                                            </TooltipTrigger>
-                                                            <TooltipContent className="bg-destructive text-destructive-foreground border-none">
-                                                                <p className="font-bold">タグ重複の警告</p>
-                                                                <p className="text-xs">
-                                                                    同じグループ({cat.conflicts.join(", ")})内の複数のタグが設定されています。
-                                                                </p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                )}
                                             </div>
                                         </TableCell>
                                         <TableCell>
@@ -277,9 +256,9 @@ function CategoryManagement({ categories, tags, onRefresh }: { categories: any[]
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex flex-wrap gap-1">
-                                                {cat.tags?.map((t: any, idx: number) => (
-                                                    <Badge key={`${cat.id}-tag-${idx}`} variant="outline" className="text-[10px]">
-                                                        {t}
+                                                {cat.tags?.map((tagName: string, idx: number) => (
+                                                    <Badge key={`${cat.id}-t-${idx}`} variant="outline" className="text-[10px] text-muted-foreground bg-white">
+                                                        {tagName}
                                                     </Badge>
                                                 ))}
                                             </div>
@@ -305,18 +284,28 @@ function CategoryManagement({ categories, tags, onRefresh }: { categories: any[]
     )
 }
 
-function CategoryForm({ initialData, allTags, allCategories, onSave, onCancel }: any) {
+function CategoryForm({ initialData, tagGroups, allCategories, onSave, onCancel }: any) {
     const [name, setName] = useState(initialData?.name || "")
     const [color, setColor] = useState(initialData?.color || "#3b82f6")
     const [isCash, setIsCash] = useState(initialData?.isCash || false)
     const [isLiability, setIsLiability] = useState(initialData?.isLiability || false)
     const [parentId, setParentId] = useState<number | null>(initialData?.parentId || null)
-    const [selectedTags, setSelectedTags] = useState<string[]>(
-        initialData?.tags || []
+
+    // Manage selected option for each group
+    const [tagSettings, setTagSettings] = useState<{ groupId: number, optionId: number }[]>(
+        initialData?.tagSettings || []
     )
 
-    // Filter categories that can be a parent (no infinite recursion, etc.)
+    // Filter categories that can be a parent
     const possibleParents = allCategories.filter((c: any) => c.id !== initialData?.id && !c.parentId)
+
+    const handleTagChange = (groupId: number, value: string) => {
+        const newSettings = tagSettings.filter(s => s.groupId !== groupId)
+        if (value !== "unselected") {
+            newSettings.push({ groupId, optionId: parseInt(value) })
+        }
+        setTagSettings(newSettings)
+    }
 
     return (
         <div className="grid gap-4 py-4">
@@ -356,37 +345,49 @@ function CategoryForm({ initialData, allTags, allCategories, onSave, onCancel }:
                 <Label className="text-destructive">負債（マイナス資産）</Label>
                 <Switch checked={isLiability} onCheckedChange={setIsLiability} />
             </div>
-            <div className="grid gap-2">
-                <Label>タグ</Label>
-                <div className="flex flex-wrap gap-2 pt-2">
-                    {allTags.map((tag: any) => (
-                        <Badge
-                            key={tag.id}
-                            variant={selectedTags.includes(tag.name) ? "default" : "outline"}
-                            className="cursor-pointer"
-                            onClick={() => {
-                                if (selectedTags.includes(tag.name)) {
-                                    setSelectedTags(selectedTags.filter(t => t !== tag.name))
-                                } else {
-                                    setSelectedTags([...selectedTags, tag.name])
-                                }
-                            }}
+
+            <div className="space-y-3 pt-4 border-t">
+                <Label className="text-base font-semibold">分類設定</Label>
+                {tagGroups.map((group: any) => (
+                    <div key={group.id} className="grid grid-cols-[120px_1fr] items-center gap-4">
+                        <Label className="text-right text-muted-foreground">{group.name}</Label>
+                        <Select
+                            value={tagSettings.find(s => s.groupId === group.id)?.optionId.toString() || "unselected"}
+                            onValueChange={(v) => handleTagChange(group.id, v)}
                         >
-                            {tag.name}
-                        </Badge>
-                    ))}
-                </div>
+                            <SelectTrigger>
+                                <SelectValue placeholder="未選択" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="unselected" className="text-muted-foreground">未選択</SelectItem>
+                                {group.options.map((opt: any) => (
+                                    <SelectItem key={opt.id} value={opt.id.toString()}>
+                                        {opt.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                ))}
             </div>
-            <DialogFooter>
+
+            <DialogFooter className="pt-4 mt-2">
                 <Button variant="outline" onClick={onCancel}>キャンセル</Button>
-                <Button onClick={() => onSave({ id: initialData?.id, name, color, isCash, isLiability, tags: selectedTags, parentId })}>
+                <Button onClick={() => onSave({
+                    id: initialData?.id,
+                    name,
+                    color,
+                    isCash,
+                    isLiability,
+                    parentId,
+                    tagSettings
+                })}>
                     保存
                 </Button>
             </DialogFooter>
         </div>
     )
 }
-
 
 // Reordering Components
 function CategoryReorderMode({ categories, onRefresh, onComplete }: { categories: any[], onRefresh: () => void, onComplete: () => void }) {
@@ -413,18 +414,15 @@ function CategoryReorderMode({ categories, onRefresh, onComplete }: { categories
                 const oldIndex = topLevel.findIndex(c => c.id === active.id)
                 const newIndex = topLevel.findIndex(c => c.id === over.id)
                 if (oldIndex === -1 || newIndex === -1) return currentItems
-
                 const newTopLevel = arrayMove(topLevel, oldIndex, newIndex)
-
-                // Reconstruct full list
+                // Reconstruct full list (simplified for brevity, assume children follow parents logic remains)
+                // Note: The logic from previous impl was fine.
                 const newFullList: any[] = []
                 newTopLevel.forEach(parent => {
                     newFullList.push(parent)
-                    // Find children in original items and append
                     const children = currentItems.filter(c => c.parentId === parent.id)
                     children.forEach(child => newFullList.push(child))
                 })
-
                 return newFullList
             });
         }
@@ -454,7 +452,7 @@ function CategoryReorderMode({ categories, onRefresh, onComplete }: { categories
             <div className="flex justify-between items-center bg-muted/30 p-4 rounded-lg border border-dashed">
                 <span className="text-sm text-muted-foreground flex items-center gap-2">
                     <AlertCircle className="h-4 w-4" />
-                    ドラッグ＆ドロップで並び替えできます（親カテゴリ単位）
+                    ドラッグ＆ドロップで並び替えできます
                 </span>
                 <Button onClick={handleSave} disabled={isSaving}>
                     {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -471,20 +469,7 @@ function CategoryReorderMode({ categories, onRefresh, onComplete }: { categories
                                     <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab active:cursor-grabbing" />
                                     <div className="h-4 w-4 rounded-full flex-shrink-0" style={{ backgroundColor: parent.color }} />
                                     <span className="font-medium">{parent.name}</span>
-                                    <Badge variant="outline" className="ml-auto text-xs font-normal text-muted-foreground">
-                                        現在: ¥{Number(parent.currentValue).toLocaleString()}
-                                    </Badge>
                                 </div>
-                                {items.filter(c => c.parentId === parent.id).length > 0 && (
-                                    <div className="ml-8 mt-1 pl-4 border-l-2 border-dashed space-y-1">
-                                        {items.filter(c => c.parentId === parent.id).map(child => (
-                                            <div key={child.id} className="flex items-center gap-2 p-2 bg-muted/20 border rounded text-xs text-muted-foreground">
-                                                <div className="h-2 w-2 rounded-full" style={{ backgroundColor: child.color }} />
-                                                <span>{child.name}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
                             </SortableCategoryItem>
                         ))}
                     </div>
@@ -495,214 +480,373 @@ function CategoryReorderMode({ categories, onRefresh, onComplete }: { categories
 }
 
 function SortableCategoryItem({ category, children }: { category: any, children: React.ReactNode }) {
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging
-    } = useSortable({ id: category.id });
-
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: category.id });
     const style = {
         transform: CSS.Transform.toString(transform),
         transition,
         zIndex: isDragging ? 50 : "auto",
         opacity: isDragging ? 0.5 : 1,
     };
-
-    return (
-        <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-            {children}
-        </div>
-    );
+    return <div ref={setNodeRef} style={style} {...attributes} {...listeners}>{children}</div>
 }
 
-function TagManagement({ tags, tagGroups, onRefresh }: { tags: any[], tagGroups: any[], onRefresh: () => void }) {
-    const [isTagGroupDialogOpen, setIsTagGroupDialogOpen] = useState(false)
+// ==========================================
+// Tag Group Management (New Implementation)
+// ==========================================
+
+function TagGroupManagement({ tagGroups, onRefresh }: { tagGroups: any[], onRefresh: () => void }) {
+    const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [editingGroup, setEditingGroup] = useState<any>(null)
+    const [isReordering, setIsReordering] = useState(false)
 
-    return (
-        <div className="grid gap-6 md:grid-cols-2">
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle>タグ</CardTitle>
-                        <CardDescription>資産の特徴（アセットクラス、地域など）を定義します。</CardDescription>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                        {tags.map((tag: any) => (
-                            <div key={tag.id} className="flex items-center gap-1 bg-muted px-2 py-1 rounded">
-                                <span className="text-sm">{tag.name}</span>
-                                <button className="text-muted-foreground hover:text-destructive" onClick={async () => {
-                                    if (confirm("削除しますか？")) { await deleteTag(tag.id); onRefresh(); }
-                                }}>×</button>
-                            </div>
-                        ))}
-                        <AddTagTrigger onAdd={onRefresh} />
-                    </div>
-                </CardContent>
-            </Card>
+    // Reorder logic for Groups
+    const [localGroups, setLocalGroups] = useState(tagGroups)
+    useEffect(() => { setLocalGroups(tagGroups) }, [tagGroups])
 
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle>タググループ</CardTitle>
-                    <Button variant="outline" size="sm" onClick={() => setIsTagGroupDialogOpen(true)}>
-                        <Plus className="h-4 w-4" />
-                    </Button>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-4">
-                        {tagGroups.map(group => (
-                            <div key={group.id} className="flex flex-col gap-2 rounded-lg border p-3">
-                                <div className="flex items-center justify-between">
-                                    <span className="font-medium">{group.name}</span>
-                                    <div className="flex gap-1">
-                                        <Button variant="ghost" size="icon" onClick={() => { setEditingGroup(group); setIsTagGroupDialogOpen(true); }}>
-                                            <Edit2 className="h-3 w-3" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon" className="text-destructive" onClick={async () => {
-                                            if (confirm("削除しますか？")) { await deleteTagGroup(group.id); onRefresh(); }
-                                        }}>
-                                            <Trash2 className="h-3 w-3" />
-                                        </Button>
-                                    </div>
-                                </div>
-                                <div className="flex flex-wrap gap-1">
-                                    {group.tags?.map((t: any) => (
-                                        <Badge key={t.id} variant="secondary" className="text-[10px]">{t.name}</Badge>
-                                    ))}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </CardContent>
-            </Card>
+    const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
 
-            <Dialog open={isTagGroupDialogOpen} onOpenChange={(open) => { setIsTagGroupDialogOpen(open); if (!open) setEditingGroup(null); }}>
-                <DialogContent>
-                    <DialogHeader><DialogTitle>タググループ設定</DialogTitle></DialogHeader>
-                    <TagGroupForm initialData={editingGroup} allTags={tags} onSave={async (data: any) => {
-                        await saveTagGroup(data); setIsTagGroupDialogOpen(false); onRefresh();
-                    }} onCancel={() => setIsTagGroupDialogOpen(false)} />
-                </DialogContent>
-            </Dialog>
-        </div>
-    )
-}
-
-function AddTagTrigger({ onAdd }: { onAdd: () => void }) {
-    const [name, setName] = useState("")
-    const handleAdd = async () => {
-        if (!name.trim()) return
-        try {
-            await saveTag({ name, color: "#94a3b8" })
-            setName("")
-            onAdd()
-        } catch (err) {
-            toast.error("追加に失敗しました")
-        }
-    }
-    return (
-        <div className="flex gap-1">
-            <Input className="h-7 w-24 text-xs" placeholder="新規タグ" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAdd()} />
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleAdd}><Plus className="h-3 w-3" /></Button>
-        </div>
-    )
-}
-
-
-
-function TagGroupForm({ initialData, allTags, onSave, onCancel }: any) {
-    const [name, setName] = useState(initialData?.name || "")
-    const [selectedTagIds, setSelectedTagIds] = useState<number[]>(initialData?.tags?.map((t: any) => t.id) || [])
-
-    const sensors = useSensors(
-        useSensor(PointerSensor),
-        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-    )
-
-    const handleDragEnd = (event: DragEndEvent) => {
-        const { active, over } = event
+    const handleGroupDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
         if (over && active.id !== over.id) {
-            setSelectedTagIds((ids) => {
-                const oldIndex = ids.indexOf(Number(active.id))
-                const newIndex = ids.indexOf(Number(over.id))
-                return arrayMove(ids, oldIndex, newIndex)
+            setLocalGroups((items) => {
+                const oldIndex = items.findIndex(item => item.id === active.id)
+                const newIndex = items.findIndex(item => item.id === over.id)
+                return arrayMove(items, oldIndex, newIndex)
             })
         }
     }
 
-    const toggleTag = (tagId: number) => {
-        if (selectedTagIds.includes(tagId)) {
-            setSelectedTagIds(selectedTagIds.filter(id => id !== tagId))
-        } else {
-            setSelectedTagIds([...selectedTagIds, tagId])
-        }
+    const saveGroupOrder = async () => {
+        const updates = localGroups.map((g, idx) => ({ id: g.id, order: idx }))
+        await reorderTagGroupsAction(updates)
+        onRefresh()
+        setIsReordering(false)
+        toast.success("並び順を保存しました")
     }
 
     return (
-        <div className="grid gap-4 py-4">
-            <div className="grid gap-2"><Label>グループ名</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
-
-            <div className="grid gap-2">
-                <Label>選択されたタグ（ドラッグで並び替え）</Label>
-                <div className="bg-muted/30 p-2 rounded-md min-h-[50px]">
-                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                        <SortableContext items={selectedTagIds} strategy={rectSortingStrategy}>
-                            <div className="flex flex-wrap gap-2">
-                                {selectedTagIds.map(id => {
-                                    const tag = allTags.find((t: any) => t.id === id)
-                                    if (!tag) return null
-                                    return (
-                                        <SortableTagItem key={id} id={id}>
-                                            <Badge variant="default" className="cursor-grab active:cursor-grabbing hover:bg-secondaly pr-1 pl-2 py-1 flex items-center gap-1">
-                                                {tag.name}
-                                                <X className="h-3 w-3 cursor-pointer hover:text-white/70" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    toggleTag(id)
-                                                }} />
-                                            </Badge>
-                                        </SortableTagItem>
-                                    )
-                                })}
+        <Card>
+            <CardHeader className="flex flex-col gap-4 space-y-0 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle>分類グループ設定</CardTitle>
+                <div className="flex gap-2">
+                    {!isReordering ? (
+                        <>
+                            <Button variant="outline" size="sm" onClick={() => setIsReordering(true)}>
+                                <ArrowDownUp className="h-4 w-4 mr-2" />
+                                並び替え
+                            </Button>
+                            <Button size="sm" onClick={() => { setEditingGroup(null); setIsDialogOpen(true); }}>
+                                <Plus className="h-4 w-4 mr-2" />
+                                グループ追加
+                            </Button>
+                        </>
+                    ) : (
+                        <Button onClick={saveGroupOrder}>完了</Button>
+                    )}
+                </div>
+            </CardHeader>
+            <CardContent>
+                {isReordering ? (
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleGroupDragEnd}>
+                        <SortableContext items={localGroups.map(g => g.id)} strategy={verticalListSortingStrategy}>
+                            <div className="space-y-2">
+                                {localGroups.map(group => (
+                                    <SortableTagItem key={group.id} id={group.id}>
+                                        <div className="flex items-center gap-3 p-3 bg-muted border rounded-md">
+                                            <GripVertical className="h-4 w-4 text-muted-foreground" />
+                                            <span className="font-medium">{group.name}</span>
+                                        </div>
+                                    </SortableTagItem>
+                                ))}
                             </div>
                         </SortableContext>
                     </DndContext>
-                    {selectedTagIds.length === 0 && <span className="text-xs text-muted-foreground p-1">タグを選択してください</span>}
-                </div>
-            </div>
+                ) : (
+                    <div className="grid gap-6">
+                        {tagGroups.map(group => (
+                            <div key={group.id} className="rounded-lg border p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-bold text-lg">{group.name}</h3>
+                                    </div>
+                                    <div className="flex gap-1">
+                                        <Button variant="ghost" size="sm" onClick={() => { setEditingGroup(group); setIsDialogOpen(true); }}>
+                                            <Edit2 className="h-4 w-4 mr-2" />
+                                            編集
+                                        </Button>
+                                        <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={async () => {
+                                            if (confirm("このグループを削除しますか？")) { await deleteTagGroup(group.id); onRefresh(); }
+                                        }}>
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {group.options?.map((opt: any) => (
+                                        <Badge key={opt.id} variant="secondary" className="px-2 py-1">
+                                            {opt.name}
+                                        </Badge>
+                                    ))}
+                                    {(!group.options || group.options.length === 0) && (
+                                        <span className="text-xs text-muted-foreground">選択肢なし</span>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </CardContent>
 
-            <div className="grid gap-2">
-                <Label>未選択のタグ</Label>
-                <div className="flex flex-wrap gap-2 pt-2">
-                    {allTags.filter((t: any) => !selectedTagIds.includes(t.id)).map((tag: any) => (
-                        <Badge key={tag.id} variant="outline" className="cursor-pointer hover:bg-muted" onClick={() => toggleTag(tag.id)}>
-                            <Plus className="h-3 w-3 mr-1" />
-                            {tag.name}
-                        </Badge>
-                    ))}
-                </div>
-            </div>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingGroup(null); }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{editingGroup ? "グループの編集" : "新規グループ作成"}</DialogTitle>
+                        <DialogDescription>グループ名と、その選択肢を定義します。</DialogDescription>
+                    </DialogHeader>
+                    <TagGroupForm initialData={editingGroup} onSave={async (data: any) => {
+                        await saveTagGroup(data)
+                        toast.success("保存しました")
+                        setIsDialogOpen(false)
+                        onRefresh()
+                    }} onCancel={() => setIsDialogOpen(false)} />
+                </DialogContent>
+            </Dialog>
+        </Card>
+    )
+}
 
-            <DialogFooter>
-                <Button variant="outline" onClick={onCancel}>キャンセル</Button>
-                <Button onClick={() => onSave({ id: initialData?.id, name, tagIds: selectedTagIds })}>保存</Button>
-            </DialogFooter>
+function TagGroupForm({ initialData, onSave, onCancel }: any) {
+    const [activeTab, setActiveTab] = useState("settings")
+    const [name, setName] = useState(initialData?.name || "")
+    // options: { id?: number, name: string, order: number }
+    const [options, setOptions] = useState<{ id?: number, name: string }[]>(
+        initialData?.options?.map((o: any) => ({ ...o })) || []
+    )
+    const [newOptionName, setNewOptionName] = useState("")
+
+    const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
+
+    const addOption = () => {
+        if (!newOptionName.trim()) return
+        setOptions([...options, { name: newOptionName.trim() }])
+        setNewOptionName("")
+    }
+
+    const removeOption = (idx: number) => {
+        setOptions(options.filter((_, i) => i !== idx))
+    }
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event
+        if (over && active.id !== over.id) {
+            setOptions((items) => {
+                // sortable id is index (0,1,2...) or unique ID? 
+                // Using index or a stable ID if possible.
+                // Let's use index as ID for newly created items is tricky.
+                // Actually SortableContext needs unique primitive IDs.
+                // We'll generate a temporary ID for keying.
+                return items // TODO: Implement sort later or use simpler index based approach if items are stable
+            })
+        }
+    }
+
+    // Simple move up/down instead of full DnD for inside dialog to keep it robust
+    const moveOption = (idx: number, direction: 'up' | 'down') => {
+        const newOpts = [...options]
+        if (direction === 'up' && idx > 0) {
+            [newOpts[idx], newOpts[idx - 1]] = [newOpts[idx - 1], newOpts[idx]]
+        } else if (direction === 'down' && idx < newOpts.length - 1) {
+            [newOpts[idx], newOpts[idx + 1]] = [newOpts[idx + 1], newOpts[idx]]
+        }
+        setOptions(newOpts)
+    }
+
+    return (
+        <div className="py-2">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-4">
+                    <TabsTrigger value="settings">基本設定</TabsTrigger>
+                    <TabsTrigger value="assets" disabled={!initialData?.id}>資産の割り当て</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="settings" className="grid gap-4">
+                    <div className="grid gap-2">
+                        <Label>グループ名</Label>
+                        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="例：通貨" />
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label>分類などの選択肢</Label>
+                        <div className="border rounded-md p-2 space-y-2 max-h-[200px] overflow-y-auto">
+                            {options.map((opt, idx) => (
+                                <div key={idx} className="flex items-center gap-2 bg-muted/40 p-2 rounded">
+                                    <span className="text-sm font-medium flex-1">{opt.name}</span>
+                                    <div className="flex gap-1">
+                                        <Button size="icon" variant="ghost" className="h-6 w-6" disabled={idx === 0} onClick={() => moveOption(idx, 'up')}><ChevronUp className="h-3 w-3" /></Button>
+                                        <Button size="icon" variant="ghost" className="h-6 w-6" disabled={idx === options.length - 1} onClick={() => moveOption(idx, 'down')}><ChevronDown className="h-3 w-3" /></Button>
+                                        <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => removeOption(idx)}><Trash2 className="h-3 w-3" /></Button>
+                                    </div>
+                                </div>
+                            ))}
+                            {options.length === 0 && <span className="text-xs text-muted-foreground p-2 block">選択肢がありません</span>}
+                        </div>
+                        <div className="flex gap-2 mt-1">
+                            <Input
+                                value={newOptionName}
+                                onChange={(e) => setNewOptionName(e.target.value)}
+                                placeholder="新しい選択肢 (例: 日本円)"
+                                className="flex-1"
+                                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addOption())}
+                            />
+                            <Button onClick={addOption} size="sm"><Plus className="h-4 w-4" /></Button>
+                        </div>
+                    </div>
+
+                    <DialogFooter className="mt-4">
+                        <Button variant="outline" onClick={onCancel}>キャンセル</Button>
+                        <Button onClick={() => onSave({ id: initialData?.id, name, options })}>保存</Button>
+                    </DialogFooter>
+                </TabsContent>
+
+                <TabsContent value="assets">
+                    {initialData?.id && (
+                        <TagGroupAssetManager groupId={initialData.id} options={options} />
+                    )}
+                </TabsContent>
+            </Tabs>
         </div>
     )
 }
 
 function SortableTagItem({ id, children }: { id: number, children: React.ReactNode }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
-    };
+    const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, zIndex: isDragging ? 50 : "auto" };
     return <div ref={setNodeRef} style={style} {...attributes} {...listeners}>{children}</div>
 }
+
+function TagGroupAssetManager({ groupId, options }: { groupId: number, options: any[] }) {
+    const [assets, setAssets] = useState<any[]>([])
+    const [originalAssets, setOriginalAssets] = useState<any[]>([])
+    const [isLoading, setIsLoading] = useState(true)
+    const [isSaving, setIsSaving] = useState(false)
+    const [hasChanges, setHasChanges] = useState(false)
+
+    useEffect(() => {
+        loadAssets()
+    }, [groupId])
+
+    const loadAssets = async () => {
+        setIsLoading(true)
+        try {
+            const data = await getAssetsForTagGroup(groupId)
+            setAssets(data)
+            setOriginalAssets(JSON.parse(JSON.stringify(data)))
+            setHasChanges(false)
+        } catch (e) {
+            toast.error("資産データの読み込みに失敗しました")
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const handleOptionChange = (categoryId: number, optionIdStr: string) => {
+        const optionId = optionIdStr === "unselected" ? null : parseInt(optionIdStr)
+        setAssets(prev => prev.map(a =>
+            a.id === categoryId ? { ...a, currentOptionId: optionId } : a
+        ))
+        setHasChanges(true)
+    }
+
+    const handleSave = async () => {
+        setIsSaving(true)
+        try {
+            // Find changes
+            const updates = assets.filter(a => {
+                const orig = originalAssets.find(oa => oa.id === a.id)
+                return orig && orig.currentOptionId !== a.currentOptionId
+            }).map(a => ({
+                categoryId: a.id,
+                optionId: a.currentOptionId
+            }))
+
+            if (updates.length === 0) {
+                toast.info("変更はありません")
+                setIsSaving(false)
+                return
+            }
+
+            await updateAssetTagMappings(groupId, updates)
+            toast.success("割り当てを保存しました")
+            setOriginalAssets(JSON.parse(JSON.stringify(assets)))
+            setHasChanges(false)
+        } catch (e) {
+            toast.error("保存に失敗しました")
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
+    if (isLoading) {
+        return <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+    }
+
+    return (
+        <div className="space-y-4">
+            <div className="flex justify-between items-center mb-2">
+                <p className="text-sm text-muted-foreground">各資産の分類を選択してください。</p>
+                <Button size="sm" onClick={handleSave} disabled={!hasChanges || isSaving}>
+                    {isSaving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                    一括保存
+                </Button>
+            </div>
+
+            <div className="border rounded-md overflow-hidden max-h-[400px] overflow-y-auto">
+                <Table>
+                    <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                        <TableRow>
+                            <TableHead className="w-[60%]">資産名</TableHead>
+                            <TableHead>分類</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {assets.map(asset => {
+                            const isChild = !!asset.parentId
+                            return (
+                                <TableRow key={asset.id}>
+                                    <TableCell>
+                                        <div className="flex items-center gap-2">
+                                            {isChild && <div className="w-4" />}
+                                            <div className="h-2 w-2 rounded-full" style={{ backgroundColor: asset.color || "#ccc" }} />
+                                            <span className={isChild ? "text-muted-foreground" : "font-medium"}>{asset.name}</span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Select
+                                            value={asset.currentOptionId?.toString() || "unselected"}
+                                            onValueChange={(v) => handleOptionChange(asset.id, v)}
+                                        >
+                                            <SelectTrigger className="h-8 w-full min-w-[120px]">
+                                                <SelectValue placeholder="未設定" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="unselected" className="text-muted-foreground">未設定</SelectItem>
+                                                {options.map((opt: any) => (
+                                                    <SelectItem key={opt.id || `temp-${opt.name}`} value={opt.id?.toString() || "temp"} disabled={!opt.id}>
+                                                        {opt.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </TableCell>
+                                </TableRow>
+                            )
+                        })}
+                    </TableBody>
+                </Table>
+            </div>
+        </div>
+    )
+}
+
 
 

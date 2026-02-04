@@ -3,69 +3,43 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 
-// --- Tags ---
+// --- Tags Legacy (Deprecated) ---
+// These are kept empty or simple to prevent build errors until fully removed
 
 export async function getTags() {
-    try {
-        return await prisma.tag.findMany({
-            orderBy: { id: 'asc' }
-        })
-    } catch (error) {
-        console.error("Failed to fetch tags:", error)
-        return []
-    }
+    return []
 }
 
-export async function saveTag(data: { id?: number, name: string, color: string }) {
-    try {
-        if (data.id) {
-            await prisma.tag.update({
-                where: { id: data.id },
-                data: { name: data.name, color: data.color }
-            })
-        } else {
-            await prisma.tag.create({
-                data: { name: data.name, color: data.color }
-            })
-        }
-        revalidatePath("/assets")
-        return { success: true }
-    } catch (error) {
-        console.error("Failed to save tag:", error)
-        return { success: false }
-    }
+export async function saveTag(data: any) {
+    return { success: false, error: "Deprecated" }
 }
 
 export async function deleteTag(id: number) {
-    try {
-        await prisma.tag.delete({ where: { id } })
-        revalidatePath("/assets")
-        return { success: true }
-    } catch (error) {
-        console.error("Failed to delete tag:", error)
-        return { success: false }
-    }
+    return { success: false, error: "Deprecated" }
 }
 
-// --- Tag Groups ---
+// --- Tag Groups (New Schema) ---
 
 export async function getTagGroups() {
     try {
         const groups = await prisma.tagGroup.findMany({
             include: {
-                items: {
-                    include: { tag: true },
+                options: {
                     orderBy: { order: 'asc' }
                 }
             },
-            orderBy: { id: 'asc' }
+            orderBy: { order: 'asc' } // Changed from id to order
         })
 
-        // Map to flat structure for frontend compatibility
         return groups.map((g: any) => ({
             id: g.id,
             name: g.name,
-            tags: g.items.map((item: any) => item.tag)
+            order: g.order,
+            options: g.options.map((o: any) => ({
+                id: o.id,
+                name: o.name,
+                order: o.order
+            }))
         }))
     } catch (error) {
         console.error("Failed to fetch tag groups:", error)
@@ -73,35 +47,56 @@ export async function getTagGroups() {
     }
 }
 
-export async function saveTagGroup(data: { id?: number, name: string, tagIds: number[] }) {
+export async function saveTagGroup(data: { id?: number, name: string, options: { id?: number, name: string }[] }) {
     try {
-        const tagIds = data.tagIds || []
         if (data.id) {
-            // Update: Delete existing items and recreate to update order easily
-            await prisma.$transaction([
-                prisma.tagGroup.update({
+            await prisma.$transaction(async (tx) => {
+                // 1. Update Group Name
+                await tx.tagGroup.update({
                     where: { id: data.id },
                     data: { name: data.name }
-                }),
-                prisma.tagGroupItem.deleteMany({
-                    where: { tagGroupId: data.id }
-                }),
-                prisma.tagGroupItem.createMany({
-                    data: tagIds.map((tagId, index) => ({
-                        tagGroupId: data.id!,
-                        tagId: tagId,
-                        order: index
-                    }))
                 })
-            ])
+
+                // 2. Handle Options
+                const incomingOptions = data.options || []
+                const incomingIds = incomingOptions.filter(o => o.id).map(o => o.id)
+
+                // Delete removed options
+                await tx.tagOption.deleteMany({
+                    where: {
+                        tagGroupId: data.id,
+                        id: { notIn: incomingIds as number[] }
+                    }
+                })
+
+                // Update existing or Create new
+                for (let i = 0; i < incomingOptions.length; i++) {
+                    const opt = incomingOptions[i];
+                    if (opt.id) {
+                        await tx.tagOption.update({
+                            where: { id: opt.id },
+                            data: { name: opt.name, order: i }
+                        })
+                    } else {
+                        await tx.tagOption.create({
+                            data: {
+                                tagGroupId: data.id!,
+                                name: opt.name,
+                                order: i
+                            }
+                        })
+                    }
+                }
+            })
         } else {
+            // Create New Group
             await prisma.tagGroup.create({
                 data: {
                     name: data.name,
-                    items: {
-                        create: tagIds.map((tagId, index) => ({
-                            tag: { connect: { id: tagId } },
-                            order: index
+                    options: {
+                        create: (data.options || []).map((opt, idx) => ({
+                            name: opt.name,
+                            order: idx
                         }))
                     }
                 }
@@ -112,7 +107,7 @@ export async function saveTagGroup(data: { id?: number, name: string, tagIds: nu
         return { success: true }
     } catch (error) {
         console.error("Failed to save tag group:", error)
-        return { success: false }
+        return { success: false, error }
     }
 }
 
@@ -124,5 +119,87 @@ export async function deleteTagGroup(id: number) {
     } catch (error) {
         console.error("Failed to delete tag group:", error)
         return { success: false }
+    }
+}
+
+export async function reorderTagGroupsAction(items: { id: number, order: number }[]) {
+    try {
+        await prisma.$transaction(
+            items.map(item =>
+                prisma.tagGroup.update({
+                    where: { id: item.id },
+                    data: { order: item.order }
+                })
+            )
+        );
+        revalidatePath("/assets");
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to reorder tag groups", error)
+        return { success: false }
+    }
+}
+
+export async function getAssetsForTagGroup(groupId: number) {
+    try {
+        const categories = await prisma.category.findMany({
+            orderBy: { order: 'asc' },
+            select: { id: true, name: true, parentId: true, color: true }
+        })
+
+        const existingTags = await prisma.categoryTag.findMany({
+            where: { tagGroupId: groupId }
+        })
+
+        return categories.map((cat: any) => {
+            const tag = existingTags.find((t: any) => t.categoryId === cat.id)
+            return {
+                id: cat.id,
+                name: cat.name,
+                color: cat.color,
+                parentId: cat.parentId,
+                currentOptionId: tag?.tagOptionId || null
+            }
+        })
+    } catch (e) {
+        console.error(e)
+        return []
+    }
+}
+
+export async function updateAssetTagMappings(groupId: number, mappings: { categoryId: number, optionId: number | null }[]) {
+    try {
+        await prisma.$transaction(async (tx) => {
+            for (const m of mappings) {
+                if (m.optionId === null) {
+                    await tx.categoryTag.deleteMany({
+                        where: { categoryId: m.categoryId, tagGroupId: groupId }
+                    })
+                } else {
+                    await tx.categoryTag.upsert({
+                        where: {
+                            categoryId_tagGroupId: {
+                                categoryId: m.categoryId,
+                                tagGroupId: groupId
+                            }
+                        },
+                        create: {
+                            categoryId: m.categoryId,
+                            tagGroupId: groupId,
+                            tagOptionId: m.optionId
+                        },
+                        update: {
+                            tagOptionId: m.optionId
+                        }
+                    })
+                }
+            }
+        })
+        revalidatePath("/assets")
+        revalidatePath("/")
+        return { success: true }
+    } catch (e) {
+        console.error("Failed to update mappings:", e)
+        return { success: false, error: e }
     }
 }

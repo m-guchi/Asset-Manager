@@ -22,38 +22,45 @@ model Category {
   parentId     Int?
   parent       Category?     @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   children     Category[]    @relation("CategoryHierarchy")
-  tags         Tag[]
+  tags         CategoryTag[]
   assets       Asset[]
   transactions Transaction[]
 
   @@index([parentId])
 }
 
-model Tag {
-  id         Int            @id @default(autoincrement())
-  name       String         @unique
-  color      String?
-  categories Category[]
-  tagGroups  TagGroupItem[]
-}
-
 model TagGroup {
-  id    Int            @id @default(autoincrement())
-  name  String
-  items TagGroupItem[]
+  id     Int           @id @default(autoincrement())
+  name   String
+  order  Int           @default(0)
+  options TagOption[]
+  assetTags CategoryTag[]
 }
 
-model TagGroupItem {
+model TagOption {
+  id         Int        @id @default(autoincrement())
+  name       String
+  order      Int        @default(0)
   tagGroupId Int
-  tagId      Int
-  order      Int      @default(0)
+  tagGroup   TagGroup   @relation(fields: [tagGroupId], references: [id], onDelete: Cascade)
+  categoryTags CategoryTag[]
 
-  tagGroup TagGroup @relation(fields: [tagGroupId], references: [id], onDelete: Cascade)
-  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@id([tagGroupId, tagId])
   @@index([tagGroupId])
-  @@index([tagId])
+}
+
+model CategoryTag {
+  categoryId  Int
+  tagGroupId  Int
+  tagOptionId Int
+
+  category   Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  tagGroup   TagGroup  @relation(fields: [tagGroupId], references: [id], onDelete: Cascade)
+  tagOption  TagOption @relation(fields: [tagOptionId], references: [id], onDelete: Cascade)
+
+  @@id([categoryId, tagGroupId])
+  @@index([tagGroupId])
+  @@index([tagOptionId])
+  @@index([categoryId])
 }
 
 model Asset {

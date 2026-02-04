@@ -15,7 +15,7 @@ export async function getHistoryData() {
         const historyRecords = await prisma.asset.findMany({
             include: {
                 category: {
-                    include: { tags: true }
+                    include: { tags: { include: { tagOption: true } } }
                 }
             },
             orderBy: { recordedAt: 'asc' }
@@ -23,7 +23,7 @@ export async function getHistoryData() {
 
         const categories = await prisma.category.findMany({
             include: {
-                tags: true,
+                tags: { include: { tagOption: true } },
                 transactions: true
             }
         })
@@ -102,7 +102,8 @@ export async function getHistoryData() {
                 const val = hasChildren ? 0 : (latestValues[cat.id] || 0)
                 const tags = (cat as any).tags || []
                 tags.forEach((tag: any) => {
-                    const tagName = String(tag.name)
+                    const tagName = String(tag.tagOption?.name || "")
+                    if (!tagName) return
                     const key = `tag_${tagName}`
                     if (!point[key]) point[key] = 0
                     point[key] = Number(point[key]) + (val * multiplier)
