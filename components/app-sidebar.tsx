@@ -19,6 +19,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
     SidebarRail,
+    useSidebar,
 } from "@/components/ui/sidebar"
 
 // Menus mostly for navigation
@@ -53,13 +54,15 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+    const { isMobile, setOpenMobile } = useSidebar()
+
     return (
         <Sidebar collapsible="icon" {...props}>
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href="/">
+                            <Link href="/" onClick={() => isMobile && setOpenMobile(false)}>
                                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                                     <PieChart className="size-4" />
                                 </div>
@@ -81,7 +84,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     {data.navMain.map((item) => (
                         <SidebarMenuItem key={item.title}>
                             <SidebarMenuButton asChild tooltip={item.title}>
-                                <Link href={item.url}>
+                                <Link href={item.url} onClick={() => isMobile && setOpenMobile(false)}>
                                     <item.icon />
                                     <span>{item.title}</span>
                                 </Link>
