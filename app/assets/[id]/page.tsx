@@ -448,16 +448,17 @@ export default function AssetDetailPage() {
             </Card>
 
             {/* Transaction History */}
+            {/* Transaction History */}
             <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <h2 className="text-lg font-bold flex items-center gap-2">
-                            <History className="h-5 w-5" />
-                            取引・評価履歴
-                        </h2>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <h2 className="text-lg font-bold flex items-center gap-2">
+                        <History className="h-5 w-5" />
+                        取引・評価履歴
+                    </h2>
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
                         {category.children && category.children.length > 0 && (
                             <Select value={historyFilter} onValueChange={setHistoryFilter}>
-                                <SelectTrigger className="h-8 w-[140px]">
+                                <SelectTrigger className="h-9 w-[140px] text-xs">
                                     <SelectValue placeholder="すべて表示" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -470,21 +471,21 @@ export default function AssetDetailPage() {
                                 </SelectContent>
                             </Select>
                         )}
+                        <Button onClick={() => {
+                            setEditingItem(null)
+                            setNewTrx({
+                                date: new Date().toISOString().split('T')[0],
+                                type: category.isCash ? "VALUATION" : "TRANSACTION",
+                                amount: "",
+                                valuation: "",
+                                memo: ""
+                            })
+                            setIsTrxModalOpen(true)
+                        }} size="sm" className="h-9">
+                            <Plus className="h-4 w-4 mr-2" />
+                            取引・評価を追加
+                        </Button>
                     </div>
-                    <Button onClick={() => {
-                        setEditingItem(null)
-                        setNewTrx({
-                            date: new Date().toISOString().split('T')[0],
-                            type: category.isCash ? "VALUATION" : "TRANSACTION",
-                            amount: "",
-                            valuation: "",
-                            memo: ""
-                        })
-                        setIsTrxModalOpen(true)
-                    }} size="sm">
-                        <Plus className="h-4 w-4 mr-2" />
-                        取引・評価を追加
-                    </Button>
                 </div>
 
                 <Card>
