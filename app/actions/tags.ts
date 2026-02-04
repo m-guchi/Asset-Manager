@@ -170,16 +170,37 @@ export async function renameTagGroup(id: number, name: string) {
 
 export async function getAssetsForTagGroup(groupId: number) {
     try {
+        // 1. Fetch all raw
         const categories = await prisma.category.findMany({
-            orderBy: { order: 'asc' },
-            select: { id: true, name: true, parentId: true, color: true }
+            select: { id: true, name: true, parentId: true, color: true, order: true }
         })
+
+        // 2. Sort Hierarchically to match Main List
+        const roots = categories
+            .filter((c: any) => !c.parentId)
+            .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+
+        const childrenMap = new Map<number, any[]>();
+        categories.forEach((c: any) => {
+            if (c.parentId) {
+                const existing = childrenMap.get(c.parentId) || [];
+                existing.push(c);
+                childrenMap.set(c.parentId, existing);
+            }
+        });
+
+        const sorted: any[] = [];
+        roots.forEach((root: any) => {
+            sorted.push(root);
+            const children = (childrenMap.get(root.id) || []).sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+            sorted.push(...children);
+        });
 
         const existingTags = await (prisma as any).categoryTag.findMany({
             where: { tagGroupId: groupId }
         })
 
-        return categories.map((cat: any) => {
+        return sorted.map((cat: any) => {
             const tag = existingTags.find((t: any) => t.categoryId === cat.id)
             return {
                 id: cat.id,
