@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "tunnel": "ssh -L 3307:localhost:3306 -p 19622 -N guchi@18.178.75.179",
+    "dev:with-tunnel": "start npm run tunnel && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
