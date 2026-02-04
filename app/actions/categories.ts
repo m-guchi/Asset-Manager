@@ -283,6 +283,25 @@ export async function updateCategoryOrder(id: number, direction: 'up' | 'down') 
     }
 }
 
+export async function reorderCategoriesAction(items: { id: number, order: number }[]) {
+    try {
+        await prisma.$transaction(
+            items.map(item =>
+                prisma.category.update({
+                    where: { id: item.id },
+                    data: { order: item.order }
+                })
+            )
+        );
+        revalidatePath("/");
+        revalidatePath("/assets");
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to batch reorder:", error);
+        return { success: false };
+    }
+}
+
 export async function deleteCategory(id: number) {
     try {
         // Clear parentId for children before deleting
