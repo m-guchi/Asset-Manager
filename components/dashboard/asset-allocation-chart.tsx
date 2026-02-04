@@ -114,7 +114,8 @@ export function AssetAllocationChart({
     }, [chartData])
 
     const displayData = React.useMemo(() => {
-        return chartData.filter(d => !d.isLiability)
+        return chartData
+            .filter(d => !d.isLiability)
     }, [chartData])
 
     return (
@@ -158,7 +159,9 @@ export function AssetAllocationChart({
                         <Pie
                             data={displayData}
                             dataKey="value"
-                            nameKey="category"
+                            nameKey="name"
+                            startAngle={90}
+                            endAngle={-270}
                             innerRadius={30}
                             outerRadius={70}
                             labelLine={true}

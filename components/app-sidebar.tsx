@@ -41,7 +41,7 @@ const data = {
             icon: ArrowRightLeft,
         },
         {
-            title: "評価額更新",
+            title: "評価額一括更新",
             url: "/assets/valuation",
             icon: Wallet, // Or Edit2/Pencil if imported
         },

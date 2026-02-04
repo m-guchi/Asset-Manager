@@ -121,6 +121,8 @@ export async function getCategories() {
                     ownCostBasis: ownCostBasis,
                     isCash: !!cat.isCash,
                     isLiability: !!cat.isLiability,
+                    valuationOrder: cat.valuationOrder ?? 0,
+                    isValuationTarget: cat.isValuationTarget ?? true,
                     tags: catTags.map((t: any) => t?.name || ""),
                     conflicts
                 };
@@ -515,3 +517,24 @@ export async function getTagGroups() {
         return []
     }
 }
+
+export async function updateValuationSettingsAction(settings: { id: number, valuationOrder: number, isValuationTarget: boolean }[]) {
+    try {
+        await prisma.$transaction(
+            settings.map(s => prisma.category.update({
+                where: { id: s.id },
+                data: {
+                    valuationOrder: s.valuationOrder,
+                    isValuationTarget: s.isValuationTarget
+                }
+            }))
+        )
+        revalidatePath('/')
+        revalidatePath('/assets/valuation')
+        return { success: true }
+    } catch (error) {
+        console.error('Failed to update valuation settings:', error)
+        return { success: false }
+    }
+}
+

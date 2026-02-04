@@ -15,6 +15,8 @@ model Category {
   name         String
   color        String
   order        Int           @default(0)
+  valuationOrder Int           @default(0)
+  isValuationTarget Boolean    @default(true)
   isCash       Boolean       @default(false)
   isLiability  Boolean       @default(false)
   parentId     Int?
