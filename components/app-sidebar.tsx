@@ -95,7 +95,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarContent>
             <SidebarFooter>
                 <div className="p-4 text-xs text-center text-muted-foreground opacity-50">
-                    version 0.1.0
+                    version {process.env.NEXT_PUBLIC_APP_VERSION}
                 </div>
             </SidebarFooter>
             <SidebarRail />
