@@ -128,65 +128,49 @@ export function AssetHistoryChart({
     return (
         <Card>
             <CardHeader>
-                <div className="flex items-center justify-between">
-                    <div>
+                <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
                         <CardTitle>資産推移</CardTitle>
-                        <div className="flex items-center gap-2">
-                            <CardDescription className="text-xs">
-                                表示:
-                            </CardDescription>
-                            <div className="flex bg-muted/50 rounded-md p-0.5 border">
+                        <div className="flex bg-muted rounded-md p-1 ml-auto">
+                            {["1M", "3M", "1Y", "ALL"].map((range) => (
                                 <button
-                                    onClick={() => setMode("total")}
-                                    className={`px-2 py-0.5 text-[10px] rounded-sm transition-all ${mode === "total"
-                                        ? "bg-background text-foreground shadow-sm font-bold"
-                                        : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+                                    key={range}
+                                    onClick={() => setTimeRange(range)}
+                                    className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${timeRange === range
+                                        ? "bg-background text-foreground shadow-sm"
+                                        : "text-muted-foreground hover:text-foreground"
+                                        }`}
                                 >
-                                    全体
+                                    {range}
                                 </button>
-                                <button
-                                    onClick={() => setMode("tag")}
-                                    className={`px-2 py-0.5 text-[10px] rounded-sm transition-all ${mode === "tag"
-                                        ? "bg-background text-foreground shadow-sm font-bold"
-                                        : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
-                                >
-                                    タグ別
-                                </button>
-                            </div>
+                            ))}
                         </div>
                     </div>
-                    <div className="flex bg-muted rounded-md p-1">
-                        {["1M", "3M", "1Y", "ALL"].map((range) => (
+
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar justify-center">
+                        <div className="flex bg-muted/50 rounded-md p-0.5 border">
                             <button
-                                key={range}
-                                onClick={() => setTimeRange(range)}
-                                className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${timeRange === range
-                                    ? "bg-background text-foreground shadow-sm"
-                                    : "text-muted-foreground hover:text-foreground"
-                                    }`}
+                                onClick={() => setMode("total")}
+                                className={`px-2 py-1 text-[10px] rounded-md transition-all whitespace-nowrap ${mode === "total"
+                                    ? "bg-background text-foreground shadow-sm font-bold"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
                             >
-                                {range}
+                                全体
                             </button>
-                        ))}
+                            {tagGroups.map(g => (
+                                <button
+                                    key={g.id}
+                                    onClick={() => { setMode("tag"); setSelectedTagGroup(g.id); }}
+                                    className={`px-2 py-1 text-[10px] rounded-md transition-all whitespace-nowrap ${mode === "tag" && selectedTagGroup === g.id
+                                        ? "bg-background text-foreground shadow-sm font-bold"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+                                >
+                                    {g.name}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
-
-                {mode === "tag" && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                        {tagGroups.map(g => (
-                            <div
-                                key={g.id}
-                                className={`text-xs px-2 py-1 rounded cursor-pointer border transition-colors ${selectedTagGroup === g.id
-                                    ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-muted text-muted-foreground border-transparent hover:border-border"
-                                    }`}
-                                onClick={() => setSelectedTagGroup(g.id)}
-                            >
-                                {g.name}
-                            </div>
-                        ))}
-                    </div>
-                )}
             </CardHeader>
             <CardContent>
                 <div className="h-[250px] w-full min-w-0">
@@ -232,7 +216,7 @@ export function AssetHistoryChart({
                             {mode === "total" && (
                                 <Area
                                     dataKey="totalAssets"
-                                    name="総資産"
+                                    name="評価額"
                                     type="linear"
                                     fill="var(--chart-1)"
                                     fillOpacity={0.4}
@@ -245,7 +229,7 @@ export function AssetHistoryChart({
                                     name="取得原価"
                                     type="linear"
                                     fill="none"
-                                    stroke="var(--chart-2)"
+                                    stroke="#888888"
                                     strokeWidth={2}
                                     strokeDasharray="5 5"
                                 />
