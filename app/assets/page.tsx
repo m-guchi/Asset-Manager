@@ -45,6 +45,7 @@ import {
     sortableKeyboardCoordinates,
     useSortable,
     verticalListSortingStrategy,
+    rectSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -612,25 +613,96 @@ function AddTagTrigger({ onAdd }: { onAdd: () => void }) {
     )
 }
 
+
+
 function TagGroupForm({ initialData, allTags, onSave, onCancel }: any) {
     const [name, setName] = useState(initialData?.name || "")
-    const [selectedTags, setSelectedTags] = useState<number[]>(initialData?.tags?.map((t: any) => t.id) || [])
+    const [selectedTagIds, setSelectedTagIds] = useState<number[]>(initialData?.tags?.map((t: any) => t.id) || [])
+
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    )
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event
+        if (over && active.id !== over.id) {
+            setSelectedTagIds((ids) => {
+                const oldIndex = ids.indexOf(Number(active.id))
+                const newIndex = ids.indexOf(Number(over.id))
+                return arrayMove(ids, oldIndex, newIndex)
+            })
+        }
+    }
+
+    const toggleTag = (tagId: number) => {
+        if (selectedTagIds.includes(tagId)) {
+            setSelectedTagIds(selectedTagIds.filter(id => id !== tagId))
+        } else {
+            setSelectedTagIds([...selectedTagIds, tagId])
+        }
+    }
+
     return (
         <div className="grid gap-4 py-4">
             <div className="grid gap-2"><Label>グループ名</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
+
             <div className="grid gap-2">
-                <Label>対象タグ</Label>
+                <Label>選択されたタグ（ドラッグで並び替え）</Label>
+                <div className="bg-muted/30 p-2 rounded-md min-h-[50px]">
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                        <SortableContext items={selectedTagIds} strategy={rectSortingStrategy}>
+                            <div className="flex flex-wrap gap-2">
+                                {selectedTagIds.map(id => {
+                                    const tag = allTags.find((t: any) => t.id === id)
+                                    if (!tag) return null
+                                    return (
+                                        <SortableTagItem key={id} id={id}>
+                                            <Badge variant="default" className="cursor-grab active:cursor-grabbing hover:bg-secondaly pr-1 pl-2 py-1 flex items-center gap-1">
+                                                {tag.name}
+                                                <X className="h-3 w-3 cursor-pointer hover:text-white/70" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    toggleTag(id)
+                                                }} />
+                                            </Badge>
+                                        </SortableTagItem>
+                                    )
+                                })}
+                            </div>
+                        </SortableContext>
+                    </DndContext>
+                    {selectedTagIds.length === 0 && <span className="text-xs text-muted-foreground p-1">タグを選択してください</span>}
+                </div>
+            </div>
+
+            <div className="grid gap-2">
+                <Label>未選択のタグ</Label>
                 <div className="flex flex-wrap gap-2 pt-2">
-                    {allTags.map((tag: any) => (
-                        <Badge key={tag.id} variant={selectedTags.includes(tag.id) ? "default" : "outline"} className="cursor-pointer" onClick={() => {
-                            setSelectedTags(selectedTags.includes(tag.id) ? selectedTags.filter(id => id !== tag.id) : [...selectedTags, tag.id])
-                        }}>{tag.name}</Badge>
+                    {allTags.filter((t: any) => !selectedTagIds.includes(t.id)).map((tag: any) => (
+                        <Badge key={tag.id} variant="outline" className="cursor-pointer hover:bg-muted" onClick={() => toggleTag(tag.id)}>
+                            <Plus className="h-3 w-3 mr-1" />
+                            {tag.name}
+                        </Badge>
                     ))}
                 </div>
             </div>
-            <DialogFooter><Button variant="outline" onClick={onCancel}>キャンセル</Button><Button onClick={() => onSave({ id: initialData?.id, name, tagIds: selectedTags })}>保存</Button></DialogFooter>
+
+            <DialogFooter>
+                <Button variant="outline" onClick={onCancel}>キャンセル</Button>
+                <Button onClick={() => onSave({ id: initialData?.id, name, tagIds: selectedTagIds })}>保存</Button>
+            </DialogFooter>
         </div>
     )
+}
+
+function SortableTagItem({ id, children }: { id: number, children: React.ReactNode }) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+    return <div ref={setNodeRef} style={style} {...attributes} {...listeners}>{children}</div>
 }
 
 

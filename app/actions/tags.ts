@@ -51,10 +51,22 @@ export async function deleteTag(id: number) {
 
 export async function getTagGroups() {
     try {
-        return await prisma.tagGroup.findMany({
-            include: { tags: true },
+        const groups = await prisma.tagGroup.findMany({
+            include: {
+                items: {
+                    include: { tag: true },
+                    orderBy: { order: 'asc' }
+                }
+            },
             orderBy: { id: 'asc' }
         })
+
+        // Map to flat structure for frontend compatibility
+        return groups.map((g: any) => ({
+            id: g.id,
+            name: g.name,
+            tags: g.items.map((item: any) => item.tag)
+        }))
     } catch (error) {
         console.error("Failed to fetch tag groups:", error)
         return []
@@ -65,22 +77,32 @@ export async function saveTagGroup(data: { id?: number, name: string, tagIds: nu
     try {
         const tagIds = data.tagIds || []
         if (data.id) {
-            await prisma.tagGroup.update({
-                where: { id: data.id },
-                data: {
-                    name: data.name,
-                    tags: {
-                        set: [], // Disconnect all first
-                        connect: tagIds.map(id => ({ id }))
-                    }
-                }
-            })
+            // Update: Delete existing items and recreate to update order easily
+            await prisma.$transaction([
+                prisma.tagGroup.update({
+                    where: { id: data.id },
+                    data: { name: data.name }
+                }),
+                prisma.tagGroupItem.deleteMany({
+                    where: { tagGroupId: data.id }
+                }),
+                prisma.tagGroupItem.createMany({
+                    data: tagIds.map((tagId, index) => ({
+                        tagGroupId: data.id!,
+                        tagId: tagId,
+                        order: index
+                    }))
+                })
+            ])
         } else {
             await prisma.tagGroup.create({
                 data: {
                     name: data.name,
-                    tags: {
-                        connect: tagIds.map(id => ({ id }))
+                    items: {
+                        create: tagIds.map((tagId, index) => ({
+                            tag: { connect: { id: tagId } },
+                            order: index
+                        }))
                     }
                 }
             })
