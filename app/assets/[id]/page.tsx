@@ -602,7 +602,7 @@ export default function AssetDetailPage() {
                             <Select
                                 value={newTrx.type}
                                 onValueChange={(val) => setNewTrx({ ...newTrx, type: val })}
-                                disabled={category.isCash}
+                                disabled={category.isCash || !!editingItem}
                             >
                                 <SelectTrigger>
                                     <SelectValue />
