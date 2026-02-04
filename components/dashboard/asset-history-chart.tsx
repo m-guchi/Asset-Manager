@@ -15,21 +15,7 @@ import {
     ChartTooltipContent,
 } from "@/components/ui/chart"
 
-// --- Types ---
-interface HistoryPoint {
-    date: string
-    totalAssets: number
-    totalCost: number
-    netWorth?: number
-    [key: string]: any
-}
-
-interface TagGroup {
-    id: number
-    name: string
-    tags?: string[]
-    options?: { id: number, name: string }[]
-}
+import { HistoryPoint, TagGroup } from "@/types/asset"
 
 // Consistent colors matching the Allocation Chart (Shadcn Chart colors)
 const CUSTOM_COLORS: Record<string, string> = {

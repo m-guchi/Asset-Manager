@@ -18,16 +18,7 @@ import {
     ChartTooltipContent,
 } from "@/components/ui/chart"
 
-interface Category {
-    id: number
-    name: string
-    currentValue: number
-    costBasis: number
-    color: string
-    isCash?: boolean
-    isLiability?: boolean
-    tags: string[]
-}
+import { Category } from "@/types/asset"
 
 interface TagGroup {
     id: number

@@ -32,20 +32,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { reorderCategoriesAction } from "@/app/actions/categories"
 import { toast } from "sonner"
 
-interface Category {
-    id: number
-    name: string
-    currentValue: number
-    costBasis: number
-    ownValue: number
-    ownCostBasis: number
-    color: string
-    order: number
-    parentId?: number | null
-    isCash?: boolean
-    isLiability?: boolean
-    conflicts?: string[]
-}
+import { Category } from "@/types/asset"
 
 // --- Sortable Item Component ---
 function SortableCategoryItem({ category, children, isEditing }: { category: Category, children: React.ReactNode, isEditing: boolean }) {
@@ -178,8 +165,8 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
     };
 
     const renderCategoryCard = (category: Category, isChild = false) => {
-        const valueToUse = isChild ? category.ownValue : category.currentValue
-        const costToUse = category.isCash ? valueToUse : (isChild ? category.ownCostBasis : category.costBasis)
+        const valueToUse = (isChild ? category.ownValue : category.currentValue) ?? 0
+        const costToUse = (category.isCash ? valueToUse : (isChild ? category.ownCostBasis : category.costBasis)) ?? 0
         const profit = valueToUse - costToUse
         const profitPercent = costToUse > 0 ? (profit / costToUse) * 100 : 0
         const isPositive = profit >= 0

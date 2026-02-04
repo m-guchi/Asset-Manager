@@ -15,21 +15,7 @@ import { toast } from "sonner"
 
 export const dynamic = "force-dynamic"
 
-interface Category {
-    id: number
-    name: string
-    currentValue: number
-    costBasis: number
-    ownValue?: number
-    ownCostBasis?: number
-    color?: string
-    order?: number
-    isCash?: boolean
-    isLiability?: boolean
-    tags: string[]
-    conflicts?: string[]
-    parentId?: number | null
-}
+import { Category } from "@/types/asset"
 
 export default function Page() {
     const [categories, setCategories] = React.useState<Category[]>([])
