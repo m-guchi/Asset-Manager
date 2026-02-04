@@ -1,17 +1,18 @@
 "use client"
 import * as React from "react"
-import { Area, AreaChart, CartesianGrid, XAxis, Tooltip, ResponsiveContainer, Legend, YAxis } from "recharts"
+import { Area, AreaChart, CartesianGrid, XAxis, Tooltip, ResponsiveContainer, YAxis, ReferenceLine, Line, ComposedChart } from "recharts"
 
 import {
     Card,
     CardContent,
-    CardDescription,
     CardHeader,
     CardTitle,
-    CardFooter,
 } from "@/components/ui/card"
 import {
     ChartConfig,
+    ChartContainer,
+    ChartTooltip,
+    ChartTooltipContent,
 } from "@/components/ui/chart"
 
 // --- Types ---
@@ -19,6 +20,7 @@ interface HistoryPoint {
     date: string
     totalAssets: number
     totalCost: number
+    netWorth?: number
     [key: string]: any
 }
 
@@ -29,20 +31,21 @@ interface TagGroup {
     options?: { id: number, name: string }[]
 }
 
-// Color Mapping
+// Consistent colors matching the Allocation Chart (Shadcn Chart colors)
 const CUSTOM_COLORS: Record<string, string> = {
-    "安全資産": "#3b82f6",
-    "リスク資産": "#22c55e",
-    "超ハイリスク": "#f97316",
-    "円建て": "#3b82f6",
-    "ドル建て": "#1d4ed8",
-    "負債": "#ef4444",
+    "投資資金": "#2563eb",     // Blue
+    "生活防衛費": "#10b981",   // Green 
+    "代替通貨": "#f59e0b",     // Orange
+    "安全資産": "#2563eb",
+    "リスク資産": "#10b981",
+    "超ハイリスク": "#f59e0b",
+    "日本円": "#2563eb",
+    "米ドル": "#10b981",
 }
 
 const mockTagGroups: TagGroup[] = [
-    { id: 1, name: "資産クラス別", tags: ["安全資産", "リスク資産"] },
-    { id: 2, name: "通貨別", tags: ["円建て", "ドル建て"] },
-    { id: 3, name: "分類詳細", tags: ["現金・預金", "投資信託", "株式"] },
+    { id: 1, name: "目的別", tags: ["投資資金", "生活防衛費", "代替通貨"] },
+    { id: 2, name: "資産クラス別", tags: ["安全資産", "リスク資産"] },
 ]
 
 export function AssetHistoryChart({
@@ -52,10 +55,25 @@ export function AssetHistoryChart({
     data?: HistoryPoint[],
     tagGroups?: TagGroup[]
 }) {
+    const [isMounted, setIsMounted] = React.useState(false);
     const [mode, setMode] = React.useState<"total" | "tag">("total")
     const [selectedTagGroup, setSelectedTagGroup] = React.useState<number>(1)
     const [timeRange, setTimeRange] = React.useState("1Y")
     const [showPercent, setShowPercent] = React.useState(false)
+    const [activePoint, setActivePoint] = React.useState<any>(null)
+    const [isLocked, setIsLocked] = React.useState(false)
+
+    React.useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    // Ensure we have a valid group selected
+    React.useEffect(() => {
+        if (tagGroups && tagGroups.length > 0) {
+            const exists = tagGroups.find(g => g.id === selectedTagGroup)
+            if (!exists) setSelectedTagGroup(tagGroups[0].id)
+        }
+    }, [tagGroups, selectedTagGroup])
 
     const activeKeys = React.useMemo(() => {
         if (mode === "tag") {
@@ -65,234 +83,272 @@ export function AssetHistoryChart({
         return []
     }, [mode, selectedTagGroup, tagGroups])
 
-    // Reset showPercent when mode changes to total
-    React.useEffect(() => {
-        if (mode === "total") setShowPercent(false)
-    }, [mode])
-
-    const formatXAxis = (tickItem: string) => {
-        const date = new Date(tickItem)
-        if (timeRange === "1M" || timeRange === "3M") {
-            return `${date.getMonth() + 1}/${date.getDate()}`
-        }
-        return `${date.getFullYear()}/${date.getMonth() + 1}`
-    }
-
-    // ... rest of filtredData logic ...
-
-    // Filter data based on timeRange and ensure it starts from the left edge
-    const { filteredData, cutoffTime } = React.useMemo(() => {
-        if (!data.length) return { filteredData: [], cutoffTime: null }
+    const filteredData = React.useMemo(() => {
+        if (!data || data.length === 0) return []
 
         const now = new Date()
         const cutoff = new Date()
-        let isAll = false;
+        let isAll = timeRange === "ALL"
 
-        // Normalize cutoff to start of day for cleaner transitions
-        cutoff.setHours(0, 0, 0, 0)
-
-        if (timeRange === "1M") cutoff.setMonth(now.getMonth() - 1)
-        else if (timeRange === "3M") cutoff.setMonth(now.getMonth() - 3)
-        else if (timeRange === "1Y") cutoff.setFullYear(now.getFullYear() - 1)
-        else isAll = true;
-
-        if (isAll) {
-            return {
-                filteredData: data.map(point => ({ ...point, date: new Date(point.date).getTime() })),
-                cutoffTime: null
-            }
+        if (!isAll) {
+            cutoff.setHours(0, 0, 0, 0)
+            if (timeRange === "1M") cutoff.setMonth(now.getMonth() - 1)
+            else if (timeRange === "3M") cutoff.setMonth(now.getMonth() - 3)
+            else if (timeRange === "1Y") cutoff.setFullYear(now.getFullYear() - 1)
         }
 
         const cTime = cutoff.getTime()
-        const filtered = data
-            .filter(point => new Date(point.date).getTime() >= cTime)
-            .map(p => ({ ...p, date: new Date(p.date).getTime() }))
-
-        // Find the point just before the cutoff to use as starting point (estimation)
-        const beforeCutoff = [...data].reverse().find(point => new Date(point.date).getTime() < cTime)
-
-        if (beforeCutoff) {
-            const startPoint = {
-                ...beforeCutoff,
-                date: cTime // Set to exact cutoff time for left-edge start
-            }
-            return {
-                filteredData: [startPoint, ...filtered],
-                cutoffTime: cTime
-            }
-        }
-
-        return {
-            filteredData: filtered,
-            cutoffTime: cTime
-        }
+        return data
+            .map(p => {
+                const d = new Date(p.date)
+                return {
+                    ...p,
+                    totalAssets: Number(p.totalAssets || 0),
+                    totalCost: Number(p.totalCost || 0),
+                    timestamp: isNaN(d.getTime()) ? 0 : d.getTime()
+                }
+            })
+            .filter(p => p.timestamp > 0)
+            .filter(p => isAll || p.timestamp >= cTime)
+            .sort((a, b) => a.timestamp - b.timestamp)
     }, [data, timeRange])
 
-    if (data.length === 0) {
+    const chartConfig = React.useMemo(() => {
+        const config: ChartConfig = {
+            totalAssets: { label: "評価額", color: "var(--chart-1)" },
+            totalCost: { label: "取得原価", color: "#888" },
+        }
+        activeKeys.forEach((key, i) => {
+            config[`tag_${key}`] = {
+                label: key,
+                color: CUSTOM_COLORS[key] || `var(--chart-${(i % 5) + 1})`
+            }
+        })
+        return config
+    }, [activeKeys])
+
+    if (!isMounted) {
         return (
-            <Card className="h-full flex flex-col items-center justify-center p-8 text-center bg-muted/20 border-dashed">
-                <p className="text-muted-foreground">履歴データがありません</p>
+            <Card className="h-[450px] min-h-[450px] flex items-center justify-center bg-muted/5 border-dashed">
+                <p className="text-xs text-muted-foreground animate-pulse">グラフを構成中...</p>
             </Card>
-        )
+        );
+    }
+
+    const formatXAxis = (tickItem: number) => {
+        const date = new Date(tickItem)
+        if (isNaN(date.getTime())) return ""
+        return `${date.getFullYear()}/${date.getMonth() + 1}`
     }
 
     return (
-        <Card>
-            <CardHeader className="pb-2">
-                <div className="w-full min-w-0">
-                    <div className="flex items-center gap-2 w-full">
-                        {/* Scrollable Groups Section */}
-                        <div className="flex-1 overflow-x-auto no-scrollbar">
-                            <div className="flex bg-muted/50 rounded-md p-0.5 border w-fit">
-                                <button
-                                    onClick={() => setMode("total")}
-                                    className={`px-2 py-1 text-[10px] rounded-md transition-all whitespace-nowrap ${mode === "total"
-                                        ? "bg-background text-foreground shadow-sm font-bold"
-                                        : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
-                                >
-                                    全体
-                                </button>
-                                {tagGroups.map(g => (
-                                    <button
-                                        key={g.id}
-                                        onClick={() => { setMode("tag"); setSelectedTagGroup(g.id); }}
-                                        className={`px-2 py-1 text-[10px] rounded-md transition-all whitespace-nowrap ${mode === "tag" && selectedTagGroup === g.id
-                                            ? "bg-background text-foreground shadow-sm font-bold"
-                                            : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
-                                    >
-                                        {g.name}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+        <Card className="flex flex-col">
+            <CardHeader className="items-center pb-0 pt-2">
+                <div className="w-full flex items-center gap-2 overflow-x-auto pb-1 mt-1 no-scrollbar max-w-full">
+                    <div className="flex bg-muted/50 rounded-md p-0.5 border" onClick={(e) => e.stopPropagation()}>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setMode("total"); }}
+                            className={`px-2 py-1 text-[10px] rounded-md transition-all whitespace-nowrap ${mode === "total"
+                                ? "bg-background text-foreground shadow-sm font-bold"
+                                : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+                        >
+                            全体
+                        </button>
+                        {tagGroups && tagGroups.map(grp => (
+                            <button
+                                key={grp.id}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMode("tag");
+                                    setSelectedTagGroup(grp.id);
+                                }}
+                                className={`px-2 py-1 text-[10px] rounded-md transition-all whitespace-nowrap ${mode === "tag" && selectedTagGroup === grp.id
+                                    ? "bg-background text-foreground shadow-sm font-bold"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+                            >
+                                {grp.name}
+                            </button>
+                        ))}
                     </div>
                 </div>
             </CardHeader>
-            <CardContent>
-                <div className="h-[250px] w-full min-w-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart
-                            data={filteredData}
-                            margin={{ top: 10, right: 10, left: 5, bottom: 0 }}
-                            stackOffset={showPercent ? "expand" : "none"}
-                        >
-                            <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                            <XAxis
-                                dataKey="date"
-                                type="number"
-                                domain={['dataMin', 'dataMax']}
-                                tickLine={false}
-                                axisLine={false}
-                                tickMargin={8}
-                                tickFormatter={formatXAxis}
-                                minTickGap={30}
-                                padding={{ left: 0, right: 0 }}
-                                allowDataOverflow={true}
-                                interval="preserveStartEnd"
-                                className="text-[10px]"
-                            />
-                            <YAxis
-                                tickFormatter={(val) => showPercent ? `${(val * 100).toFixed(0)}%` : `${(val / 10000).toFixed(0)}万`}
-                                width={50}
-                                tickLine={false}
-                                axisLine={false}
-                                tickMargin={4}
-                                className="text-[10px]"
-                            />
-                            <Tooltip
-                                contentStyle={{ backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}
-                                itemStyle={{ color: 'var(--foreground)' }}
-                                labelFormatter={(label) => {
-                                    const d = new Date(label)
-                                    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
-                                }}
-                                formatter={(value: number, name: string, props: any) => {
-                                    const formattedValue = `¥${value.toLocaleString()}`
-                                    if (showPercent && props.payload) {
-                                        // Calculate total for percentage display in tooltips
-                                        const total = activeKeys.reduce((acc, key) => acc + (props.payload[`tag_${key}`] || 0), 0)
-                                        const percent = total > 0 ? (value / total * 100).toFixed(1) : "0.0"
-                                        return [`${formattedValue} (${percent}%)`, name]
-                                    }
-                                    return [formattedValue, name]
-                                }}
-                            />
-                            <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} verticalAlign="bottom" height={40} />
 
-                            {mode === "total" && (
-                                <Area
-                                    dataKey="totalAssets"
-                                    name="評価額"
-                                    type="linear"
-                                    fill="var(--chart-1)"
-                                    fillOpacity={0.4}
-                                    stroke="var(--chart-1)"
-                                />
+            <CardContent
+                className="flex-1 p-0 relative min-h-0 overflow-hidden"
+                onClick={() => {
+                    setActivePoint(null)
+                    setIsLocked(false)
+                }}
+            >
+                <ChartContainer config={chartConfig} className="w-full h-full">
+                    <div className="flex flex-col h-full">
+                        {/* Detail Info Bar */}
+                        <div className="px-4 py-1.5 border-y border-border/40 bg-muted/10 min-h-[45px] flex items-center mt-0.5" onClick={(e) => e.stopPropagation()}>
+                            {!activePoint ? (
+                                <div className="w-full text-center">
+                                    <span className="text-[10px] text-muted-foreground animate-pulse font-medium">
+                                        グラフをホバーして詳細を表示
+                                    </span>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-3 w-full overflow-x-auto no-scrollbar">
+                                    <div className="bg-background border border-border/60 shadow-sm px-2 py-0.5 rounded text-[10px] font-bold shrink-0">
+                                        {(() => {
+                                            const d = new Date(activePoint.timestamp)
+                                            return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
+                                        })()}
+                                    </div>
+                                    <div className="flex items-center gap-4 flex-1 pr-2">
+                                        {mode === "total" ? (
+                                            <>
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--color-totalAssets)" }} />
+                                                    <span className="text-[9px] text-muted-foreground font-bold">評価額</span>
+                                                    <span className="text-[11px] font-bold">¥{Math.round(activePoint.totalAssets).toLocaleString()}</span>
+                                                </div>
+                                                <div className="flex items-center gap-1.5 shrink-0 border-l border-border/50 pl-4">
+                                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--color-totalCost)" }} />
+                                                    <span className="text-[9px] text-muted-foreground font-bold">取得原価</span>
+                                                    <span className="text-[11px] font-bold text-muted-foreground">¥{Math.round(activePoint.totalCost).toLocaleString()}</span>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            activeKeys.map((key, i) => {
+                                                const val = activePoint[`tag_${key}`] || 0
+                                                if (val === 0) return null
+                                                return (
+                                                    <div key={key} className={`flex items-center gap-1.5 shrink-0 ${i > 0 ? "border-l border-border/50 pl-4" : ""}`}>
+                                                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: `var(--color-tag_${key})` }} />
+                                                        <span className="text-[9px] text-muted-foreground font-bold">{key}</span>
+                                                        <span className="text-[11px] font-bold">
+                                                            {showPercent
+                                                                ? `${((val / (activeKeys.reduce((a, k) => a + (activePoint[`tag_${k}`] || 0), 0) || 1)) * 100).toFixed(1)}%`
+                                                                : `¥${Math.round(val).toLocaleString()}`
+                                                            }
+                                                        </span>
+                                                    </div>
+                                                )
+                                            })
+                                        )}
+                                    </div>
+                                </div>
                             )}
-                            {mode === "total" && (
-                                <Area
-                                    dataKey="totalCost"
-                                    name="取得原価"
-                                    type="linear"
-                                    fill="none"
-                                    stroke="#888888"
-                                    strokeWidth={2}
-                                    strokeDasharray="5 5"
-                                />
-                            )}
-                            {mode === "tag" && [...activeKeys].reverse().map((key, i) => (
-                                <Area
-                                    key={key}
-                                    dataKey={`tag_${key}`}
-                                    name={key}
-                                    type="linear"
-                                    fill={CUSTOM_COLORS[key] || `var(--chart-${((activeKeys.length - 1 - i) % 5) + 1})`}
-                                    fillOpacity={0.6}
-                                    stroke={CUSTOM_COLORS[key] || `var(--chart-${((activeKeys.length - 1 - i) % 5) + 1})`}
-                                    stackId="1"
-                                />
-                            ))}
-                        </AreaChart>
-                    </ResponsiveContainer>
+                        </div>
+
+                        <div className="w-full h-[320px] px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <ComposedChart
+                                    data={filteredData}
+                                    onMouseMove={(e) => {
+                                        if (!isLocked && e && e.activePayload) {
+                                            setActivePoint(e.activePayload[0].payload)
+                                        }
+                                    }}
+                                    onClick={(e) => {
+                                        if (e && e.activePayload) {
+                                            setActivePoint(e.activePayload[0].payload)
+                                            setIsLocked(true)
+                                        }
+                                    }}
+                                    onMouseLeave={() => {
+                                        if (!isLocked) setActivePoint(null)
+                                    }}
+                                    stackOffset={mode === "tag" && showPercent ? "expand" : "none"}
+                                    margin={{ top: 10, right: 30, left: 10, bottom: 0 }}
+                                >
+                                    <CartesianGrid vertical={false} strokeOpacity={0.15} strokeDasharray="" />
+                                    <XAxis
+                                        dataKey="timestamp"
+                                        type="number"
+                                        domain={['dataMin', 'dataMax']}
+                                        tickFormatter={formatXAxis}
+                                        tickLine={false}
+                                        axisLine={false}
+                                        tick={{ fill: 'currentColor', fontSize: 10, opacity: 0.5 }}
+                                        tickMargin={10}
+                                    />
+                                    <YAxis
+                                        tickFormatter={(val) => showPercent ? `${(val * 100).toFixed(0)}%` : `${Math.round(val / 10000)}万`}
+                                        tickLine={false}
+                                        axisLine={false}
+                                        tick={{ fill: 'currentColor', fontSize: 10, opacity: 0.5 }}
+                                        width={50}
+                                        domain={showPercent ? [0, 1] : ['auto', 'auto']}
+                                    />
+                                    <Tooltip
+                                        content={() => null}
+                                        cursor={{ stroke: 'currentColor', strokeDasharray: '3 3', strokeOpacity: 0.4 }}
+                                    />
+                                    {activePoint && (
+                                        <ReferenceLine x={activePoint.timestamp} stroke="currentColor" strokeOpacity={0.4} strokeWidth={1} />
+                                    )}
+                                    <ReferenceLine y={0} stroke="currentColor" strokeOpacity={0.3} strokeDasharray="3 3" />
+
+                                    {mode === "total" && (
+                                        <Area
+                                            dataKey="totalAssets"
+                                            type="monotone"
+                                            stroke="var(--color-totalAssets)"
+                                            strokeWidth={2}
+                                            fill="var(--color-totalAssets)"
+                                            fillOpacity={0.15}
+                                            isAnimationActive={false}
+                                        />
+                                    )}
+                                    {mode === "total" && (
+                                        <Line
+                                            dataKey="totalCost"
+                                            type="monotone"
+                                            stroke="var(--color-totalCost)"
+                                            strokeWidth={1.5}
+                                            strokeDasharray="5 5"
+                                            dot={false}
+                                            isAnimationActive={false}
+                                        />
+                                    )}
+
+                                    {mode === "tag" && activeKeys.map((key) => (
+                                        <Area
+                                            key={key}
+                                            dataKey={`tag_${key}`}
+                                            stackId="1"
+                                            type="monotone"
+                                            stroke={`var(--color-tag_${key})`}
+                                            fill={`var(--color-tag_${key})`}
+                                            fillOpacity={0.8}
+                                            isAnimationActive={false}
+                                        />
+                                    ))}
+                                </ComposedChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                </ChartContainer>
+
+                <div className="flex items-center justify-between px-4 pb-4 mt-2">
+                    <div className="flex bg-muted/50 rounded-md p-0.5 border">
+                        {["1M", "3M", "1Y", "ALL"].map((range) => (
+                            <button
+                                key={range}
+                                onClick={() => setTimeRange(range)}
+                                className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${timeRange === range
+                                    ? "bg-background text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"}`}
+                            >
+                                {range === "ALL" ? "全期間" : range}
+                            </button>
+                        ))}
+                    </div>
+                    <button
+                        onClick={() => setShowPercent(!showPercent)}
+                        className={`px-3 py-1 text-[10px] font-bold rounded-md border transition-all ${showPercent
+                            ? "bg-foreground text-background"
+                            : "bg-background text-muted-foreground hover:text-foreground"}`}
+                    >
+                        100%
+                    </button>
                 </div>
             </CardContent>
-            <CardFooter className="flex items-center py-2 pb-4 px-6 relative">
-                {/* Left spacer - ensures center stays center */}
-                <div className="flex-1 hidden md:flex" />
-
-                {/* Center: Time Range Selectors */}
-                <div className="flex bg-muted rounded-md p-1 border mx-auto md:mx-0">
-                    {["1M", "3M", "1Y", "ALL"].map((range) => (
-                        <button
-                            key={range}
-                            onClick={() => setTimeRange(range)}
-                            className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${timeRange === range
-                                ? "bg-background text-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
-                                }`}
-                        >
-                            {range}
-                        </button>
-                    ))}
-                </div>
-
-                {/* Right: 100% Toggle */}
-                <div className="flex-1 flex justify-end">
-                    <div className="flex bg-muted rounded-md p-1 border">
-                        <button
-                            onClick={() => setShowPercent(!showPercent)}
-                            disabled={mode === "total"}
-                            className={`px-3 py-1 text-xs font-medium rounded-sm transition-all whitespace-nowrap ${showPercent
-                                ? "bg-background text-foreground shadow-sm"
-                                : mode === "total"
-                                    ? "text-muted-foreground/30 cursor-not-allowed"
-                                    : "text-muted-foreground hover:text-foreground"}`}
-                        >
-                            100%
-                        </button>
-                    </div>
-                </div>
-            </CardFooter>
         </Card>
     )
 }

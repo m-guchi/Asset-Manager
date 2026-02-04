@@ -83,20 +83,39 @@ export function AssetAllocationChart({
             const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
             if (!activeGroup) return []
 
-            // Tag mode: Use ALL categories (flat list) and sum OWN values to avoid double counting in hierarchy
+            // Tag mode: Use ALL categories (flat list) and sum OWN values
             const sourceData = allCategories.length > 0 ? allCategories : categories;
             const targetTags = activeGroup.options?.map(o => o.name) || activeGroup.tags || []
 
-            // To avoid double counting categories with multiple tags in the same group,
-            // we'll map tags to their accumulated values
             const tagMap = new Map<string, number>();
             targetTags.forEach(t => tagMap.set(t, 0));
 
+            // Helper to find effective tag for a category in the current group
+            const findEffectiveTag = (cat: any): string | null => {
+                // 1. Check direct tags in this group
+                const directTag = cat.tagSettings?.find((s: any) => s.groupId === selectedTagGroup)?.optionName;
+                if (directTag && targetTags.includes(directTag)) return directTag;
+
+                // Fallback to legacy string check if tagSettings is missing
+                const stringMatch = targetTags.find(t => cat.tags?.includes(t));
+                if (stringMatch) return stringMatch;
+
+                // 2. Inherit from parent
+                if (cat.parentId) {
+                    const parent = sourceData.find(p => p.id === cat.parentId);
+                    if (parent) return findEffectiveTag(parent);
+                }
+
+                return null;
+            };
+
             sourceData.forEach(cat => {
-                // Find the first tag in the current group that this category is labeled with
-                const matchingTag = targetTags.find(t => cat.tags?.includes(t));
+                const matchingTag = findEffectiveTag(cat);
                 if (matchingTag) {
-                    const val = (cat.ownValue !== undefined) ? cat.ownValue : cat.currentValue;
+                    // Use ownValue for more precise non-overlapping sum in flat processing
+                    const val = (cat.ownValue !== undefined) ? cat.ownValue : (cat.parentId ? cat.currentValue : 0);
+                    // Special case: if we are processing a root that has own value, we take it.
+                    // But if it's a root folder without direct records, its currentValue is already handled.
                     const sign = cat.isLiability ? -1 : 1;
                     tagMap.set(matchingTag, (tagMap.get(matchingTag) || 0) + (val * sign));
                 }

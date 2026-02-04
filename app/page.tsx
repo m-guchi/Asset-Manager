@@ -13,15 +13,17 @@ import { getTagGroups } from "./actions/tags"
 import { getHistoryData } from "./actions/history"
 import { toast } from "sonner"
 
+export const dynamic = "force-dynamic"
+
 interface Category {
     id: number
     name: string
     currentValue: number
     costBasis: number
-    ownValue: number
-    ownCostBasis: number
-    color: string
-    order: number
+    ownValue?: number
+    ownCostBasis?: number
+    color?: string
+    order?: number
     isCash?: boolean
     isLiability?: boolean
     tags: string[]
