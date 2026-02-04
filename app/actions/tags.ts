@@ -49,8 +49,9 @@ export async function getTagGroups() {
 
 export async function saveTagGroup(data: { id?: number, name: string, options: { id?: number, name: string }[] }) {
     try {
+        let savedGroup;
         if (data.id) {
-            await prisma.$transaction(async (tx) => {
+            savedGroup = await prisma.$transaction(async (tx) => {
                 // 1. Update Group Name
                 await tx.tagGroup.update({
                     where: { id: data.id },
@@ -87,10 +88,15 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
                         })
                     }
                 }
+
+                return await tx.tagGroup.findUnique({
+                    where: { id: data.id },
+                    include: { options: { orderBy: { order: 'asc' } } }
+                })
             })
         } else {
             // Create New Group
-            await prisma.tagGroup.create({
+            savedGroup = await prisma.tagGroup.create({
                 data: {
                     name: data.name,
                     options: {
@@ -99,14 +105,21 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
                             order: idx
                         }))
                     }
+                },
+                include: {
+                    options: { orderBy: { order: 'asc' } }
                 }
             })
         }
         revalidatePath("/assets")
         revalidatePath("/")
-        return { success: true }
+        return { success: true, group: savedGroup }
     } catch (error) {
         console.error("Failed to save tag group:", error)
+        try {
+            // Fallback error logging to stringify if it's an object
+            console.error(JSON.stringify(error, null, 2))
+        } catch { }
         return { success: false, error }
     }
 }
