@@ -219,15 +219,15 @@ export function AssetHistoryChart({
                                     strokeDasharray="5 5"
                                 />
                             )}
-                            {mode === "tag" && activeKeys.map((key, i) => (
+                            {mode === "tag" && [...activeKeys].reverse().map((key, i) => (
                                 <Area
                                     key={key}
                                     dataKey={`tag_${key}`}
                                     name={key}
                                     type="linear"
-                                    fill={CUSTOM_COLORS[key] || `var(--chart-${(i % 5) + 1})`}
+                                    fill={CUSTOM_COLORS[key] || `var(--chart-${((activeKeys.length - 1 - i) % 5) + 1})`}
                                     fillOpacity={0.6}
-                                    stroke={CUSTOM_COLORS[key] || `var(--chart-${(i % 5) + 1})`}
+                                    stroke={CUSTOM_COLORS[key] || `var(--chart-${((activeKeys.length - 1 - i) % 5) + 1})`}
                                     stackId="1"
                                 />
                             ))}
