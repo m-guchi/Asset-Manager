@@ -369,32 +369,40 @@ export async function getCategoryDetails(id: number) {
             }
         }
 
-        // Transactions (Show parent's direct + children's?) 
-        // For now, let's just show own + children's flattened
-        const allTransactions = [
-            ...(cat.transactions || []),
-            ...(hasChildren ? cat.children.flatMap((c: any) => c.transactions || []) : [])
-        ].map((t: any) => ({
+        // Transactions & Assets
+        const formatTx = (t: any, catName: string, catColor: string) => ({
             id: `tx-${t.id}`,
             date: t.transactedAt.toISOString(),
             type: t.type,
             amount: t.amount,
             memo: t.memo,
-            // Point in time val is hard to map for combined, leave 0 or try to find matching history
-            pointInTimeValuation: 0
-        }));
+            pointInTimeValuation: 0,
+            categoryName: catName,
+            categoryColor: catColor
+        });
 
-        const allAssets = [
-            ...(cat.assets || []),
-            ...(hasChildren ? cat.children.flatMap((c: any) => c.assets || []) : [])
-        ].map((a: any) => ({
+        const formatAsset = (a: any, catName: string, catColor: string) => ({
             id: `as-${a.id}`,
             date: a.recordedAt.toISOString(),
             type: 'VALUATION',
             amount: 0,
             pointInTimeValuation: a.currentValue,
-            memo: '評価額更新'
-        }));
+            memo: '評価額更新',
+            categoryName: catName,
+            categoryColor: catColor
+        });
+
+        const parentTransactions = (cat.transactions || []).map((t: any) => formatTx(t, cat.name, cat.color));
+        const childTransactions = hasChildren ? cat.children.flatMap((c: any) => (c.transactions || []).map((t: any) => formatTx(t, c.name, c.color))) : [];
+
+        const parentAssets = (cat.assets || []).map((a: any) => formatAsset(a, cat.name, cat.color));
+        const childAssets = hasChildren ? cat.children.flatMap((c: any) => (c.assets || []).map((a: any) => formatAsset(a, c.name, c.color))) : [];
+
+        // Filter out parent assets if children exist? 
+        // No, keep them as "Parent's own valuation updates" if any. 
+        // But usually parent valuation is sum of children? 
+        // If parent is a "Group", it might not have own assets. 
+        // If it's a "Category" that has sub-categories but also own assets, we show both.
 
         return {
             id: cat.id,
@@ -407,7 +415,12 @@ export async function getCategoryDetails(id: number) {
             tags: (cat.tags as any[]).map((t: any) => t.tagOption?.name),
             history,
             children: childrenInfo,
-            transactions: [...allTransactions, ...allAssets].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            transactions: [
+                ...parentTransactions,
+                ...childTransactions,
+                ...parentAssets,
+                ...childAssets
+            ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
         };
     } catch (error) {
         console.error("Fetch detail error", error);

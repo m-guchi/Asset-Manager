@@ -496,7 +496,13 @@ export default function AssetDetailPage() {
                             {category.transactions.map((item: any) => (
                                 <TableRow key={item.id}>
                                     <TableCell className="text-xs font-medium text-muted-foreground">
-                                        {new Date(item.date).toISOString().slice(0, 10)}
+                                        <div>{new Date(item.date).toISOString().slice(0, 10)}</div>
+                                        {item.categoryName && (
+                                            <div className="flex items-center gap-1.5 mt-1">
+                                                <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: item.categoryColor || '#888' }} />
+                                                <span className="text-[10px] opacity-90 truncate max-w-[80px]">{item.categoryName}</span>
+                                            </div>
+                                        )}
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant={item.type === 'DEPOSIT' ? 'default' : item.type === 'WITHDRAW' ? 'secondary' : (item.type === 'VALUATION' || item.type === 'VALUATION_ONLY') ? 'outline' : 'outline'}>
