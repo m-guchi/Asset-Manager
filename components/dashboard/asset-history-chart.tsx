@@ -112,7 +112,7 @@ export function AssetHistoryChart({
 
     if (!isMounted) {
         return (
-            <Card className="h-[450px] min-h-[450px] flex items-center justify-center bg-muted/5 border-dashed">
+            <Card className="h-full min-h-[300px] flex items-center justify-center bg-muted/5 border-dashed">
                 <p className="text-xs text-muted-foreground animate-pulse">グラフを構成中...</p>
             </Card>
         );
@@ -125,7 +125,7 @@ export function AssetHistoryChart({
     }
 
     return (
-        <Card className="flex flex-col">
+        <Card className="flex flex-col h-full min-h-[450px]">
             <CardHeader className="items-center pb-0 pt-1.5">
                 <div className="w-full flex items-center gap-2 overflow-x-auto pb-0.5 mt-0.5 no-scrollbar max-w-full">
                     <div className="flex bg-muted/50 rounded-md p-0.5 border" onClick={(e) => e.stopPropagation()}>
@@ -156,17 +156,11 @@ export function AssetHistoryChart({
                 </div>
             </CardHeader>
 
-            <CardContent
-                className="flex-1 p-0 relative min-h-0 overflow-hidden"
-                onClick={() => {
-                    setActivePoint(null)
-                    setIsLocked(false)
-                }}
-            >
-                <ChartContainer config={chartConfig} className="w-full h-full">
-                    <div className="flex flex-col h-full">
+            <CardContent className="flex flex-col flex-1 p-0 relative min-h-0 overflow-hidden">
+                <ChartContainer config={chartConfig} className="flex-1 min-h-0 w-full text-[10px]">
+                    <div className="flex flex-col h-full w-full">
                         {/* Detail Info Bar */}
-                        <div className="px-4 py-1.5 border-y border-border/40 bg-muted/10 min-h-[40px] flex items-center mt-0" onClick={(e) => e.stopPropagation()}>
+                        <div className="px-4 py-1.5 border-y border-border/40 bg-muted/10 min-h-[40px] flex items-center mt-0 shrink-0" onClick={(e) => e.stopPropagation()}>
                             {!activePoint ? (
                                 <div className="w-full text-center">
                                     <span className="text-[10px] text-muted-foreground animate-pulse font-medium">
@@ -219,7 +213,8 @@ export function AssetHistoryChart({
                             )}
                         </div>
 
-                        <div className="w-full h-[320px] px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                        {/* Chart Area - Flex-1 to take remaining space */}
+                        <div className="flex-1 w-full min-h-0 px-2 py-2" onClick={(e) => e.stopPropagation()}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <ComposedChart
                                     data={filteredData}
@@ -256,7 +251,7 @@ export function AssetHistoryChart({
                                         tickLine={false}
                                         axisLine={false}
                                         tick={{ fill: 'currentColor', fontSize: 10, opacity: 0.5 }}
-                                        width={50}
+                                        width={40}
                                         domain={showPercent ? [0, 1] : ['auto', 'auto']}
                                     />
                                     <Tooltip
@@ -306,32 +301,33 @@ export function AssetHistoryChart({
                                 </ComposedChart>
                             </ResponsiveContainer>
                         </div>
+
+                        {/* Controls Footer */}
+                        <div className="flex items-center justify-between px-4 pb-4 mt-0 shrink-0">
+                            <div className="flex bg-muted/50 rounded-md p-0.5 border">
+                                {["1M", "3M", "1Y", "ALL"].map((range) => (
+                                    <button
+                                        key={range}
+                                        onClick={() => setTimeRange(range)}
+                                        className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${timeRange === range
+                                            ? "bg-background text-foreground shadow-sm"
+                                            : "text-muted-foreground hover:text-foreground"}`}
+                                    >
+                                        {range === "ALL" ? "全期間" : range}
+                                    </button>
+                                ))}
+                            </div>
+                            <button
+                                onClick={() => setShowPercent(!showPercent)}
+                                className={`px-3 py-1 text-[10px] font-bold rounded-md border transition-all ${showPercent
+                                    ? "bg-foreground text-background"
+                                    : "bg-background text-muted-foreground hover:text-foreground"}`}
+                            >
+                                100%
+                            </button>
+                        </div>
                     </div>
                 </ChartContainer>
-
-                <div className="flex items-center justify-between px-4 pb-4 mt-2">
-                    <div className="flex bg-muted/50 rounded-md p-0.5 border">
-                        {["1M", "3M", "1Y", "ALL"].map((range) => (
-                            <button
-                                key={range}
-                                onClick={() => setTimeRange(range)}
-                                className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${timeRange === range
-                                    ? "bg-background text-foreground shadow-sm"
-                                    : "text-muted-foreground hover:text-foreground"}`}
-                            >
-                                {range === "ALL" ? "全期間" : range}
-                            </button>
-                        ))}
-                    </div>
-                    <button
-                        onClick={() => setShowPercent(!showPercent)}
-                        className={`px-3 py-1 text-[10px] font-bold rounded-md border transition-all ${showPercent
-                            ? "bg-foreground text-background"
-                            : "bg-background text-muted-foreground hover:text-foreground"}`}
-                    >
-                        100%
-                    </button>
-                </div>
             </CardContent>
         </Card>
     )
