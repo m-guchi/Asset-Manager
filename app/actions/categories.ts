@@ -49,7 +49,7 @@ export async function getCategories() {
         // 2. Fetch tag groups and tags for conflict check
         let tagGroups: any[] = [];
         try {
-            tagGroups = await prisma.tagGroup.findMany({ include: { tags: true } });
+            tagGroups = await prisma.tagGroup.findMany({ include: { items: { include: { tag: true } } } });
         } catch (e) {
             console.error("[getCategories] TagGroups fetch error:", e);
         }
@@ -104,7 +104,7 @@ export async function getCategories() {
                 const conflicts: string[] = [];
                 const catTags = cat.tags || [];
                 tagGroups.forEach(group => {
-                    const groupTagIds = (group.tags || []).map((t: any) => t.id);
+                    const groupTagIds = (group.items || []).map((item: any) => item.tag?.id);
                     const matchedTags = catTags.filter((t: any) => t && groupTagIds.includes(t.id));
                     if (matchedTags.length > 1) conflicts.push(group.name);
                 });
