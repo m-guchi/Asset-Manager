@@ -7,10 +7,9 @@ import { AssetHistoryChart } from "@/components/dashboard/asset-history-chart"
 import { CategoryList } from "@/components/dashboard/category-list"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Pencil, Database, RefreshCw } from "lucide-react"
+import { Pencil, RefreshCw } from "lucide-react"
 import { getCategories, getTagGroups } from "./actions/categories"
 import { getHistoryData } from "./actions/history"
-import { seedDatabase } from "./actions/seed"
 import { toast } from "sonner"
 
 interface Category {
@@ -34,7 +33,6 @@ export default function Page() {
     const [historyData, setHistoryData] = React.useState<any[]>([])
     const [tagGroups, setTagGroups] = React.useState<any[]>([])
     const [isLoading, setIsLoading] = React.useState(true)
-    const [isSeeding, setIsSeeding] = React.useState(false)
 
     const fetchData = React.useCallback(async () => {
         setIsLoading(true)
@@ -61,20 +59,6 @@ export default function Page() {
         fetchData()
     }, [fetchData])
 
-    const handleSeed = async () => {
-        if (!confirm("データベースを初期化してモックデータを投入しますか？既存のデータは削除されます。")) return
-        setIsSeeding(true)
-        const res = await seedDatabase()
-        if (res.success) {
-            toast.success("データの初期化が完了しました")
-            fetchData()
-        } else {
-            toast.error("初期化に失敗しました: " + res.error)
-        }
-        setIsSeeding(false)
-    }
-
-    // Separate Assets and Liabilities (Use only top-level to avoid double counting grouped assets)
     const topLevelCategories = categories.filter(c => !c.parentId)
 
     const totalAssets = topLevelCategories
@@ -122,19 +106,8 @@ export default function Page() {
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-end mb-2">
                 <div className="flex flex-wrap gap-2 pt-1">
                     {/* Always allow seeding if database is empty or we are in development */}
-                    {(process.env.NODE_ENV === "development" || categories.length === 0) && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleSeed}
-                            disabled={isSeeding}
-                            className="text-xs text-muted-foreground hover:text-foreground"
-                        >
-                            {isSeeding ? <RefreshCw className="mr-2 h-3 w-3 animate-spin" /> : <Database className="mr-2 h-3 w-3" />}
-                            初期データ投入
-                        </Button>
-                    )}
-                    <Link href="/assets?tab=valuation">
+                    {/* Always allow seeding if database is empty or we are in development */}
+                    <Link href="/assets/valuation">
                         <Button size="sm" className="whitespace-nowrap">
                             <Pencil className="mr-2 h-4 w-4" /> 評価額を一括更新
                         </Button>
@@ -142,17 +115,7 @@ export default function Page() {
                 </div>
             </div>
 
-            {categories.length === 0 && !isLoading && (
-                <div className="bg-muted/50 border rounded-lg p-10 flex flex-col items-center text-center gap-4 my-4">
-                    <Database className="h-12 w-12 text-muted-foreground" />
-                    <div>
-                        <h3 className="font-bold text-lg">データベースが空です</h3>
-                        <p className="text-sm text-muted-foreground max-w-md">
-                            「初期データ投入」ボタンを押して、1年分の推移を含むデモデータを生成しましょう。
-                        </p>
-                    </div>
-                </div>
-            )}
+
 
             {/* 2. Charts Section */}
             <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
@@ -172,7 +135,7 @@ export default function Page() {
                         <Button variant="ghost" size="sm" onClick={fetchData} title="データを更新">
                             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                         </Button>
-                        <Link href="/assets?tab=valuation">
+                        <Link href="/assets/valuation">
                             <Button variant="outline" size="sm">
                                 <Pencil className="mr-2 h-4 w-4" /> 評価額を一括更新
                             </Button>

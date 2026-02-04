@@ -499,15 +499,16 @@ export async function getTagGroups() {
         const groups = await prisma.tagGroup.findMany({
             orderBy: { id: 'asc' },
             include: {
-                tags: {
-                    select: { name: true }
+                items: {
+                    include: { tag: true },
+                    orderBy: { order: 'asc' }
                 }
             }
         })
         return (groups || []).map((g: any) => ({
             id: g.id,
             name: g.name || "グループ名なし",
-            tags: (g.tags || []).map((t: any) => t.name)
+            tags: (g.items || []).map((item: any) => item.tag.name)
         }))
     } catch (error) {
         console.error("Failed to fetch tag groups:", error)

@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { Plus, Tag as TagIcon, LayoutGrid, Trash2, Edit2, Loader2, Save, ChevronUp, ChevronDown, AlertCircle } from "lucide-react"
+import { Plus, Tag as TagIcon, LayoutGrid, Trash2, Edit2, Loader2, Save, ChevronUp, ChevronDown, AlertCircle, GripVertical, Check, X, ArrowDownUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -21,7 +21,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
-import { getCategories, saveCategory, deleteCategory, updateCategoryOrder } from "../actions/categories"
+import { getCategories, saveCategory, deleteCategory, updateCategoryOrder, reorderCategoriesAction } from "../actions/categories"
 import { getTags, saveTag, deleteTag, getTagGroups, saveTagGroup, deleteTagGroup } from "../actions/tags"
 import { updateValuation } from "../actions/assets"
 import {
@@ -30,6 +30,24 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+    rectSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // アセット管理のメインコンテンツ
 function AssetsContent() {
@@ -86,7 +104,7 @@ function AssetsContent() {
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">資産管理</h1>
                     <p className="text-muted-foreground">
-                        資産、タグ、タググループの管理と一括評価額更新。
+                        資産、タグ、タググループの管理。
                     </p>
                 </div>
             </div>
@@ -101,10 +119,6 @@ function AssetsContent() {
                         <TagIcon className="h-4 w-4" />
                         タグ
                     </TabsTrigger>
-                    <TabsTrigger value="valuation" className="flex items-center gap-2">
-                        <Edit2 className="h-4 w-4" />
-                        一括評価額更新
-                    </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="categories" className="space-y-4">
@@ -113,10 +127,6 @@ function AssetsContent() {
 
                 <TabsContent value="tags" className="space-y-4">
                     <TagManagement tags={tags} tagGroups={tagGroups} onRefresh={fetchData} />
-                </TabsContent>
-
-                <TabsContent value="valuation" className="space-y-4">
-                    <BulkValuationUpdate categories={categories} onRefresh={fetchData} />
                 </TabsContent>
             </Tabs>
         </div>
@@ -137,6 +147,7 @@ export default function AssetsPage() {
 }
 
 function CategoryManagement({ categories, tags, onRefresh }: { categories: any[], tags: any[], onRefresh: () => void }) {
+    const [isReordering, setIsReordering] = useState(false)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [editingCategory, setEditingCategory] = useState<any>(null)
     const [isDeleting, setIsDeleting] = useState<number | null>(null)
@@ -166,139 +177,129 @@ function CategoryManagement({ categories, tags, onRefresh }: { categories: any[]
         }
     }
 
-    const handleMove = async (id: number, direction: 'up' | 'down') => {
-        const res = await updateCategoryOrder(id, direction)
-        if (res.success) {
-            onRefresh()
-        } else {
-            toast.error("並び替えに失敗しました")
-        }
-    }
+
 
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                     <CardTitle>資産管理</CardTitle>
-                    <CardDescription>管理する資産（銀行口座、証券口座、暗号資産など）を定義します。</CardDescription>
                 </div>
-                <Dialog open={isDialogOpen} onOpenChange={(open) => {
-                    setIsDialogOpen(open)
-                    if (!open) setEditingCategory(null)
-                }}>
-                    <DialogTrigger asChild>
-                        <Button className="flex items-center gap-2">
-                            <Plus className="h-4 w-4" />
-                            追加
+                <div className="flex items-center gap-2">
+                    {!isReordering ? (
+                        <>
+                            <Button variant="outline" size="sm" onClick={() => setIsReordering(true)}>
+                                <ArrowDownUp className="h-4 w-4 mr-2" />
+                                並び替え
+                            </Button>
+                            <Dialog open={isDialogOpen} onOpenChange={(open) => {
+                                setIsDialogOpen(open)
+                                if (!open) setEditingCategory(null)
+                            }}>
+                                <DialogTrigger asChild>
+                                    <Button size="sm" className="flex items-center gap-2">
+                                        <Plus className="h-4 w-4" />
+                                        追加
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>{editingCategory ? "資産の編集" : "新規資産作成"}</DialogTitle>
+                                    </DialogHeader>
+                                    <CategoryForm
+                                        initialData={editingCategory}
+                                        allTags={tags}
+                                        allCategories={categories}
+                                        onSave={handleSave}
+                                        onCancel={() => setIsDialogOpen(false)}
+                                    />
+                                </DialogContent>
+                            </Dialog>
+                        </>
+                    ) : (
+                        <Button variant="ghost" size="sm" onClick={() => setIsReordering(false)}>
+                            <X className="h-4 w-4 mr-2" />
+                            キャンセル
                         </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>{editingCategory ? "資産の編集" : "新規資産作成"}</DialogTitle>
-                        </DialogHeader>
-                        <CategoryForm
-                            initialData={editingCategory}
-                            allTags={tags}
-                            allCategories={categories}
-                            onSave={handleSave}
-                            onCancel={() => setIsDialogOpen(false)}
-                        />
-                    </DialogContent>
-                </Dialog>
+                    )}
+                </div>
             </CardHeader>
             <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="w-[80px]">順序</TableHead>
-                            <TableHead>名前</TableHead>
-                            <TableHead>タイプ</TableHead>
-                            <TableHead>タグ</TableHead>
-                            <TableHead className="text-right">操作</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {categories.map((cat, idx) => {
-                            const isChild = !!cat.parentId
-                            return (
-                                <TableRow key={cat.id} className={isChild ? "bg-muted/30" : ""}>
-                                    <TableCell>
-                                        <div className="flex items-center gap-1">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-6 w-6"
-                                                disabled={idx === 0}
-                                                onClick={() => handleMove(cat.id, 'up')}
-                                            >
-                                                <ChevronUp className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-6 w-6"
-                                                disabled={idx === categories.length - 1}
-                                                onClick={() => handleMove(cat.id, 'down')}
-                                            >
-                                                <ChevronDown className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="font-medium p-0">
-                                        <div className={`flex items-center gap-2 px-4 py-3 ${isChild ? "ml-6" : ""}`}>
-                                            <Link
-                                                href={`/assets/${cat.id}`}
-                                                className="flex items-center gap-2 hover:underline decoration-primary transition-all"
-                                            >
-                                                <div className="h-3 w-3 rounded-full" style={{ backgroundColor: cat.color }} />
-                                                <span className={isChild ? "text-sm text-muted-foreground" : "font-bold"}>{cat.name}</span>
-                                            </Link>
-                                            {cat.conflicts && cat.conflicts.length > 0 && (
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <AlertCircle className="h-4 w-4 text-destructive animate-pulse cursor-help" />
-                                                        </TooltipTrigger>
-                                                        <TooltipContent className="bg-destructive text-destructive-foreground border-none">
-                                                            <p className="font-bold">タグ重複の警告</p>
-                                                            <p className="text-xs">
-                                                                同じグループ({cat.conflicts.join(", ")})内の複数のタグが設定されています。
-                                                            </p>
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                            )}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge variant={cat.isLiability ? "destructive" : cat.isCash ? "outline" : "secondary"} className={isChild ? "opacity-70 scale-90" : ""}>
-                                            {cat.isLiability ? "負債" : cat.isCash ? "現金・預金" : "投資商品"}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex flex-wrap gap-1">
-                                            {cat.tags?.map((t: any, idx: number) => (
-                                                <Badge key={`${cat.id}-tag-${idx}`} variant="outline" className="text-[10px]">
-                                                    {t}
-                                                </Badge>
-                                            ))}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex justify-end gap-2">
-                                            <Button variant="ghost" size="icon" onClick={() => { setEditingCategory(cat); setIsDialogOpen(true); }}>
-                                                <Edit2 className="h-4 w-4" />
-                                            </Button>
-                                            <Button variant="ghost" size="icon" className="text-destructive" disabled={isDeleting === cat.id} onClick={() => handleDelete(cat.id)}>
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            )
-                        })}
-                    </TableBody>
-                </Table>
+                {isReordering ? (
+                    <CategoryReorderMode categories={categories} onRefresh={onRefresh} onComplete={() => setIsReordering(false)} />
+                ) : (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+
+                                <TableHead>名前</TableHead>
+                                <TableHead>タイプ</TableHead>
+                                <TableHead>タグ</TableHead>
+                                <TableHead className="text-right">操作</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {categories.map((cat, idx) => {
+                                const isChild = !!cat.parentId
+                                return (
+                                    <TableRow key={cat.id} className={isChild ? "bg-muted/30" : ""}>
+
+                                        <TableCell className="font-medium p-0">
+                                            <div className={`flex items-center gap-2 px-4 py-3 ${isChild ? "ml-6" : ""}`}>
+                                                <Link
+                                                    href={`/assets/${cat.id}`}
+                                                    className="flex items-center gap-2 hover:underline decoration-primary transition-all"
+                                                >
+                                                    <div className="h-3 w-3 rounded-full" style={{ backgroundColor: cat.color }} />
+                                                    <span className={isChild ? "text-sm text-muted-foreground" : "font-bold"}>{cat.name}</span>
+                                                </Link>
+                                                {cat.conflicts && cat.conflicts.length > 0 && (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <AlertCircle className="h-4 w-4 text-destructive animate-pulse cursor-help" />
+                                                            </TooltipTrigger>
+                                                            <TooltipContent className="bg-destructive text-destructive-foreground border-none">
+                                                                <p className="font-bold">タグ重複の警告</p>
+                                                                <p className="text-xs">
+                                                                    同じグループ({cat.conflicts.join(", ")})内の複数のタグが設定されています。
+                                                                </p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                )}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge variant={cat.isLiability ? "destructive" : cat.isCash ? "outline" : "secondary"} className={isChild ? "opacity-70 scale-90" : ""}>
+                                                {cat.isLiability ? "負債" : cat.isCash ? "現金・預金" : "投資商品"}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-wrap gap-1">
+                                                {cat.tags?.map((t: any, idx: number) => (
+                                                    <Badge key={`${cat.id}-tag-${idx}`} variant="outline" className="text-[10px]">
+                                                        {t}
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex justify-end gap-2">
+                                                <Button variant="ghost" size="icon" onClick={() => { setEditingCategory(cat); setIsDialogOpen(true); }}>
+                                                    <Edit2 className="h-4 w-4" />
+                                                </Button>
+                                                <Button variant="ghost" size="icon" className="text-destructive" disabled={isDeleting === cat.id} onClick={() => handleDelete(cat.id)}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                )
+                            })}
+                        </TableBody>
+                    </Table>
+                )}
             </CardContent>
         </Card>
     )
@@ -384,6 +385,137 @@ function CategoryForm({ initialData, allTags, allCategories, onSave, onCancel }:
             </DialogFooter>
         </div>
     )
+}
+
+
+// Reordering Components
+function CategoryReorderMode({ categories, onRefresh, onComplete }: { categories: any[], onRefresh: () => void, onComplete: () => void }) {
+    const [items, setItems] = useState(categories)
+    const [isSaving, setIsSaving] = useState(false)
+
+    useEffect(() => {
+        setItems(categories)
+    }, [categories])
+
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    const topLevel = items.filter(c => !c.parentId)
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+            setItems((currentItems) => {
+                const oldIndex = topLevel.findIndex(c => c.id === active.id)
+                const newIndex = topLevel.findIndex(c => c.id === over.id)
+                if (oldIndex === -1 || newIndex === -1) return currentItems
+
+                const newTopLevel = arrayMove(topLevel, oldIndex, newIndex)
+
+                // Reconstruct full list
+                const newFullList: any[] = []
+                newTopLevel.forEach(parent => {
+                    newFullList.push(parent)
+                    // Find children in original items and append
+                    const children = currentItems.filter(c => c.parentId === parent.id)
+                    children.forEach(child => newFullList.push(child))
+                })
+
+                return newFullList
+            });
+        }
+    };
+
+    const handleSave = async () => {
+        setIsSaving(true)
+        const currentTopLevel = items.filter(c => !c.parentId)
+        const updates = currentTopLevel.map((cat, index) => ({
+            id: cat.id,
+            order: index
+        }))
+
+        const res = await reorderCategoriesAction(updates)
+        if (res.success) {
+            toast.success("並び順を保存しました")
+            onRefresh()
+            onComplete()
+        } else {
+            toast.error("保存に失敗しました")
+        }
+        setIsSaving(false)
+    }
+
+    return (
+        <div className="flex flex-col gap-4">
+            <div className="flex justify-between items-center bg-muted/30 p-4 rounded-lg border border-dashed">
+                <span className="text-sm text-muted-foreground flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4" />
+                    ドラッグ＆ドロップで並び替えできます（親カテゴリ単位）
+                </span>
+                <Button onClick={handleSave} disabled={isSaving}>
+                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    保存して終了
+                </Button>
+            </div>
+
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={topLevel.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                    <div className="flex flex-col gap-2">
+                        {topLevel.map(parent => (
+                            <SortableCategoryItem key={parent.id} category={parent}>
+                                <div className="flex items-center gap-3 p-3 bg-card border rounded-md shadow-sm">
+                                    <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab active:cursor-grabbing" />
+                                    <div className="h-4 w-4 rounded-full flex-shrink-0" style={{ backgroundColor: parent.color }} />
+                                    <span className="font-medium">{parent.name}</span>
+                                    <Badge variant="outline" className="ml-auto text-xs font-normal text-muted-foreground">
+                                        現在: ¥{Number(parent.currentValue).toLocaleString()}
+                                    </Badge>
+                                </div>
+                                {items.filter(c => c.parentId === parent.id).length > 0 && (
+                                    <div className="ml-8 mt-1 pl-4 border-l-2 border-dashed space-y-1">
+                                        {items.filter(c => c.parentId === parent.id).map(child => (
+                                            <div key={child.id} className="flex items-center gap-2 p-2 bg-muted/20 border rounded text-xs text-muted-foreground">
+                                                <div className="h-2 w-2 rounded-full" style={{ backgroundColor: child.color }} />
+                                                <span>{child.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </SortableCategoryItem>
+                        ))}
+                    </div>
+                </SortableContext>
+            </DndContext>
+        </div>
+    )
+}
+
+function SortableCategoryItem({ category, children }: { category: any, children: React.ReactNode }) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id: category.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 50 : "auto",
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+        <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+            {children}
+        </div>
+    );
 }
 
 function TagManagement({ tags, tagGroups, onRefresh }: { tags: any[], tagGroups: any[], onRefresh: () => void }) {
@@ -481,108 +613,96 @@ function AddTagTrigger({ onAdd }: { onAdd: () => void }) {
     )
 }
 
+
+
 function TagGroupForm({ initialData, allTags, onSave, onCancel }: any) {
     const [name, setName] = useState(initialData?.name || "")
-    const [selectedTags, setSelectedTags] = useState<number[]>(initialData?.tags?.map((t: any) => t.id) || [])
-    return (
-        <div className="grid gap-4 py-4">
-            <div className="grid gap-2"><Label>グループ名</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
-            <div className="grid gap-2">
-                <Label>対象タグ</Label>
-                <div className="flex flex-wrap gap-2 pt-2">
-                    {allTags.map((tag: any) => (
-                        <Badge key={tag.id} variant={selectedTags.includes(tag.id) ? "default" : "outline"} className="cursor-pointer" onClick={() => {
-                            setSelectedTags(selectedTags.includes(tag.id) ? selectedTags.filter(id => id !== tag.id) : [...selectedTags, tag.id])
-                        }}>{tag.name}</Badge>
-                    ))}
-                </div>
-            </div>
-            <DialogFooter><Button variant="outline" onClick={onCancel}>キャンセル</Button><Button onClick={() => onSave({ id: initialData?.id, name, tagIds: selectedTags })}>保存</Button></DialogFooter>
-        </div>
+    const [selectedTagIds, setSelectedTagIds] = useState<number[]>(initialData?.tags?.map((t: any) => t.id) || [])
+
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
     )
-}
 
-function BulkValuationUpdate({ categories, onRefresh }: { categories: any[], onRefresh: () => void }) {
-    const [valuations, setValuations] = useState<Record<number, number>>({})
-    const [recordedAt, setRecordedAt] = useState(new Date().toISOString().slice(0, 10))
-    const [isSaving, setIsSaving] = useState(false)
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event
+        if (over && active.id !== over.id) {
+            setSelectedTagIds((ids) => {
+                const oldIndex = ids.indexOf(Number(active.id))
+                const newIndex = ids.indexOf(Number(over.id))
+                return arrayMove(ids, oldIndex, newIndex)
+            })
+        }
+    }
 
-    const handleSave = async () => {
-        setIsSaving(true)
-        try {
-            const dateObj = new Date(recordedAt)
-            // Ensure time is set to noon to avoid timezone shift issues on the date part
-            dateObj.setHours(12, 0, 0, 0)
-
-            const entries = Object.entries(valuations)
-            for (const [id, val] of entries) {
-                await updateValuation(parseInt(id), val, dateObj)
-            }
-
-            toast.success("評価額を更新しました")
-            setValuations({})
-            onRefresh()
-        } catch (err) {
-            toast.error("更新に失敗しました")
-        } finally {
-            setIsSaving(false)
+    const toggleTag = (tagId: number) => {
+        if (selectedTagIds.includes(tagId)) {
+            setSelectedTagIds(selectedTagIds.filter(id => id !== tagId))
+        } else {
+            setSelectedTagIds([...selectedTagIds, tagId])
         }
     }
 
     return (
-        <Card>
-            <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <CardTitle>一括評価額更新</CardTitle>
-                    <CardDescription>複数の資産の評価額を一度に更新します。</CardDescription>
+        <div className="grid gap-4 py-4">
+            <div className="grid gap-2"><Label>グループ名</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
+
+            <div className="grid gap-2">
+                <Label>選択されたタグ（ドラッグで並び替え）</Label>
+                <div className="bg-muted/30 p-2 rounded-md min-h-[50px]">
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                        <SortableContext items={selectedTagIds} strategy={rectSortingStrategy}>
+                            <div className="flex flex-wrap gap-2">
+                                {selectedTagIds.map(id => {
+                                    const tag = allTags.find((t: any) => t.id === id)
+                                    if (!tag) return null
+                                    return (
+                                        <SortableTagItem key={id} id={id}>
+                                            <Badge variant="default" className="cursor-grab active:cursor-grabbing hover:bg-secondaly pr-1 pl-2 py-1 flex items-center gap-1">
+                                                {tag.name}
+                                                <X className="h-3 w-3 cursor-pointer hover:text-white/70" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    toggleTag(id)
+                                                }} />
+                                            </Badge>
+                                        </SortableTagItem>
+                                    )
+                                })}
+                            </div>
+                        </SortableContext>
+                    </DndContext>
+                    {selectedTagIds.length === 0 && <span className="text-xs text-muted-foreground p-1">タグを選択してください</span>}
                 </div>
-                <div className="flex items-center gap-2">
-                    <Label htmlFor="valuation-date" className="text-sm whitespace-nowrap">更新基準日:</Label>
-                    <Input
-                        id="valuation-date"
-                        type="date"
-                        className="w-[150px]"
-                        value={recordedAt}
-                        onChange={(e) => setRecordedAt(e.target.value)}
-                    />
+            </div>
+
+            <div className="grid gap-2">
+                <Label>未選択のタグ</Label>
+                <div className="flex flex-wrap gap-2 pt-2">
+                    {allTags.filter((t: any) => !selectedTagIds.includes(t.id)).map((tag: any) => (
+                        <Badge key={tag.id} variant="outline" className="cursor-pointer hover:bg-muted" onClick={() => toggleTag(tag.id)}>
+                            <Plus className="h-3 w-3 mr-1" />
+                            {tag.name}
+                        </Badge>
+                    ))}
                 </div>
-            </CardHeader>
-            <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>資産</TableHead>
-                            <TableHead className="text-right">前回（現在）</TableHead>
-                            <TableHead className="text-right">今回の評価額</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {categories.map((cat) => (
-                            <TableRow key={cat.id}>
-                                <TableCell className="font-medium">{cat.name}</TableCell>
-                                <TableCell className="text-right opacity-50 text-xs">
-                                    ¥{Number(cat.currentValue).toLocaleString()}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <Input
-                                        type="number"
-                                        className="text-right w-32 ml-auto h-8"
-                                        placeholder={cat.currentValue.toString()}
-                                        value={valuations[cat.id] || ""}
-                                        onChange={(e) => setValuations({ ...valuations, [cat.id]: parseFloat(e.target.value) })}
-                                    />
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </CardContent>
-            <CardFooter className="flex justify-end border-t pt-4">
-                <Button disabled={isSaving || Object.keys(valuations).length === 0} onClick={handleSave}>
-                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {Object.keys(valuations).length}件の評価額を一括保存
-                </Button>
-            </CardFooter>
-        </Card>
+            </div>
+
+            <DialogFooter>
+                <Button variant="outline" onClick={onCancel}>キャンセル</Button>
+                <Button onClick={() => onSave({ id: initialData?.id, name, tagIds: selectedTagIds })}>保存</Button>
+            </DialogFooter>
+        </div>
     )
 }
+
+function SortableTagItem({ id, children }: { id: number, children: React.ReactNode }) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+    return <div ref={setNodeRef} style={style} {...attributes} {...listeners}>{children}</div>
+}
+
+

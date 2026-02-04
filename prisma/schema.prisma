@@ -28,17 +28,30 @@ model Category {
 }
 
 model Tag {
-  id         Int        @id @default(autoincrement())
-  name       String     @unique
+  id         Int            @id @default(autoincrement())
+  name       String         @unique
   color      String?
   categories Category[]
-  tagGroups  TagGroup[]
+  tagGroups  TagGroupItem[]
 }
 
 model TagGroup {
-  id   Int    @id @default(autoincrement())
-  name String
-  tags Tag[]
+  id    Int            @id @default(autoincrement())
+  name  String
+  items TagGroupItem[]
+}
+
+model TagGroupItem {
+  tagGroupId Int
+  tagId      Int
+  order      Int      @default(0)
+
+  tagGroup TagGroup @relation(fields: [tagGroupId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([tagGroupId, tagId])
+  @@index([tagGroupId])
+  @@index([tagId])
 }
 
 model Asset {
