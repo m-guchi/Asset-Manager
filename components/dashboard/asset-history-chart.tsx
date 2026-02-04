@@ -87,17 +87,29 @@ export function AssetHistoryChart({
         return data
             .map(p => {
                 const d = new Date(p.date)
-                return {
+                const point: any = {
                     ...p,
                     totalAssets: Number(p.totalAssets || 0),
                     totalCost: Number(p.totalCost || 0),
                     timestamp: isNaN(d.getTime()) ? 0 : d.getTime()
                 }
+
+                // Ensure all active keys have a value (0 if missing) for correct stacking
+                if (mode === "tag") {
+                    activeKeys.forEach(key => {
+                        const k = `tag_${key}`
+                        if (point[k] === undefined || point[k] === null) {
+                            point[k] = 0
+                        }
+                    })
+                }
+
+                return point
             })
             .filter(p => p.timestamp > 0)
             .filter(p => isAll || p.timestamp >= cTime)
             .sort((a, b) => a.timestamp - b.timestamp)
-    }, [data, timeRange])
+    }, [data, timeRange, activeKeys, mode])
 
     const chartConfig = React.useMemo(() => {
         const config: ChartConfig = {
@@ -272,6 +284,7 @@ export function AssetHistoryChart({
                                             fill="var(--color-totalAssets)"
                                             fillOpacity={0.2}
                                             isAnimationActive={false}
+                                            connectNulls
                                         />
                                     )}
                                     {mode === "total" && (
@@ -283,6 +296,7 @@ export function AssetHistoryChart({
                                             strokeDasharray="5 5"
                                             dot={false}
                                             isAnimationActive={false}
+                                            connectNulls
                                         />
                                     )}
 
@@ -291,11 +305,12 @@ export function AssetHistoryChart({
                                             key={key}
                                             dataKey={`tag_${key}`}
                                             stackId="1"
-                                            type="monotone"
+                                            type={showPercent ? "linear" : "monotone"}
                                             stroke={`var(--chart-${(i % 5) + 1})`}
                                             fill={`var(--chart-${(i % 5) + 1})`}
                                             fillOpacity={0.4}
                                             isAnimationActive={false}
+                                            connectNulls
                                         />
                                     ))}
                                 </ComposedChart>
