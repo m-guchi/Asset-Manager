@@ -56,7 +56,7 @@ export default function SettingsPage() {
                             <div className="space-y-0.5">
                                 <Label htmlFor="use-system">システム設定を使用する</Label>
                                 <div className="text-sm text-muted-foreground">
-                                    OSの外観設定（iOSのダークモードなど）と同期します
+                                    OSの外観設定と同期します
                                 </div>
                             </div>
                             <Switch
@@ -79,18 +79,6 @@ export default function SettingsPage() {
                                 onCheckedChange={toggleTheme}
                                 disabled={isSystem}
                             />
-                        </div>
-
-                        <div className="border-t pt-4">
-                            <div className="flex items-center justify-between space-x-2">
-                                <div className="space-y-0.5">
-                                    <Label htmlFor="show-cents">セント（小数点以下）を表示</Label>
-                                    <div className="text-sm text-muted-foreground">
-                                        資産額の小数点以下を表示します
-                                    </div>
-                                </div>
-                                <Switch id="show-cents" />
-                            </div>
                         </div>
                     </CardContent>
                 </Card>
