@@ -137,8 +137,7 @@ export function AssetAllocationChart({
 
     return (
         <Card className="flex flex-col">
-            <CardHeader className="items-center pb-0 pt-4">
-                <CardTitle className="text-lg">資産構成比</CardTitle>
+            <CardHeader className="items-center pb-2 pt-4">
                 <div className="w-full flex items-center gap-2 overflow-x-auto pb-1 mt-1 no-scrollbar max-w-full">
                     <div className="flex bg-muted/50 rounded-md p-0.5 border">
                         <button
@@ -198,7 +197,7 @@ export function AssetAllocationChart({
                                     >
                                         {`${name}`}
                                         <tspan x={x} dy="1.2em" className="fill-muted-foreground font-normal">
-                                            {`¥${(value / 10000).toLocaleString()}万`}
+                                            {`¥${Math.round(value / 10000).toLocaleString()}万`}
                                         </tspan>
                                     </text>
                                 );

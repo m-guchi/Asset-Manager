@@ -107,12 +107,6 @@ export default function Page() {
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-end mb-2">
                 <div className="flex flex-wrap gap-2 pt-1">
                     {/* Always allow seeding if database is empty or we are in development */}
-                    {/* Always allow seeding if database is empty or we are in development */}
-                    <Link href="/assets/valuation">
-                        <Button size="sm" className="whitespace-nowrap">
-                            <Pencil className="mr-2 h-4 w-4" /> 評価額を一括更新
-                        </Button>
-                    </Link>
                 </div>
             </div>
 
@@ -131,7 +125,7 @@ export default function Page() {
             {/* 3. Category List */}
             <section>
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold tracking-tight">資産構成</h2>
+                    <h2 className="text-xl font-bold tracking-tight">アセット構成</h2>
                     <div className="flex gap-2">
                         <Button variant="ghost" size="sm" onClick={fetchData} title="データを更新">
                             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />

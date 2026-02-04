@@ -8,6 +8,7 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
+    CardFooter,
 } from "@/components/ui/card"
 import {
     ChartConfig,
@@ -129,26 +130,8 @@ export function AssetHistoryChart({
 
     return (
         <Card>
-            <CardHeader>
-                <div className="flex flex-col gap-2 w-full min-w-0">
-                    <div className="flex items-center justify-between">
-                        <CardTitle>資産推移</CardTitle>
-                        <div className="flex bg-muted rounded-md p-1 ml-auto">
-                            {["1M", "3M", "1Y", "ALL"].map((range) => (
-                                <button
-                                    key={range}
-                                    onClick={() => setTimeRange(range)}
-                                    className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${timeRange === range
-                                        ? "bg-background text-foreground shadow-sm"
-                                        : "text-muted-foreground hover:text-foreground"
-                                        }`}
-                                >
-                                    {range}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
+            <CardHeader className="pb-2">
+                <div className="w-full min-w-0">
                     <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar w-full max-w-full">
                         <div className="flex bg-muted/50 rounded-md p-0.5 border">
                             <button
@@ -213,7 +196,7 @@ export function AssetHistoryChart({
                                 }}
                                 formatter={(value: number) => `¥${value.toLocaleString()}`}
                             />
-                            <Legend wrapperStyle={{ fontSize: '10px' }} />
+                            <Legend wrapperStyle={{ fontSize: '10px' }} verticalAlign="top" height={36} />
 
                             {mode === "total" && (
                                 <Area
@@ -252,6 +235,22 @@ export function AssetHistoryChart({
                     </ResponsiveContainer>
                 </div>
             </CardContent>
+            <CardFooter className="justify-center py-2 pb-4">
+                <div className="flex bg-muted rounded-md p-1">
+                    {["1M", "3M", "1Y", "ALL"].map((range) => (
+                        <button
+                            key={range}
+                            onClick={() => setTimeRange(range)}
+                            className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${timeRange === range
+                                ? "bg-background text-foreground shadow-sm"
+                                : "text-muted-foreground hover:text-foreground"
+                                }`}
+                        >
+                            {range}
+                        </button>
+                    ))}
+                </div>
+            </CardFooter>
         </Card>
     )
 }
