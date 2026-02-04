@@ -636,6 +636,12 @@ function TagGroupForm({ initialData, onSave, onCancel }: any) {
         setOptions(options.filter((_, i) => i !== idx))
     }
 
+    const updateOptionName = (idx: number, newName: string) => {
+        const newOpts = [...options]
+        newOpts[idx].name = newName
+        setOptions(newOpts)
+    }
+
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event
         if (over && active.id !== over.id) {
@@ -680,7 +686,11 @@ function TagGroupForm({ initialData, onSave, onCancel }: any) {
                         <div className="border rounded-md p-2 space-y-2 max-h-[200px] overflow-y-auto">
                             {options.map((opt, idx) => (
                                 <div key={idx} className="flex items-center gap-2 bg-muted/40 p-2 rounded">
-                                    <span className="text-sm font-medium flex-1">{opt.name}</span>
+                                    <Input
+                                        value={opt.name}
+                                        onChange={(e) => updateOptionName(idx, e.target.value)}
+                                        className="h-8 flex-1 bg-background"
+                                    />
                                     <div className="flex gap-1">
                                         <Button size="icon" variant="ghost" className="h-6 w-6" disabled={idx === 0} onClick={() => moveOption(idx, 'up')}><ChevronUp className="h-3 w-3" /></Button>
                                         <Button size="icon" variant="ghost" className="h-6 w-6" disabled={idx === options.length - 1} onClick={() => moveOption(idx, 'down')}><ChevronDown className="h-3 w-3" /></Button>

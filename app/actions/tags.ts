@@ -140,6 +140,21 @@ export async function reorderTagGroupsAction(items: { id: number, order: number 
     }
 }
 
+export async function renameTagGroup(id: number, name: string) {
+    try {
+        await prisma.tagGroup.update({
+            where: { id },
+            data: { name }
+        })
+        revalidatePath("/assets")
+        revalidatePath("/")
+        return { success: true }
+    } catch (error) {
+        console.error("Failed to rename tag group:", error)
+        return { success: false, error }
+    }
+}
+
 export async function getAssetsForTagGroup(groupId: number) {
     try {
         const categories = await prisma.category.findMany({
