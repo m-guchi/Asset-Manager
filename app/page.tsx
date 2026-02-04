@@ -134,7 +134,7 @@ export default function Page() {
                             初期データ投入
                         </Button>
                     )}
-                    <Link href="/assets?tab=valuation">
+                    <Link href="/assets/valuation">
                         <Button size="sm" className="whitespace-nowrap">
                             <Pencil className="mr-2 h-4 w-4" /> 評価額を一括更新
                         </Button>
@@ -172,7 +172,7 @@ export default function Page() {
                         <Button variant="ghost" size="sm" onClick={fetchData} title="データを更新">
                             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                         </Button>
-                        <Link href="/assets?tab=valuation">
+                        <Link href="/assets/valuation">
                             <Button variant="outline" size="sm">
                                 <Pencil className="mr-2 h-4 w-4" /> 評価額を一括更新
                             </Button>

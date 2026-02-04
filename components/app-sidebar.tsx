@@ -40,6 +40,11 @@ const data = {
             icon: ArrowRightLeft,
         },
         {
+            title: "評価額更新",
+            url: "/assets/valuation",
+            icon: Wallet, // Or Edit2/Pencil if imported
+        },
+        {
             title: "設定",
             url: "/settings",
             icon: Settings,
