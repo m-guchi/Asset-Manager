@@ -232,9 +232,20 @@ export default function AssetDetailPage() {
                 <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle>資産推移</CardTitle>
                     <div className="flex bg-muted rounded-md p-1">
-                        {["1M", "3M", "1Y", "ALL"].map((range) => (
-                            <button key={range} onClick={() => setTimeRange(range)} className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${timeRange === range ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{range}</button>
-                        ))}
+                        {["1M", "3M", "1Y", "ALL"].map((range) => {
+                            const label = { "1M": "1ヶ月", "3M": "3ヶ月", "1Y": "1年", "ALL": "全期間" }[range] || range;
+                            return (
+                                <button
+                                    key={range}
+                                    onClick={() => setTimeRange(range)}
+                                    className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${timeRange === range
+                                        ? "bg-background text-foreground shadow-sm"
+                                        : "text-muted-foreground hover:text-foreground"}`}
+                                >
+                                    {label}
+                                </button>
+                            )
+                        })}
                     </div>
                 </CardHeader>
                 <CardContent>
