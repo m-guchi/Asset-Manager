@@ -95,6 +95,7 @@ export default function AssetDetailPage() {
     })
     const [isCalculateMode, setIsCalculateMode] = React.useState(false) // New state
     const [saleAmount, setSaleAmount] = React.useState("") // New state
+    const [baseValuation, setBaseValuation] = React.useState(0) // Added missing state
 
     // Update default values when category loads or edit starts
     React.useEffect(() => {
@@ -156,7 +157,6 @@ export default function AssetDetailPage() {
         }
     }
 
-    const [baseValuation, setBaseValuation] = React.useState(0) // New state for auto-calc base
 
     const openEdit = (item: any) => {
         setEditingItem(item)
@@ -473,11 +473,12 @@ export default function AssetDetailPage() {
                         )}
                         <Button onClick={() => {
                             setEditingItem(null)
+                            setBaseValuation(category.currentValue)
                             setNewTrx({
                                 date: new Date().toISOString().split('T')[0],
                                 type: category.isCash ? "VALUATION" : "TRANSACTION",
                                 amount: "",
-                                valuation: "",
+                                valuation: category.currentValue.toString(),
                                 memo: ""
                             })
                             setIsTrxModalOpen(true)
@@ -637,31 +638,39 @@ export default function AssetDetailPage() {
                                         {isCalculateMode ? "売却金額 (手取り)" : "取引金額 (マイナスで出金)"}
                                     </Label>
                                     {isCalculateMode ? (
-                                        <Input
-                                            type="number"
-                                            placeholder="例: 100000"
-                                            value={saleAmount}
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                setSaleAmount(val);
+                                        <>
+                                            <Input
+                                                type="number"
+                                                placeholder="例: 100000"
+                                                value={saleAmount}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setSaleAmount(val);
 
-                                                if (!val) {
-                                                    setNewTrx({ ...newTrx, amount: "" });
-                                                    return;
-                                                }
+                                                    if (!val) {
+                                                        setNewTrx({ ...newTrx, amount: "" });
+                                                        return;
+                                                    }
 
-                                                if (baseValuation <= 0) return;
+                                                    if (baseValuation <= 0) return;
 
-                                                const ratio = Number(val) / baseValuation;
-                                                const reduction = Math.floor(category.costBasis * ratio);
+                                                    const ratio = Number(val) / baseValuation;
+                                                    const reduction = Math.floor(category.costBasis * ratio);
 
-                                                setNewTrx({
-                                                    ...newTrx,
-                                                    amount: (-reduction).toString(),
-                                                    valuation: Math.floor(baseValuation - Number(val)).toString()
-                                                });
-                                            }}
-                                        />
+                                                    setNewTrx({
+                                                        ...newTrx,
+                                                        amount: (-reduction).toString(),
+                                                        valuation: Math.floor(baseValuation - Number(val)).toString()
+                                                    });
+                                                }}
+                                            />
+                                            {saleAmount && (
+                                                <div className="mt-1 p-2 bg-muted/30 rounded border text-xs flex justify-between items-center">
+                                                    <span className="text-muted-foreground">計算される元本減少分:</span>
+                                                    <span className="font-mono font-bold text-destructive">-¥{Math.abs(Number(newTrx.amount)).toLocaleString()}</span>
+                                                </div>
+                                            )}
+                                        </>
                                     ) : (
                                         <Input
                                             type="number"
