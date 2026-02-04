@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Label, Pie, PieChart } from "recharts"
+import { Label, Pie, PieChart, Legend } from "recharts"
 
 import {
     Card,
@@ -137,7 +137,7 @@ export function AssetAllocationChart({
 
     return (
         <Card className="flex flex-col">
-            <CardHeader className="items-center pb-2 pt-4">
+            <CardHeader className="items-center pb-0 pt-2">
                 <div className="w-full flex items-center gap-2 overflow-x-auto pb-1 mt-1 no-scrollbar max-w-full">
                     <div className="flex bg-muted/50 rounded-md p-0.5 border">
                         <button
@@ -165,12 +165,38 @@ export function AssetAllocationChart({
             <CardContent className="flex-1 pb-2 pt-0">
                 <ChartContainer
                     config={chartConfig}
-                    className="mx-auto h-[220px] w-full min-w-0"
+                    className="mx-auto h-[300px] w-full min-w-0"
                 >
-                    <PieChart margin={{ top: 0, bottom: 0, left: 20, right: 20 }}>
+                    <PieChart margin={{ top: 0, bottom: 0, left: 0, right: 0 }}>
                         <ChartTooltip
                             cursor={false}
-                            content={<ChartTooltipContent hideLabel />}
+                            content={
+                                <ChartTooltipContent
+                                    hideLabel
+                                    formatter={(value, name, props) => {
+                                        const val = Number(value);
+                                        const percent = totalValue > 0 ? ((val / totalValue) * 100).toFixed(1) : "0.0";
+                                        return (
+                                            <div className="flex flex-col gap-0.5 min-w-[120px]">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="h-2 w-2 rounded-full" style={{ backgroundColor: props.color || props.payload?.fill }} />
+                                                    <span className="font-bold text-sm">{name}</span>
+                                                </div>
+                                                <div className="flex flex-col pl-4 text-xs text-muted-foreground">
+                                                    <span>¥{val.toLocaleString()}</span>
+                                                    <span className="font-medium text-foreground">{percent}%</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    }}
+                                />
+                            }
+                        />
+                        <Legend
+                            verticalAlign="bottom"
+                            align="center"
+                            iconType="circle"
+                            wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }}
                         />
                         <Pie
                             data={displayData}
@@ -178,34 +204,84 @@ export function AssetAllocationChart({
                             nameKey="name"
                             startAngle={90}
                             endAngle={-270}
-                            innerRadius={30}
-                            outerRadius={70}
-                            labelLine={true}
-                            label={({ name, value, cx, cy, midAngle, outerRadius }) => {
+                            innerRadius={60}
+                            outerRadius={100}
+                            isAnimationActive={true}
+                            animationBegin={0}
+                            animationDuration={800}
+                            animationEasing="ease-out"
+                            labelLine={false}
+                            label={({ name, value, cx, cy, midAngle, innerRadius, outerRadius }) => {
+                                // Hide labels for very small sectors to avoid overlap
+                                const percent = (value / totalValue) * 100;
+                                if (percent < 8) return null;
+
                                 const RADIAN = Math.PI / 180;
-                                const radius = outerRadius + 20;
+                                // Position in the middle of the donut ring
+                                const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
                                 const x = cx + radius * Math.cos(-midAngle * RADIAN);
                                 const y = cy + radius * Math.sin(-midAngle * RADIAN);
 
                                 return (
-                                    <text
-                                        x={x}
-                                        y={y}
-                                        className="fill-foreground text-[10px] md:text-xs font-medium"
-                                        textAnchor={x > cx ? "start" : "end"}
-                                        dominantBaseline="central"
-                                    >
-                                        {`${name}`}
-                                        <tspan x={x} dy="1.2em" className="fill-muted-foreground font-normal">
-                                            {`¥${Math.round(value / 10000).toLocaleString()}万`}
-                                        </tspan>
-                                    </text>
+                                    <g style={{ animation: 'fadeIn 0.5s ease-out 0.3s both' }}>
+                                        <text
+                                            x={x}
+                                            y={y}
+                                            fill="white"
+                                            className="text-[9px] md:text-[10px] font-bold pointer-events-none"
+                                            textAnchor="middle"
+                                            dominantBaseline="central"
+                                        >
+                                            <tspan x={x} dy="-0.6em">{name}</tspan>
+                                            <tspan x={x} dy="1.2em" className="font-medium opacity-90">
+                                                {`${Math.round(value / 10000).toLocaleString()}万`}
+                                            </tspan>
+                                        </text>
+                                    </g>
                                 );
                             }}
                             strokeWidth={2}
-                        />
+                        >
+                            <Label
+                                content={({ viewBox }) => {
+                                    if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+                                        return (
+                                            <g style={{ animation: 'fadeIn 0.6s ease-out 0.2s both' }}>
+                                                <text
+                                                    x={viewBox.cx}
+                                                    y={viewBox.cy}
+                                                    textAnchor="middle"
+                                                    dominantBaseline="middle"
+                                                >
+                                                    <tspan
+                                                        x={viewBox.cx}
+                                                        y={viewBox.cy}
+                                                        className="fill-foreground text-xl font-bold md:text-2xl"
+                                                    >
+                                                        {`¥${Math.round(totalValue / 10000).toLocaleString()}万`}
+                                                    </tspan>
+                                                    <tspan
+                                                        x={viewBox.cx}
+                                                        y={(viewBox.cy || 0) + 24}
+                                                        className="fill-muted-foreground text-[10px]"
+                                                    >
+                                                        合計資産
+                                                    </tspan>
+                                                </text>
+                                            </g>
+                                        )
+                                    }
+                                }}
+                            />
+                        </Pie>
                     </PieChart>
                 </ChartContainer>
+                <style jsx global>{`
+                    @keyframes fadeIn {
+                        from { opacity: 0; }
+                        to { opacity: 1; }
+                    }
+                `}</style>
             </CardContent>
             {/* Removed Footer text per user request */}
         </Card>
