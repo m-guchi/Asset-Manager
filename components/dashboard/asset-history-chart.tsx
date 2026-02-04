@@ -253,7 +253,7 @@ export function AssetHistoryChart({
                             {mode === "tag" && activeKeys.map((key, i) => (
                                 <Area
                                     key={key}
-                                    dataKey={key}
+                                    dataKey={`tag_${key}`}
                                     name={key}
                                     type="linear"
                                     fill={CUSTOM_COLORS[key] || `var(--chart-${(i % 5) + 1})`}

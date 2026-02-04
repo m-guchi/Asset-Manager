@@ -103,8 +103,9 @@ export async function getHistoryData() {
                 const tags = (cat as any).tags || []
                 tags.forEach((tag: any) => {
                     const tagName = String(tag.name)
-                    if (!point[tagName]) point[tagName] = 0
-                    point[tagName] = Number(point[tagName]) + (val * multiplier)
+                    const key = `tag_${tagName}`
+                    if (!point[key]) point[key] = 0
+                    point[key] = Number(point[key]) + (val * multiplier)
                 })
 
                 // Breakdown by Category Name (Use consolidated values for top-level, or own values for children)
