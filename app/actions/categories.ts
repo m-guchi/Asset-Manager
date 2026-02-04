@@ -174,9 +174,22 @@ export async function updateCategoryOrder(id: number, direction: 'up' | 'down') 
     return { success: true };
 }
 
-export async function reorderCategoriesAction(items: any[]) {
-    revalidatePath("/");
-    return { success: true };
+export async function reorderCategoriesAction(items: { id: number, order: number }[]) {
+    try {
+        await prisma.$transaction(
+            items.map((item) =>
+                prisma.category.update({
+                    where: { id: item.id },
+                    data: { order: item.order }
+                })
+            )
+        );
+        revalidatePath("/");
+        return { success: true };
+    } catch (error) {
+        console.error("Reorder failed", error);
+        return { success: false };
+    }
 }
 
 export async function getCategoryDetails(id: number) {
