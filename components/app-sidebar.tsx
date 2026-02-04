@@ -43,21 +43,23 @@ const data = {
         {
             title: "評価額一括更新",
             url: "/assets/valuation",
-            icon: Wallet, // Or Edit2/Pencil if imported
+            icon: Wallet,
         },
+    ],
+    navSecondary: [
         {
             title: "設定",
             url: "/settings",
             icon: Settings,
         },
-    ],
+    ]
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const { isMobile, setOpenMobile } = useSidebar()
 
     return (
-        <Sidebar collapsible="icon" {...props}>
+        <Sidebar collapsible="icon" {...props} className="border-r-0">
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
@@ -80,21 +82,34 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </SidebarMenu>
             </SidebarHeader>
             <SidebarContent>
-                <SidebarMenu className="p-2 gap-2">
+                <SidebarMenu className="p-3 gap-2.5">
                     {data.navMain.map((item) => (
                         <SidebarMenuItem key={item.title}>
-                            <SidebarMenuButton asChild tooltip={item.title}>
+                            <SidebarMenuButton asChild tooltip={item.title} size="lg">
                                 <Link href={item.url} onClick={() => isMobile && setOpenMobile(false)}>
                                     <item.icon />
-                                    <span>{item.title}</span>
+                                    <span className="text-sm font-medium">{item.title}</span>
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                     ))}
                 </SidebarMenu>
             </SidebarContent>
-            <SidebarFooter>
-                <div className="p-4 text-xs text-center text-muted-foreground opacity-50">
+            <SidebarFooter className="mt-auto">
+                <div className="mx-4 mb-3 border-t pt-2 opacity-50" />
+                <SidebarMenu className="p-3 pt-0 gap-2.5">
+                    {data.navSecondary.map((item) => (
+                        <SidebarMenuItem key={item.title}>
+                            <SidebarMenuButton asChild tooltip={item.title} size="lg">
+                                <Link href={item.url} onClick={() => isMobile && setOpenMobile(false)}>
+                                    <item.icon />
+                                    <span className="text-sm font-medium">{item.title}</span>
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    ))}
+                </SidebarMenu>
+                <div className="p-2 pb-6 text-[10px] text-center text-muted-foreground opacity-30">
                     version {process.env.NEXT_PUBLIC_APP_VERSION}
                 </div>
             </SidebarFooter>
