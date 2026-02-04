@@ -27,13 +27,12 @@ export async function updateValuation(categoryId: number, value: number, recorde
 export async function addTransaction(categoryId: number, data: {
     type: "DEPOSIT" | "WITHDRAW" | "VALUATION"
     amount: number
-    valuation: number
+    valuation?: number // Optional
     date: Date
     memo?: string
 }) {
     try {
-        await prisma.$transaction([
-            // 1. Create Transaction record
+        const operations: any[] = [
             prisma.transaction.create({
                 data: {
                     categoryId,
@@ -42,16 +41,24 @@ export async function addTransaction(categoryId: number, data: {
                     transactedAt: data.date,
                     memo: data.memo
                 }
-            }),
-            // 2. Create corresponding Asset valuation record
-            prisma.asset.create({
-                data: {
-                    categoryId,
-                    currentValue: data.valuation,
-                    recordedAt: data.date
-                }
             })
-        ])
+        ];
+
+        // Create Asset valuation record only if valuation is provided
+        if (data.valuation !== undefined && data.valuation !== null && !isNaN(data.valuation)) {
+            operations.push(
+                prisma.asset.create({
+                    data: {
+                        categoryId,
+                        currentValue: data.valuation,
+                        recordedAt: data.date
+                    }
+                })
+            );
+        }
+
+        await prisma.$transaction(operations);
+
         revalidatePath("/")
         revalidatePath("/assets")
         revalidatePath("/transactions")
@@ -141,7 +148,7 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: any
             const amt = Number(data.amount) || 0
             const txType = data.type === 'VALUATION' ? 'VALUATION' : (amt >= 0 ? 'DEPOSIT' : 'WITHDRAW')
 
-            await prisma.$transaction([
+            const operations: any[] = [
                 prisma.transaction.update({
                     where: { id },
                     data: {
@@ -151,18 +158,32 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: any
                         memo: data.memo
                     }
                 }),
-                // Also update the matching asset record if valuation was provided
-                prisma.asset.updateMany({
+                // Delete old asset record associated with the OLD date of transaction
+                prisma.asset.deleteMany({
                     where: {
                         categoryId: oldTx.categoryId,
                         recordedAt: oldTx.transactedAt
-                    },
-                    data: {
-                        currentValue: Number(data.valuation),
-                        recordedAt: new Date(data.date)
                     }
                 })
-            ])
+            ];
+
+            // Create new asset record only if valuation is provided
+            if (data.valuation !== undefined && data.valuation !== null && data.valuation !== "") {
+                const numVal = Number(data.valuation);
+                if (!isNaN(numVal)) {
+                    operations.push(
+                        prisma.asset.create({
+                            data: {
+                                categoryId: oldTx.categoryId,
+                                currentValue: numVal,
+                                recordedAt: new Date(data.date)
+                            }
+                        })
+                    );
+                }
+            }
+
+            await prisma.$transaction(operations);
             revalidatePath(`/assets/${oldTx.categoryId}`)
         } else {
             const asset = await prisma.asset.update({

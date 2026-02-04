@@ -197,7 +197,8 @@ export async function getCategoryDetails(id: number) {
                         assets: { orderBy: { recordedAt: 'asc' } },
                         transactions: { orderBy: { transactedAt: 'asc' } }
                     }
-                }
+                },
+                parent: true
             }
         }) as any;
 
@@ -205,26 +206,42 @@ export async function getCategoryDetails(id: number) {
 
         // Helper to calc history for a single category node
         const calculateHistoryForCategory = (c: any) => {
-            const historyMap = new Map<string, { date: Date, value: number | null, cost: number }>();
+            const historyMap = new Map<string, { date: Date, value: number | null, cost: number, netFlow: number }>();
             let runningCost = 0;
 
             // 1. Transactions
             (c.transactions || []).forEach((t: any) => {
-                if (t.type === 'DEPOSIT') runningCost += t.amount;
-                else if (t.type === 'WITHDRAW') runningCost -= t.amount;
+                const amt = Number(t.amount);
+                let flow = 0;
+                if (t.type === 'DEPOSIT') {
+                    runningCost += amt;
+                    flow = amt;
+                }
+                else if (t.type === 'WITHDRAW') {
+                    runningCost -= amt;
+                    flow = -amt;
+                }
 
                 const dateStr = t.transactedAt.toISOString().split('T')[0];
-                historyMap.set(dateStr, {
-                    date: t.transactedAt,
-                    value: null, // Initialize as null to distinguish from explicit 0
-                    cost: runningCost
-                });
+                if (historyMap.has(dateStr)) {
+                    const exist = historyMap.get(dateStr)!;
+                    exist.cost = runningCost; // Update to latest running cost of the day
+                    exist.netFlow += flow;
+                } else {
+                    historyMap.set(dateStr, {
+                        date: t.transactedAt,
+                        value: null,
+                        cost: runningCost,
+                        netFlow: flow
+                    });
+                }
             });
 
             // 2. Assets
             (c.assets || []).forEach((a: any) => {
                 const dateStr = a.recordedAt.toISOString().split('T')[0];
                 const existing = historyMap.get(dateStr);
+
                 if (existing) {
                     existing.value = a.currentValue;
                 } else {
@@ -241,45 +258,78 @@ export async function getCategoryDetails(id: number) {
                     historyMap.set(dateStr, {
                         date: a.recordedAt,
                         value: a.currentValue,
-                        cost: costAtTime
+                        cost: costAtTime,
+                        netFlow: 0
                     });
                 }
             });
 
             const sorted = Array.from(historyMap.values())
-                .sort((a, b) => a.date.getTime() - b.date.getTime())
-                .map(h => ({
-                    date: h.date,
-                    value: h.value,
-                    cost: h.cost
-                }));
+                .sort((a, b) => a.date.getTime() - b.date.getTime());
 
-            // Fill gaps
-            if (sorted.length === 0) {
-                return [];
+            // Fill gaps and create steps
+            if (sorted.length === 0) return [];
+
+            const processed: any[] = [];
+
+            // Add initial point if needed or just handle logic in loop
+            processed.push({ ...sorted[0], value: sorted[0].value || 0 });
+
+            for (let i = 1; i < sorted.length; i++) {
+                const prev = processed[processed.length - 1]; // Use last processed point (which has filled value)
+                const curr = sorted[i];
+
+                // Calculate day difference
+                const dayDiff = Math.floor((curr.date.getTime() - prev.date.getTime()) / (1000 * 60 * 60 * 24));
+
+                // If gap > 1 day, insert a "day before" point to create step effect
+                if (dayDiff > 1) {
+                    const dayBeforeVar = new Date(curr.date);
+                    dayBeforeVar.setDate(curr.date.getDate() - 1);
+
+                    // COST: Use PREVIOUS cost (to keep it flat until the day before change)
+                    const fillCost = prev.cost;
+
+                    // VALUE: Back-calculate from Current Value - NetFlow 
+                    // (The value "before" the transaction happened)
+                    // If current value is null, we can't back-calc, so assume flat from previous (or let fill logic handle)
+                    // If current value is set, we assume that includes the flow. 
+                    let fillValue = prev.value;
+                    if (curr.value !== null) {
+                        // User request: "If 1/8 has 10k deposit, previous day likely 10k lower"
+                        fillValue = curr.value - curr.netFlow;
+                        if (fillValue < 0) fillValue = 0; // Guard
+                    }
+
+                    processed.push({
+                        date: dayBeforeVar,
+                        value: fillValue,
+                        cost: fillCost,
+                        netFlow: 0
+                    });
+                }
+
+                // Process current point
+                // Logic to carry over value if null
+                let actualValue = curr.value;
+                if (actualValue === null) {
+                    // Start of loop `prev` is actually from `processed`, so it has a valid value
+                    actualValue = prev.value;
+                }
+
+                processed.push({
+                    date: curr.date,
+                    value: actualValue,
+                    cost: curr.cost,
+                    netFlow: curr.netFlow
+                });
             }
 
-            const continuous: any[] = [];
-            let lastValue = 0;
-            let lastCost = 0;
-
-            sorted.forEach(h => {
-                // If value is null (no record), use lastValue. 
-                // If value is explicitly 0, use 0.
-                if (h.value === null) h.value = lastValue;
-                else lastValue = h.value; // Update lastValue with explicit value (including 0)
-
-                // Cost is always explicitly calculated for every point in time (Transaction or Asset).
-                // So we trust h.cost, even if it is 0.
-                lastCost = h.cost;
-
-                // Ensure value is number for output
-                continuous.push({
-                    ...h,
-                    value: h.value || 0
-                });
-            });
-            return continuous;
+            return processed.map(p => ({
+                date: p.date,
+                value: p.value,
+                cost: p.cost
+            }));
         };
 
         const hasChildren = cat.children && cat.children.length > 0;
@@ -290,11 +340,15 @@ export async function getCategoryDetails(id: number) {
 
         if (hasChildren) {
             // Aggregate Children
-            childrenInfo = cat.children.map((c: any) => ({
-                id: c.id,
-                name: c.name,
-                color: c.color
-            }));
+            childrenInfo = cat.children.map((c: any) => {
+                const lastAsset = c.assets.length > 0 ? c.assets[c.assets.length - 1] : null;
+                return {
+                    id: c.id,
+                    name: c.name,
+                    color: c.color,
+                    currentValue: lastAsset?.currentValue || 0
+                };
+            });
 
             // Calculate history for each child
             const childHistories = cat.children.map((c: any) => ({
@@ -465,6 +519,7 @@ export async function getCategoryDetails(id: number) {
             tags: (cat.tags as any[]).map((t: any) => t.tagOption?.name),
             history,
             children: childrenInfo,
+            parent: cat.parent ? { id: cat.parent.id, name: cat.parent.name } : null,
             transactions: mergedList
         };
     } catch (error) {
