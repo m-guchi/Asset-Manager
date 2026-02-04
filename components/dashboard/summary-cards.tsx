@@ -49,7 +49,7 @@ export function SummaryCards({
                         <div className="flex flex-col gap-1 pr-2">
                             <div className="flex justify-between items-baseline border-b border-border/30 pb-1">
                                 <span className="text-[9px] text-muted-foreground font-medium uppercase">負債</span>
-                                <span className="text-sm md:text-base font-bold text-red-500">¥{totalLiabilities.toLocaleString()}</span>
+                                <span className="text-sm md:text-base font-bold text-red-500">¥{(totalLiabilities === 0 ? 0 : -totalLiabilities).toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between items-baseline pt-1">
                                 <span className="text-[9px] text-muted-foreground font-medium uppercase">純資産</span>
