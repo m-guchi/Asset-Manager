@@ -85,6 +85,8 @@ export default function AssetDetailPage() {
         valuation: "",
         memo: ""
     })
+    const [isCalculateMode, setIsCalculateMode] = React.useState(false) // New state
+    const [saleAmount, setSaleAmount] = React.useState("") // New state
 
     // Update default values when category loads or edit starts
     React.useEffect(() => {
@@ -144,13 +146,20 @@ export default function AssetDetailPage() {
         }
     }
 
+    const [baseValuation, setBaseValuation] = React.useState(0) // New state for auto-calc base
+
     const openEdit = (item: any) => {
         setEditingItem(item)
+        // Calculate base valuation (valuation BEFORE this transaction)
+        const signedAmount = item.type === 'WITHDRAW' ? -Math.abs(item.amount || 0) : Math.abs(item.amount || 0);
+        const currentVal = item.pointInTimeValuation || 0;
+        setBaseValuation(currentVal - signedAmount);
+
         setNewTrx({
             date: new Date(item.date).toISOString().split('T')[0],
             type: item.type === 'VALUATION' ? 'VALUATION' : 'TRANSACTION',
-            amount: Math.abs(item.amount || 0).toString(),
-            valuation: item.pointInTimeValuation.toString(),
+            amount: signedAmount.toString(),
+            valuation: item.pointInTimeValuation?.toString() || "",
             memo: item.memo || ""
         })
         setIsTrxModalOpen(true)
@@ -425,6 +434,19 @@ export default function AssetDetailPage() {
                     setIsTrxModalOpen(open);
                     if (!open) {
                         setEditingItem(null);
+                        setIsCalculateMode(false);
+                        setSaleAmount("");
+                        setBaseValuation(0);
+                        setNewTrx({
+                            date: new Date().toISOString().split('T')[0],
+                            type: category.isCash ? "VALUATION" : "TRANSACTION",
+                            amount: "",
+                            valuation: category.currentValue.toString(),
+                            memo: ""
+                        });
+                    } else if (!editingItem) {
+                        // Opening for NEW item
+                        setBaseValuation(category.currentValue);
                         setNewTrx({
                             date: new Date().toISOString().split('T')[0],
                             type: category.isCash ? "VALUATION" : "TRANSACTION",
@@ -442,6 +464,20 @@ export default function AssetDetailPage() {
                             <DialogTitle>{editingItem ? "履歴を編集" : "履歴を追加"}</DialogTitle>
                             <DialogDescription>{editingItem ? "過去の記録を修正します。" : "入出金または評価額の更新を記録します。"}</DialogDescription>
                         </DialogHeader>
+
+                        <div className="grid grid-cols-2 gap-4 bg-muted/40 p-3 rounded-md border text-sm mt-2">
+                            <div>
+                                <span className="text-muted-foreground text-[10px] block mb-0.5">現在の評価額</span>
+                                <span className="font-mono font-bold">¥{category.currentValue.toLocaleString()}</span>
+                            </div>
+                            {!category.isCash && (
+                                <div>
+                                    <span className="text-muted-foreground text-[10px] block mb-0.5">現在の取得原価</span>
+                                    <span className="font-mono font-bold">¥{category.costBasis.toLocaleString()}</span>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="flex flex-col gap-5 py-4">
                             <div className="flex flex-col gap-2">
                                 <Label className="text-xs font-semibold">日付</Label>
@@ -458,9 +494,85 @@ export default function AssetDetailPage() {
                                 </Select>
                             </div>
                             {newTrx.type === 'TRANSACTION' && (
-                                <div className="flex flex-col gap-2">
-                                    <Label className="text-xs font-semibold">取引金額 (マイナスで出金)</Label>
-                                    <Input type="number" value={newTrx.amount} onChange={(e) => setNewTrx({ ...newTrx, amount: e.target.value })} />
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex items-center space-x-2">
+                                        <input
+                                            type="checkbox"
+                                            id="calcMode"
+                                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                            checked={isCalculateMode}
+                                            onChange={(e) => {
+                                                setIsCalculateMode(e.target.checked);
+                                                if (e.target.checked) {
+                                                    setSaleAmount("");
+                                                    setNewTrx({ ...newTrx, amount: "" });
+                                                } else {
+                                                    setNewTrx({ ...newTrx, amount: "" });
+                                                }
+                                            }}
+                                        />
+                                        <label
+                                            htmlFor="calcMode"
+                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                        >
+                                            売却額から元本減少分を自動計算
+                                        </label>
+                                    </div>
+
+                                    {isCalculateMode ? (
+                                        <div className="flex flex-col gap-2 pl-2 border-l-2 border-muted">
+                                            <Label className="text-xs font-semibold">売却額（受け取った金額）</Label>
+                                            <Input
+                                                type="number"
+                                                placeholder="例: 100000"
+                                                value={saleAmount}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setSaleAmount(val);
+                                                    if (val && category.currentValue > 0) {
+                                                        const ratio = category.costBasis / category.currentValue;
+                                                        const reduction = Math.floor(Number(val) * ratio);
+                                                        setNewTrx({
+                                                            ...newTrx,
+                                                            amount: (-reduction).toString(),
+                                                            valuation: Math.floor(baseValuation - Number(val)).toString()
+                                                        });
+                                                    } else {
+                                                        setNewTrx({ ...newTrx, amount: "" });
+                                                    }
+                                                }}
+                                            />
+                                            <div className="text-[11px] text-muted-foreground bg-muted p-2 rounded">
+                                                <p>現在の平均単価に基づいて計算:</p>
+                                                <p className="font-mono mt-1">
+                                                    減少する元本: <span className="font-bold text-foreground">{newTrx.amount ? `¥${Number(newTrx.amount).toLocaleString()}` : "-"}</span>
+                                                </p>
+                                                <p className="mt-1 opacity-70 text-[10px]">
+                                                    (計算式: 売却額 × 現在の原価率 {(category.currentValue > 0 ? (category.costBasis / category.currentValue * 100).toFixed(1) : "0.0")}%)
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col gap-2">
+                                            <Label className="text-xs font-semibold">取引金額 (マイナスで出金)</Label>
+                                            <Input
+                                                type="number"
+                                                value={newTrx.amount}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    const numVal = Number(val);
+                                                    setNewTrx({
+                                                        ...newTrx,
+                                                        amount: val,
+                                                        valuation: !isNaN(numVal) ? (baseValuation + numVal).toString() : newTrx.valuation
+                                                    });
+                                                }}
+                                            />
+                                            <p className="text-[10px] text-muted-foreground leading-tight">
+                                                ※この金額は「取得原価」の計算に利用されます。売却時は、売却額ではなく「元本の減少分」を入力するとグラフが正確になります。
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             <div className="flex flex-col gap-2">
@@ -505,15 +617,15 @@ export default function AssetDetailPage() {
                                         )}
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant={item.type === 'DEPOSIT' ? 'default' : item.type === 'WITHDRAW' ? 'secondary' : (item.type === 'VALUATION' || item.type === 'VALUATION_ONLY') ? 'outline' : 'outline'}>
-                                            {item.type === 'DEPOSIT' ? '入金' : item.type === 'WITHDRAW' ? '出金' : '評価更新'}
+                                        <Badge variant={(item.type === 'DEPOSIT' || item.type === 'WITHDRAW') ? 'default' : 'outline'}>
+                                            {(item.type === 'DEPOSIT' || item.type === 'WITHDRAW') ? '入出金' : '評価更新'}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell className="text-right font-medium">
-                                        {item.amount !== 0 ? `¥${item.amount.toLocaleString()}` : "-"}
+                                    <TableCell className={`text-right font-medium ${item.type === 'DEPOSIT' ? 'text-green-600' : item.type === 'WITHDRAW' ? 'text-red-600' : ''}`}>
+                                        {item.amount !== 0 ? `¥${(item.type === 'WITHDRAW' ? -item.amount : item.amount).toLocaleString()}` : "-"}
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        ¥{item.pointInTimeValuation?.toLocaleString() || "0"}
+                                        {(item.pointInTimeValuation !== null && item.pointInTimeValuation !== undefined) ? `¥${item.pointInTimeValuation.toLocaleString()}` : "-"}
                                     </TableCell>
                                     <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{item.memo}</TableCell>
                                     <TableCell className="text-right">

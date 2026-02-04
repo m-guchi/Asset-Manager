@@ -205,7 +205,7 @@ export async function getCategoryDetails(id: number) {
 
         // Helper to calc history for a single category node
         const calculateHistoryForCategory = (c: any) => {
-            const historyMap = new Map<string, { date: Date, value: number, cost: number }>();
+            const historyMap = new Map<string, { date: Date, value: number | null, cost: number }>();
             let runningCost = 0;
 
             // 1. Transactions
@@ -216,7 +216,7 @@ export async function getCategoryDetails(id: number) {
                 const dateStr = t.transactedAt.toISOString().split('T')[0];
                 historyMap.set(dateStr, {
                     date: t.transactedAt,
-                    value: 0,
+                    value: null, // Initialize as null to distinguish from explicit 0
                     cost: runningCost
                 });
             });
@@ -249,16 +249,13 @@ export async function getCategoryDetails(id: number) {
             const sorted = Array.from(historyMap.values())
                 .sort((a, b) => a.date.getTime() - b.date.getTime())
                 .map(h => ({
-                    date: h.date, // keep as Date object for merging
+                    date: h.date,
                     value: h.value,
                     cost: h.cost
                 }));
 
             // Fill gaps
             if (sorted.length === 0) {
-                // If it's a leaf usage but has no data, maybe return current? 
-                // But for aggregation we might just want empty. 
-                // Actually, if a child has 0 history, it's just 0.
                 return [];
             }
 
@@ -266,20 +263,21 @@ export async function getCategoryDetails(id: number) {
             let lastValue = 0;
             let lastCost = 0;
 
-            // We don't necessarily need to fill every single day here, 
-            // just ensure the "points" are valid updates. 
-            // However, for stacking, we need a common timeline.
-            // Let's just return the change points. The merger will handle "last known value".
-
-            // Wait, for single category view we filled gaps. 
-            // Let's do a simple fill for the returned array to be clean
             sorted.forEach(h => {
-                if (h.value === 0 && lastValue !== 0) h.value = lastValue;
-                else if (h.value !== 0) lastValue = h.value;
+                // If value is null (no record), use lastValue. 
+                // If value is explicitly 0, use 0.
+                if (h.value === null) h.value = lastValue;
+                else lastValue = h.value; // Update lastValue with explicit value (including 0)
 
-                if (h.cost === 0 && lastCost !== 0) h.cost = lastCost;
-                else if (h.cost !== 0) lastCost = h.cost;
-                continuous.push(h);
+                // Cost is always explicitly calculated for every point in time (Transaction or Asset).
+                // So we trust h.cost, even if it is 0.
+                lastCost = h.cost;
+
+                // Ensure value is number for output
+                continuous.push({
+                    ...h,
+                    value: h.value || 0
+                });
             });
             return continuous;
         };
@@ -370,39 +368,91 @@ export async function getCategoryDetails(id: number) {
         }
 
         // Transactions & Assets
-        const formatTx = (t: any, catName: string, catColor: string) => ({
+        const formatTx = (t: any, catName: string, catColor: string, catId: number) => ({
             id: `tx-${t.id}`,
+            rawDate: t.transactedAt,
             date: t.transactedAt.toISOString(),
             type: t.type,
             amount: t.amount,
             memo: t.memo,
-            pointInTimeValuation: 0,
+            pointInTimeValuation: null,
             categoryName: catName,
-            categoryColor: catColor
+            categoryColor: catColor,
+            categoryId: catId
         });
 
-        const formatAsset = (a: any, catName: string, catColor: string) => ({
+        const formatAsset = (a: any, catName: string, catColor: string, catId: number) => ({
             id: `as-${a.id}`,
+            rawDate: a.recordedAt,
             date: a.recordedAt.toISOString(),
             type: 'VALUATION',
             amount: 0,
             pointInTimeValuation: a.currentValue,
             memo: '評価額更新',
             categoryName: catName,
-            categoryColor: catColor
+            categoryColor: catColor,
+            categoryId: catId
         });
 
-        const parentTransactions = (cat.transactions || []).map((t: any) => formatTx(t, cat.name, cat.color));
-        const childTransactions = hasChildren ? cat.children.flatMap((c: any) => (c.transactions || []).map((t: any) => formatTx(t, c.name, c.color))) : [];
+        const rawTransactions = [
+            ...(cat.transactions || []).map((t: any) => formatTx(t, cat.name, cat.color, cat.id)),
+            ...(hasChildren ? cat.children.flatMap((c: any) => (c.transactions || []).map((t: any) => formatTx(t, c.name, c.color, c.id))) : [])
+        ];
 
-        const parentAssets = (cat.assets || []).map((a: any) => formatAsset(a, cat.name, cat.color));
-        const childAssets = hasChildren ? cat.children.flatMap((c: any) => (c.assets || []).map((a: any) => formatAsset(a, c.name, c.color))) : [];
+        const rawAssets = [
+            ...(cat.assets || []).map((a: any) => formatAsset(a, cat.name, cat.color, cat.id)),
+            ...(hasChildren ? cat.children.flatMap((c: any) => (c.assets || []).map((a: any) => formatAsset(a, c.name, c.color, c.id))) : [])
+        ];
 
-        // Filter out parent assets if children exist? 
-        // No, keep them as "Parent's own valuation updates" if any. 
-        // But usually parent valuation is sum of children? 
-        // If parent is a "Group", it might not have own assets. 
-        // If it's a "Category" that has sub-categories but also own assets, we show both.
+        // Merge logic: Group by CategoryId + Date (YYYY-MM-DD)
+        const allRaw = [...rawTransactions, ...rawAssets].sort((a: any, b: any) => b.rawDate.getTime() - a.rawDate.getTime());
+        const mergedList: any[] = [];
+        const processedIds = new Set<string>();
+
+        // We iterate and group manually or just process the list?
+        // Since it's sorted desc, we can check for merge candidates
+        // A better way is to group by key
+        const groups = new Map<string, any[]>();
+        allRaw.forEach(item => {
+            const day = item.date.split('T')[0];
+            const key = `${item.categoryId}_${day}`;
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key)!.push(item);
+        });
+
+        groups.forEach(groupItems => {
+            // In each group, we have transactions and valuations for the same day/cat
+            // Sort by time desc just to be sure
+            groupItems.sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
+
+            // Separate Txs and Ass
+            const txs = groupItems.filter(i => i.id.startsWith('tx-'));
+            const ass = groupItems.filter(i => i.id.startsWith('as-'));
+
+            if (txs.length > 0 && ass.length > 0) {
+                // Merge the latest Asset val into the latest Tx
+                const latestTx = txs[0];
+                const latestAs = ass[0]; // The latest valuation for that day
+
+                // Mutate the tx to include the valuation
+                latestTx.pointInTimeValuation = latestAs.pointInTimeValuation;
+
+                // Add all txs to mergedList
+                txs.forEach(t => mergedList.push(t));
+
+                // Add assets ONLY if they are NOT the one we merged? 
+                // Or simply hide all assets for that day if we have a tx?
+                // Usually one val per day. Let's hide the merged one.
+                // If we merged into Tx, we don't show the Asset row.
+                ass.slice(1).forEach(a => mergedList.push(a)); // keep extra assets if any
+            } else {
+                // No merge needed
+                groupItems.forEach(i => mergedList.push(i));
+            }
+        });
+
+        // Re-sort final list by date desc
+        mergedList.sort((a: any, b: any) => b.rawDate.getTime() - a.rawDate.getTime());
 
         return {
             id: cat.id,
@@ -415,12 +465,7 @@ export async function getCategoryDetails(id: number) {
             tags: (cat.tags as any[]).map((t: any) => t.tagOption?.name),
             history,
             children: childrenInfo,
-            transactions: [
-                ...parentTransactions,
-                ...childTransactions,
-                ...parentAssets,
-                ...childAssets
-            ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            transactions: mergedList
         };
     } catch (error) {
         console.error("Fetch detail error", error);
