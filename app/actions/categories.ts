@@ -178,8 +178,146 @@ export async function reorderCategoriesAction(items: any[]) {
 }
 
 export async function getCategoryDetails(id: number) {
-    // Basic implementation for detail view
-    return null;
+    try {
+        const cat = await prisma.category.findUnique({
+            where: { id },
+            include: {
+                tags: {
+                    include: {
+                        tagGroup: true,
+                        tagOption: true
+                    }
+                },
+                assets: {
+                    orderBy: { recordedAt: 'asc' }
+                },
+                transactions: {
+                    orderBy: { transactedAt: 'asc' }
+                }
+            }
+        });
+
+        if (!cat) return null;
+
+        const latestAsset = cat.assets.length > 0 ? cat.assets[cat.assets.length - 1] : null;
+        const currentValue = Number(latestAsset?.currentValue || 0);
+
+        // Calculate current cost basis
+        let costBasis = 0;
+        if (cat.isCash) {
+            costBasis = currentValue;
+        } else {
+            costBasis = cat.transactions.reduce((acc, t) => {
+                if (t.type === 'DEPOSIT') return acc + t.amount;
+                if (t.type === 'WITHDRAW') return acc - t.amount;
+                return acc;
+            }, 0);
+        }
+
+        // Build unified history
+        // We want a list of points where either valuation or cost changed
+        const historyMap = new Map<string, { date: Date, value: number, cost: number }>();
+
+        // 1. Process Transactions for Cost History
+        let runningCost = 0;
+        cat.transactions.forEach(t => {
+            if (t.type === 'DEPOSIT') runningCost += t.amount;
+            else if (t.type === 'WITHDRAW') runningCost -= t.amount;
+
+            const dateStr = t.transactedAt.toISOString().split('T')[0];
+            historyMap.set(dateStr, {
+                date: t.transactedAt,
+                value: 0, // Placeholder
+                cost: runningCost
+            });
+        });
+
+        // 2. Process Assets for Value History
+        cat.assets.forEach(a => {
+            const dateStr = a.recordedAt.toISOString().split('T')[0];
+            const existing = historyMap.get(dateStr);
+            if (existing) {
+                existing.value = a.currentValue;
+            } else {
+                // To get the cost at this point in time, we'd need to find the latest transaction before this asset record
+                const costAtTime = cat.transactions
+                    .filter(t => t.transactedAt <= a.recordedAt)
+                    .reduce((acc, t) => {
+                        if (t.type === 'DEPOSIT') return acc + t.amount;
+                        if (t.type === 'WITHDRAW') return acc - t.amount;
+                        return acc;
+                    }, 0);
+
+                historyMap.set(dateStr, {
+                    date: a.recordedAt,
+                    value: a.currentValue,
+                    cost: costAtTime
+                });
+            }
+        });
+
+        // Convert map to sorted array and fill in gaps
+        const history = Array.from(historyMap.values())
+            .sort((a, b) => a.date.getTime() - b.date.getTime())
+            .map(h => ({
+                date: h.date.toISOString(),
+                value: h.value,
+                cost: h.cost
+            }));
+
+        // If history is empty, add current state as a single point
+        if (history.length === 0) {
+            history.push({
+                date: new Date().toISOString(),
+                value: currentValue,
+                cost: costBasis
+            });
+        } else {
+            // Ensure values are continuous
+            let lastValue = 0;
+            let lastCost = 0;
+            history.forEach(h => {
+                if (h.value === 0 && lastValue !== 0) h.value = lastValue;
+                else if (h.value !== 0) lastValue = h.value;
+
+                if (h.cost === 0 && lastCost !== 0) h.cost = lastCost;
+                else if (h.cost !== 0) lastCost = h.cost;
+            });
+        }
+
+        return {
+            id: cat.id,
+            name: cat.name,
+            color: cat.color,
+            isCash: cat.isCash,
+            isLiability: cat.isLiability,
+            currentValue,
+            costBasis,
+            tags: cat.tags.map(t => t.tagOption.name),
+            history,
+            transactions: [
+                ...cat.transactions.map(t => ({
+                    id: `tx-${t.id}`,
+                    date: t.transactedAt.toISOString(),
+                    type: t.type,
+                    amount: t.amount,
+                    pointInTimeValuation: 0, // Injected below
+                    memo: t.memo
+                })),
+                ...cat.assets.map(a => ({
+                    id: `as-${a.id}`,
+                    date: a.recordedAt.toISOString(),
+                    type: 'VALUATION',
+                    amount: 0,
+                    pointInTimeValuation: a.currentValue,
+                    memo: '評価額更新'
+                }))
+            ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        };
+    } catch (error) {
+        console.error("Fetch detail error", error);
+        return null;
+    }
 }
 
 export async function updateValuationSettingsAction(settings: any[]) {
