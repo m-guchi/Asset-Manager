@@ -116,7 +116,7 @@ export function AssetHistoryChart({
     const chartConfig = React.useMemo(() => {
         const config: ChartConfig = {
             totalAssets: { label: "評価額", color: "var(--chart-1)" },
-            totalCost: { label: "取得原価", color: "var(--chart-2)" },
+            totalCost: { label: "取得原価", color: "#888888" },
         }
         activeKeys.forEach((key) => {
             config[`tag_${key}`] = { label: key }
@@ -140,8 +140,8 @@ export function AssetHistoryChart({
 
     return (
         <Card className="flex flex-col">
-            <CardHeader className="items-center pb-0 pt-2">
-                <div className="w-full flex items-center gap-2 overflow-x-auto pb-1 mt-1 no-scrollbar max-w-full">
+            <CardHeader className="items-center pb-0 pt-1.5">
+                <div className="w-full flex items-center gap-2 overflow-x-auto pb-0.5 mt-0.5 no-scrollbar max-w-full">
                     <div className="flex bg-muted/50 rounded-md p-0.5 border" onClick={(e) => e.stopPropagation()}>
                         <button
                             onClick={(e) => { e.stopPropagation(); setMode("total"); }}
@@ -180,7 +180,7 @@ export function AssetHistoryChart({
                 <ChartContainer config={chartConfig} className="w-full h-full">
                     <div className="flex flex-col h-full">
                         {/* Detail Info Bar */}
-                        <div className="px-4 py-1.5 border-y border-border/40 bg-muted/10 min-h-[45px] flex items-center mt-0.5" onClick={(e) => e.stopPropagation()}>
+                        <div className="px-4 py-1.5 border-y border-border/40 bg-muted/10 min-h-[40px] flex items-center mt-0" onClick={(e) => e.stopPropagation()}>
                             {!activePoint ? (
                                 <div className="w-full text-center">
                                     <span className="text-[10px] text-muted-foreground animate-pulse font-medium">
@@ -204,9 +204,9 @@ export function AssetHistoryChart({
                                                     <span className="text-[11px] font-bold">¥{Math.round(activePoint.totalAssets).toLocaleString()}</span>
                                                 </div>
                                                 <div className="flex items-center gap-1.5 shrink-0 border-l border-border/50 pl-4">
-                                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--color-totalCost)" }} />
+                                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#888888" }} />
                                                     <span className="text-[9px] text-muted-foreground font-bold">取得原価</span>
-                                                    <span className="text-[11px] font-bold text-muted-foreground">¥{Math.round(activePoint.totalCost).toLocaleString()}</span>
+                                                    <span className="text-[11px] font-bold text-[#888888]">¥{Math.round(activePoint.totalCost).toLocaleString()}</span>
                                                 </div>
                                             </>
                                         ) : (
@@ -254,7 +254,7 @@ export function AssetHistoryChart({
                                     stackOffset={mode === "tag" && showPercent ? "expand" : "none"}
                                     margin={{ top: 10, right: 30, left: 10, bottom: 0 }}
                                 >
-                                    <CartesianGrid vertical={false} strokeOpacity={0.15} strokeDasharray="" />
+                                    <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#888888" strokeOpacity={0.2} />
                                     <XAxis
                                         dataKey="timestamp"
                                         type="number"
@@ -289,7 +289,7 @@ export function AssetHistoryChart({
                                             stroke="var(--color-totalAssets)"
                                             strokeWidth={2}
                                             fill="var(--color-totalAssets)"
-                                            fillOpacity={0.15}
+                                            fillOpacity={0.2}
                                             isAnimationActive={false}
                                         />
                                     )}
@@ -297,7 +297,7 @@ export function AssetHistoryChart({
                                         <Line
                                             dataKey="totalCost"
                                             type="monotone"
-                                            stroke="var(--color-totalCost)"
+                                            stroke="#888888"
                                             strokeWidth={1.5}
                                             strokeDasharray="5 5"
                                             dot={false}
@@ -313,7 +313,7 @@ export function AssetHistoryChart({
                                             type="monotone"
                                             stroke={`var(--chart-${(i % 5) + 1})`}
                                             fill={`var(--chart-${(i % 5) + 1})`}
-                                            fillOpacity={0.8}
+                                            fillOpacity={0.4}
                                             isAnimationActive={false}
                                         />
                                     ))}
