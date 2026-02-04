@@ -128,7 +128,7 @@ export function AssetHistoryChart({
     return (
         <Card>
             <CardHeader>
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 w-full min-w-0">
                     <div className="flex items-center justify-between">
                         <CardTitle>資産推移</CardTitle>
                         <div className="flex bg-muted rounded-md p-1 ml-auto">
@@ -147,7 +147,7 @@ export function AssetHistoryChart({
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar justify-center">
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar w-full max-w-full">
                         <div className="flex bg-muted/50 rounded-md p-0.5 border">
                             <button
                                 onClick={() => setMode("total")}

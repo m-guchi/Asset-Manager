@@ -121,7 +121,7 @@ export function AssetAllocationChart({
         <Card className="flex flex-col">
             <CardHeader className="items-center pb-0 pt-4">
                 <CardTitle className="text-lg">資産構成比</CardTitle>
-                <div className="w-full flex items-center gap-2 overflow-x-auto pb-1 mt-1 no-scrollbar justify-center">
+                <div className="w-full flex items-center gap-2 overflow-x-auto pb-1 mt-1 no-scrollbar max-w-full">
                     <div className="flex bg-muted/50 rounded-md p-0.5 border">
                         <button
                             onClick={() => setMode("category")}
