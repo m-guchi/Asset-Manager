@@ -217,7 +217,7 @@ export function AssetHistoryChart({
                                     return [formattedValue, name]
                                 }}
                             />
-                            <Legend wrapperStyle={{ fontSize: '10px' }} verticalAlign="top" height={36} />
+                            <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} verticalAlign="bottom" height={40} />
 
                             {mode === "total" && (
                                 <Area

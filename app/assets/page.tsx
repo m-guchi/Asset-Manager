@@ -60,9 +60,12 @@ function AssetsContent() {
     const [tagGroups, setTagGroups] = useState<any[]>([])
     const [isLoading, setIsLoading] = useState(true)
 
-    const fetchData = useCallback(async () => {
-        setIsLoading(true)
+    const fetchData = useCallback(async (silent = false) => {
+        if (!silent && categories.length === 0 && tagGroups.length === 0) {
+            setIsLoading(true)
+        }
         try {
+            console.log("Fetching asset management data...");
             const [catData, groupData] = await Promise.all([
                 getCategories(),
                 getTagGroups()
@@ -75,7 +78,7 @@ function AssetsContent() {
         } finally {
             setIsLoading(false)
         }
-    }, [])
+    }, [categories.length, tagGroups.length])
 
     useEffect(() => {
         fetchData()
