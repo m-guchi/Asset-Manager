@@ -75,7 +75,7 @@ export function AssetAllocationChart({
                 .filter(c => c.currentValue > 0)
                 .map(c => ({
                     name: c.name,
-                    value: c.currentValue, // Top-level uses aggregated currentValue
+                    value: c.currentValue,
                     fill: c.color || "var(--chart-1)",
                     isLiability: !!c.isLiability
                 }))
@@ -83,29 +83,31 @@ export function AssetAllocationChart({
             const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
             if (!activeGroup) return []
 
-            // Tag mode: Use ALL categories (flat list) and sum OWN values to avoid double counting
+            // Tag mode: Use ALL categories (flat list) and sum OWN values to avoid double counting in hierarchy
             const sourceData = allCategories.length > 0 ? allCategories : categories;
-
-            // Support both new 'options' structure and legacy 'tags' array
             const targetTags = activeGroup.options?.map(o => o.name) || activeGroup.tags || []
 
-            return targetTags.map((tagName: string, i: number) => {
-                const groupCategories = sourceData.filter(c => c.tags.includes(tagName))
-                const total = groupCategories
-                    .reduce((sum, c) => {
-                        // Use ownValue for granular aggregation
-                        // If ownValue is missing (legacy), fallback to currentValue but that might double count if hierarchy exists
-                        const val = (c.ownValue !== undefined) ? c.ownValue : c.currentValue;
-                        return sum + (c.isLiability ? -val : val)
-                    }, 0)
+            // To avoid double counting categories with multiple tags in the same group,
+            // we'll map tags to their accumulated values
+            const tagMap = new Map<string, number>();
+            targetTags.forEach(t => tagMap.set(t, 0));
 
-                return {
-                    name: tagName,
-                    value: Math.max(0, total),
-                    fill: `var(--chart-${(i % 5) + 1})`,
-                    isLiability: false // Aggregated tags are treated as net positive for the pie chart
+            sourceData.forEach(cat => {
+                // Find the first tag in the current group that this category is labeled with
+                const matchingTag = targetTags.find(t => cat.tags?.includes(t));
+                if (matchingTag) {
+                    const val = (cat.ownValue !== undefined) ? cat.ownValue : cat.currentValue;
+                    const sign = cat.isLiability ? -1 : 1;
+                    tagMap.set(matchingTag, (tagMap.get(matchingTag) || 0) + (val * sign));
                 }
-            }).filter(d => d.value > 0)
+            });
+
+            return targetTags.map((tagName: string, i: number) => ({
+                name: tagName,
+                value: Math.max(0, tagMap.get(tagName) || 0),
+                fill: `var(--chart-${(i % 5) + 1})`,
+                isLiability: false
+            })).filter(d => d.value > 0)
         }
     }, [categories, allCategories, mode, selectedTagGroup, tagGroups])
 
@@ -114,7 +116,7 @@ export function AssetAllocationChart({
     const chartConfig = React.useMemo(() => {
         const config: any = { ...chartConfigBase }
         chartData.forEach((d) => {
-            config[d.name] = { // Changed from d.category to d.name
+            config[d.name] = {
                 label: d.name,
                 color: d.fill
             }
@@ -122,9 +124,9 @@ export function AssetAllocationChart({
         return config
     }, [chartData])
 
-
     const totalValue = React.useMemo(() => {
-        // Exclude liabilities from the pie chart total
+        // Only sum the displayed asset values (excluding liabilities)
+        // This naturally excludes categories that don't belong to any tag in the group
         return chartData
             .filter(d => !d.isLiability)
             .reduce((acc, curr) => acc + curr.value, 0)

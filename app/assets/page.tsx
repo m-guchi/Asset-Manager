@@ -127,7 +127,7 @@ function AssetsContent() {
                 </TabsContent>
 
                 <TabsContent value="groups" className="space-y-4">
-                    <TagGroupManagement tagGroups={tagGroups} onRefresh={fetchData} />
+                    <TagGroupManagement tagGroups={tagGroups} categories={categories} onRefresh={fetchData} />
                 </TabsContent>
             </Tabs>
         </div>
@@ -488,7 +488,7 @@ function SortableCategoryItem({ category, children }: { category: any, children:
 // Tag Group Management (New Implementation)
 // ==========================================
 
-function TagGroupManagement({ tagGroups, onRefresh }: { tagGroups: any[], onRefresh: () => void }) {
+function TagGroupManagement({ tagGroups, onRefresh, categories }: { tagGroups: any[], onRefresh: () => void, categories: any[] }) {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [editingGroup, setEditingGroup] = useState<any>(null)
     const [isReordering, setIsReordering] = useState(false)
