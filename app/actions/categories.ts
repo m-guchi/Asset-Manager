@@ -14,7 +14,7 @@ export async function getCategories() {
                     include: {
                         tagGroup: true,
                         tagOption: true
-                    }
+                    } as any
                 },
                 assets: {
                     orderBy: { recordedAt: 'desc' },
@@ -186,7 +186,7 @@ export async function getCategoryDetails(id: number) {
                     include: {
                         tagGroup: true,
                         tagOption: true
-                    }
+                    } as any
                 },
                 assets: {
                     orderBy: { recordedAt: 'asc' }
@@ -207,9 +207,10 @@ export async function getCategoryDetails(id: number) {
         if (cat.isCash) {
             costBasis = currentValue;
         } else {
-            costBasis = cat.transactions.reduce((acc, t) => {
-                if (t.type === 'DEPOSIT') return acc + t.amount;
-                if (t.type === 'WITHDRAW') return acc - t.amount;
+            costBasis = (cat.transactions as any[]).reduce((acc: number, t: any) => {
+                const amt = Number(t.amount);
+                if (t.type === 'DEPOSIT') return acc + amt;
+                if (t.type === 'WITHDRAW') return acc - amt;
                 return acc;
             }, 0);
         }
@@ -220,7 +221,7 @@ export async function getCategoryDetails(id: number) {
 
         // 1. Process Transactions for Cost History
         let runningCost = 0;
-        cat.transactions.forEach(t => {
+        (cat.transactions as any[]).forEach((t: any) => {
             if (t.type === 'DEPOSIT') runningCost += t.amount;
             else if (t.type === 'WITHDRAW') runningCost -= t.amount;
 
@@ -233,18 +234,19 @@ export async function getCategoryDetails(id: number) {
         });
 
         // 2. Process Assets for Value History
-        cat.assets.forEach(a => {
+        (cat.assets as any[]).forEach((a: any) => {
             const dateStr = a.recordedAt.toISOString().split('T')[0];
             const existing = historyMap.get(dateStr);
             if (existing) {
                 existing.value = a.currentValue;
             } else {
                 // To get the cost at this point in time, we'd need to find the latest transaction before this asset record
-                const costAtTime = cat.transactions
-                    .filter(t => t.transactedAt <= a.recordedAt)
-                    .reduce((acc, t) => {
-                        if (t.type === 'DEPOSIT') return acc + t.amount;
-                        if (t.type === 'WITHDRAW') return acc - t.amount;
+                const costAtTime = (cat.transactions as any[])
+                    .filter((t: any) => t.transactedAt <= a.recordedAt)
+                    .reduce((acc: number, t: any) => {
+                        const amt = Number(t.amount);
+                        if (t.type === 'DEPOSIT') return acc + amt;
+                        if (t.type === 'WITHDRAW') return acc - amt;
                         return acc;
                     }, 0);
 
@@ -293,10 +295,10 @@ export async function getCategoryDetails(id: number) {
             isLiability: cat.isLiability,
             currentValue,
             costBasis,
-            tags: cat.tags.map(t => t.tagOption.name),
+            tags: (cat.tags as any[]).map((t: any) => t.tagOption?.name),
             history,
             transactions: [
-                ...cat.transactions.map(t => ({
+                ...(cat.transactions as any[]).map((t: any) => ({
                     id: `tx-${t.id}`,
                     date: t.transactedAt.toISOString(),
                     type: t.type,
@@ -304,7 +306,7 @@ export async function getCategoryDetails(id: number) {
                     pointInTimeValuation: 0, // Injected below
                     memo: t.memo
                 })),
-                ...cat.assets.map(a => ({
+                ...(cat.assets as any[]).map((a: any) => ({
                     id: `as-${a.id}`,
                     date: a.recordedAt.toISOString(),
                     type: 'VALUATION',
@@ -312,7 +314,7 @@ export async function getCategoryDetails(id: number) {
                     pointInTimeValuation: a.currentValue,
                     memo: '評価額更新'
                 }))
-            ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
         };
     } catch (error) {
         console.error("Fetch detail error", error);
