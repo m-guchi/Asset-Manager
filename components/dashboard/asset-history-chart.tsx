@@ -284,7 +284,8 @@ export function AssetHistoryChart({
                                             strokeWidth={2}
                                             fill="var(--color-totalAssets)"
                                             fillOpacity={0.2}
-                                            isAnimationActive={false}
+                                            animationDuration={1200}
+                                            animationEasing="ease-in-out"
                                             connectNulls
                                         />
                                     )}
@@ -296,7 +297,8 @@ export function AssetHistoryChart({
                                             strokeWidth={1.5}
                                             strokeDasharray="5 5"
                                             dot={false}
-                                            isAnimationActive={false}
+                                            animationDuration={1200}
+                                            animationEasing="ease-in-out"
                                             connectNulls
                                         />
                                     )}
@@ -310,7 +312,8 @@ export function AssetHistoryChart({
                                             stroke={`var(--chart-${(i % 5) + 1})`}
                                             fill={`var(--chart-${(i % 5) + 1})`}
                                             fillOpacity={0.4}
-                                            isAnimationActive={false}
+                                            animationDuration={1200}
+                                            animationEasing="ease-in-out"
                                             connectNulls
                                         />
                                     ))}
