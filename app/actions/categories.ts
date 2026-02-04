@@ -86,6 +86,8 @@ export async function getCategories() {
                     name: cat.name || "名称なし",
                     color: cat.color || "#cccccc",
                     order: cat.order || 0,
+                    valuationOrder: cat.valuationOrder ?? 0,
+                    isValuationTarget: cat.isValuationTarget ?? true,
                     parentId: cat.parentId,
                     currentValue: consolidatedValue,
                     costBasis: consolidatedCostBasis,
@@ -172,9 +174,22 @@ export async function updateCategoryOrder(id: number, direction: 'up' | 'down') 
     return { success: true };
 }
 
-export async function reorderCategoriesAction(items: any[]) {
-    revalidatePath("/");
-    return { success: true };
+export async function reorderCategoriesAction(items: { id: number, order: number }[]) {
+    try {
+        await prisma.$transaction(
+            items.map((item) =>
+                prisma.category.update({
+                    where: { id: item.id },
+                    data: { order: item.order }
+                })
+            )
+        );
+        revalidatePath("/");
+        return { success: true };
+    } catch (error) {
+        console.error("Reorder failed", error);
+        return { success: false };
+    }
 }
 
 export async function getCategoryDetails(id: number) {
@@ -188,104 +203,323 @@ export async function getCategoryDetails(id: number) {
                         tagOption: true
                     } as any
                 },
-                assets: {
-                    orderBy: { recordedAt: 'asc' }
+                assets: { orderBy: { recordedAt: 'asc' } },
+                transactions: { orderBy: { transactedAt: 'asc' } },
+                children: {
+                    include: {
+                        assets: { orderBy: { recordedAt: 'asc' } },
+                        transactions: { orderBy: { transactedAt: 'asc' } }
+                    }
                 },
-                transactions: {
-                    orderBy: { transactedAt: 'asc' }
-                }
+                parent: true
             }
         }) as any;
 
         if (!cat) return null;
 
-        const latestAsset = cat.assets.length > 0 ? cat.assets[cat.assets.length - 1] : null;
-        const currentValue = Number(latestAsset?.currentValue || 0);
+        // Helper to calc history for a single category node
+        const calculateHistoryForCategory = (c: any) => {
+            const historyMap = new Map<string, { date: Date, value: number | null, cost: number, netFlow: number }>();
+            let runningCost = 0;
 
-        // Calculate current cost basis
-        let costBasis = 0;
-        if (cat.isCash) {
-            costBasis = currentValue;
-        } else {
-            costBasis = (cat.transactions as any[]).reduce((acc: number, t: any) => {
+            // 1. Transactions
+            (c.transactions || []).forEach((t: any) => {
                 const amt = Number(t.amount);
-                if (t.type === 'DEPOSIT') return acc + amt;
-                if (t.type === 'WITHDRAW') return acc - amt;
-                return acc;
-            }, 0);
-        }
+                let flow = 0;
+                if (t.type === 'DEPOSIT') {
+                    runningCost += amt;
+                    flow = amt;
+                }
+                else if (t.type === 'WITHDRAW') {
+                    runningCost -= amt;
+                    flow = -amt;
+                }
 
-        // Build unified history
-        // We want a list of points where either valuation or cost changed
-        const historyMap = new Map<string, { date: Date, value: number, cost: number }>();
-
-        // 1. Process Transactions for Cost History
-        let runningCost = 0;
-        (cat.transactions as any[]).forEach((t: any) => {
-            if (t.type === 'DEPOSIT') runningCost += t.amount;
-            else if (t.type === 'WITHDRAW') runningCost -= t.amount;
-
-            const dateStr = t.transactedAt.toISOString().split('T')[0];
-            historyMap.set(dateStr, {
-                date: t.transactedAt,
-                value: 0, // Placeholder
-                cost: runningCost
+                const dateStr = t.transactedAt.toISOString().split('T')[0];
+                if (historyMap.has(dateStr)) {
+                    const exist = historyMap.get(dateStr)!;
+                    exist.cost = runningCost; // Update to latest running cost of the day
+                    exist.netFlow += flow;
+                } else {
+                    historyMap.set(dateStr, {
+                        date: t.transactedAt,
+                        value: null,
+                        cost: runningCost,
+                        netFlow: flow
+                    });
+                }
             });
-        });
 
-        // 2. Process Assets for Value History
-        (cat.assets as any[]).forEach((a: any) => {
-            const dateStr = a.recordedAt.toISOString().split('T')[0];
-            const existing = historyMap.get(dateStr);
-            if (existing) {
-                existing.value = a.currentValue;
-            } else {
-                // To get the cost at this point in time, we'd need to find the latest transaction before this asset record
-                const costAtTime = (cat.transactions as any[])
-                    .filter((t: any) => t.transactedAt <= a.recordedAt)
-                    .reduce((acc: number, t: any) => {
-                        const amt = Number(t.amount);
-                        if (t.type === 'DEPOSIT') return acc + amt;
-                        if (t.type === 'WITHDRAW') return acc - amt;
-                        return acc;
-                    }, 0);
+            // 2. Assets
+            (c.assets || []).forEach((a: any) => {
+                const dateStr = a.recordedAt.toISOString().split('T')[0];
+                const existing = historyMap.get(dateStr);
 
-                historyMap.set(dateStr, {
-                    date: a.recordedAt,
-                    value: a.currentValue,
-                    cost: costAtTime
+                if (existing) {
+                    existing.value = a.currentValue;
+                } else {
+                    // Estimate cost at this point
+                    const costAtTime = (c.transactions || [])
+                        .filter((t: any) => t.transactedAt <= a.recordedAt)
+                        .reduce((acc: number, t: any) => {
+                            const amt = Number(t.amount);
+                            if (t.type === 'DEPOSIT') return acc + amt;
+                            if (t.type === 'WITHDRAW') return acc - amt;
+                            return acc;
+                        }, 0);
+
+                    historyMap.set(dateStr, {
+                        date: a.recordedAt,
+                        value: a.currentValue,
+                        cost: costAtTime,
+                        netFlow: 0
+                    });
+                }
+            });
+
+            const sorted = Array.from(historyMap.values())
+                .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+            // Fill gaps and create steps
+            if (sorted.length === 0) return [];
+
+            const processed: any[] = [];
+
+            // Add initial point if needed or just handle logic in loop
+            processed.push({ ...sorted[0], value: sorted[0].value || 0 });
+
+            for (let i = 1; i < sorted.length; i++) {
+                const prev = processed[processed.length - 1]; // Use last processed point (which has filled value)
+                const curr = sorted[i];
+
+                // Calculate day difference
+                const dayDiff = Math.floor((curr.date.getTime() - prev.date.getTime()) / (1000 * 60 * 60 * 24));
+
+                // If gap > 1 day, insert a "day before" point to create step effect
+                if (dayDiff > 1) {
+                    const dayBeforeVar = new Date(curr.date);
+                    dayBeforeVar.setDate(curr.date.getDate() - 1);
+
+                    // COST: Use PREVIOUS cost (to keep it flat until the day before change)
+                    const fillCost = prev.cost;
+
+                    // VALUE: Back-calculate from Current Value - NetFlow 
+                    // (The value "before" the transaction happened)
+                    // If current value is null, we can't back-calc, so assume flat from previous (or let fill logic handle)
+                    // If current value is set, we assume that includes the flow. 
+                    let fillValue = prev.value;
+                    if (curr.value !== null) {
+                        // User request: "If 1/8 has 10k deposit, previous day likely 10k lower"
+                        fillValue = curr.value - curr.netFlow;
+                        if (fillValue < 0) fillValue = 0; // Guard
+                    }
+
+                    processed.push({
+                        date: dayBeforeVar,
+                        value: fillValue,
+                        cost: fillCost,
+                        netFlow: 0
+                    });
+                }
+
+                // Process current point
+                // Logic to carry over value if null
+                let actualValue = curr.value;
+                if (actualValue === null) {
+                    // Start of loop `prev` is actually from `processed`, so it has a valid value
+                    actualValue = prev.value;
+                }
+
+                processed.push({
+                    date: curr.date,
+                    value: actualValue,
+                    cost: curr.cost,
+                    netFlow: curr.netFlow
                 });
             }
-        });
 
-        // Convert map to sorted array and fill in gaps
-        const history = Array.from(historyMap.values())
-            .sort((a, b) => a.date.getTime() - b.date.getTime())
-            .map(h => ({
+            return processed.map(p => ({
+                date: p.date,
+                value: p.value,
+                cost: p.cost
+            }));
+        };
+
+        const hasChildren = cat.children && cat.children.length > 0;
+        let history: any[] = [];
+        let currentValue = 0;
+        let costBasis = 0;
+        let childrenInfo: any[] = [];
+
+        if (hasChildren) {
+            // Aggregate Children
+            childrenInfo = cat.children.map((c: any) => {
+                const lastAsset = c.assets.length > 0 ? c.assets[c.assets.length - 1] : null;
+                return {
+                    id: c.id,
+                    name: c.name,
+                    color: c.color,
+                    currentValue: lastAsset?.currentValue || 0
+                };
+            });
+
+            // Calculate history for each child
+            const childHistories = cat.children.map((c: any) => ({
+                id: c.id,
+                items: calculateHistoryForCategory(c)
+            }));
+
+            // Collect all unique dates
+            const allDates = new Set<string>();
+            childHistories.forEach((ch: any) => {
+                ch.items.forEach((i: any) => allDates.add(i.date.toISOString()));
+            });
+
+            const sortedDates = Array.from(allDates).sort();
+
+            // Merge
+            const runningValues: Record<number, number> = {};
+            const runningCosts: Record<number, number> = {};
+
+            history = sortedDates.map(dateStr => {
+                const d = new Date(dateStr);
+                const point: any = { date: dateStr, value: 0, cost: 0 };
+
+                childHistories.forEach((ch: any) => {
+                    // Update running value if this child has an entry on this date
+                    const entry = ch.items.find((i: any) => i.date.toISOString() === dateStr);
+                    if (entry) {
+                        runningValues[ch.id] = entry.value;
+                        runningCosts[ch.id] = entry.cost;
+                    }
+                    // Apply current running value
+                    point[`child_${ch.id}`] = runningValues[ch.id] || 0;
+                    point.value += (runningValues[ch.id] || 0);
+                    point.cost += (runningCosts[ch.id] || 0);
+                });
+
+                return point;
+            });
+
+            // Consolidate current totals
+            currentValue = cat.children.reduce((sum: number, c: any) => {
+                const lastAsset = c.assets[c.assets.length - 1];
+                return sum + (lastAsset?.currentValue || 0);
+            }, 0);
+
+            // Recalculate cost basis
+            costBasis = history.length > 0 ? history[history.length - 1].cost : 0;
+
+        } else {
+            // Single Category Logic
+            const rawHistory = calculateHistoryForCategory(cat);
+            history = rawHistory.map(h => ({
                 date: h.date.toISOString(),
                 value: h.value,
                 cost: h.cost
             }));
 
-        // If history is empty, add current state as a single point
-        if (history.length === 0) {
-            history.push({
-                date: new Date().toISOString(),
-                value: currentValue,
-                cost: costBasis
-            });
-        } else {
-            // Ensure values are continuous
-            let lastValue = 0;
-            let lastCost = 0;
-            history.forEach(h => {
-                if (h.value === 0 && lastValue !== 0) h.value = lastValue;
-                else if (h.value !== 0) lastValue = h.value;
+            const latestAsset = cat.assets.length > 0 ? cat.assets[cat.assets.length - 1] : null;
+            currentValue = Number(latestAsset?.currentValue || 0);
+            costBasis = rawHistory.length > 0 ? rawHistory[rawHistory.length - 1].cost : 0;
 
-                if (h.cost === 0 && lastCost !== 0) h.cost = lastCost;
-                else if (h.cost !== 0) lastCost = h.cost;
-            });
+            // Use fallback logic for costBasis if history is empty but standard calculation exists
+            if (history.length === 0 && cat.isCash) {
+                costBasis = currentValue;
+                history.push({
+                    date: new Date().toISOString(),
+                    value: currentValue,
+                    cost: costBasis
+                });
+            }
         }
+
+        // Transactions & Assets
+        const formatTx = (t: any, catName: string, catColor: string, catId: number) => ({
+            id: `tx-${t.id}`,
+            rawDate: t.transactedAt,
+            date: t.transactedAt.toISOString(),
+            type: t.type,
+            amount: t.amount,
+            memo: t.memo,
+            pointInTimeValuation: null,
+            categoryName: catName,
+            categoryColor: catColor,
+            categoryId: catId
+        });
+
+        const formatAsset = (a: any, catName: string, catColor: string, catId: number) => ({
+            id: `as-${a.id}`,
+            rawDate: a.recordedAt,
+            date: a.recordedAt.toISOString(),
+            type: 'VALUATION',
+            amount: 0,
+            pointInTimeValuation: a.currentValue,
+            memo: '評価額更新',
+            categoryName: catName,
+            categoryColor: catColor,
+            categoryId: catId
+        });
+
+        const rawTransactions = [
+            ...(cat.transactions || []).map((t: any) => formatTx(t, cat.name, cat.color, cat.id)),
+            ...(hasChildren ? cat.children.flatMap((c: any) => (c.transactions || []).map((t: any) => formatTx(t, c.name, c.color, c.id))) : [])
+        ];
+
+        const rawAssets = [
+            ...(cat.assets || []).map((a: any) => formatAsset(a, cat.name, cat.color, cat.id)),
+            ...(hasChildren ? cat.children.flatMap((c: any) => (c.assets || []).map((a: any) => formatAsset(a, c.name, c.color, c.id))) : [])
+        ];
+
+        // Merge logic: Group by CategoryId + Date (YYYY-MM-DD)
+        const allRaw = [...rawTransactions, ...rawAssets].sort((a: any, b: any) => b.rawDate.getTime() - a.rawDate.getTime());
+        const mergedList: any[] = [];
+        const processedIds = new Set<string>();
+
+        // We iterate and group manually or just process the list?
+        // Since it's sorted desc, we can check for merge candidates
+        // A better way is to group by key
+        const groups = new Map<string, any[]>();
+        allRaw.forEach(item => {
+            const day = item.date.split('T')[0];
+            const key = `${item.categoryId}_${day}`;
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key)!.push(item);
+        });
+
+        groups.forEach(groupItems => {
+            // In each group, we have transactions and valuations for the same day/cat
+            // Sort by time desc just to be sure
+            groupItems.sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
+
+            // Separate Txs and Ass
+            const txs = groupItems.filter(i => i.id.startsWith('tx-'));
+            const ass = groupItems.filter(i => i.id.startsWith('as-'));
+
+            if (txs.length > 0 && ass.length > 0) {
+                // Merge the latest Asset val into the latest Tx
+                const latestTx = txs[0];
+                const latestAs = ass[0]; // The latest valuation for that day
+
+                // Mutate the tx to include the valuation
+                latestTx.pointInTimeValuation = latestAs.pointInTimeValuation;
+
+                // Add all txs to mergedList
+                txs.forEach(t => mergedList.push(t));
+
+                // Add assets ONLY if they are NOT the one we merged? 
+                // Or simply hide all assets for that day if we have a tx?
+                // Usually one val per day. Let's hide the merged one.
+                // If we merged into Tx, we don't show the Asset row.
+                ass.slice(1).forEach(a => mergedList.push(a)); // keep extra assets if any
+            } else {
+                // No merge needed
+                groupItems.forEach(i => mergedList.push(i));
+            }
+        });
+
+        // Re-sort final list by date desc
+        mergedList.sort((a: any, b: any) => b.rawDate.getTime() - a.rawDate.getTime());
 
         return {
             id: cat.id,
@@ -297,24 +531,9 @@ export async function getCategoryDetails(id: number) {
             costBasis,
             tags: (cat.tags as any[]).map((t: any) => t.tagOption?.name),
             history,
-            transactions: [
-                ...(cat.transactions as any[]).map((t: any) => ({
-                    id: `tx-${t.id}`,
-                    date: t.transactedAt.toISOString(),
-                    type: t.type,
-                    amount: t.amount,
-                    pointInTimeValuation: 0, // Injected below
-                    memo: t.memo
-                })),
-                ...(cat.assets as any[]).map((a: any) => ({
-                    id: `as-${a.id}`,
-                    date: a.recordedAt.toISOString(),
-                    type: 'VALUATION',
-                    amount: 0,
-                    pointInTimeValuation: a.currentValue,
-                    memo: '評価額更新'
-                }))
-            ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            children: childrenInfo,
+            parent: cat.parent ? { id: cat.parent.id, name: cat.parent.name } : null,
+            transactions: mergedList
         };
     } catch (error) {
         console.error("Fetch detail error", error);
@@ -322,7 +541,24 @@ export async function getCategoryDetails(id: number) {
     }
 }
 
-export async function updateValuationSettingsAction(settings: any[]) {
-    revalidatePath("/");
-    return { success: true };
+export async function updateValuationSettingsAction(settings: { id: number, valuationOrder: number, isValuationTarget: boolean }[]) {
+    try {
+        await prisma.$transaction(
+            settings.map(s =>
+                prisma.category.update({
+                    where: { id: s.id },
+                    data: {
+                        valuationOrder: s.valuationOrder,
+                        isValuationTarget: s.isValuationTarget
+                    }
+                })
+            )
+        );
+        revalidatePath("/");
+        revalidatePath("/assets/valuation");
+        return { success: true };
+    } catch (e) {
+        console.error("Failed to update valuation settings", e);
+        return { success: false };
+    }
 }
