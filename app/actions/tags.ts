@@ -96,9 +96,16 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
             })
         } else {
             // Create New Group
+            // Fetch max order to place at the end
+            const maxOrderVal = await (prisma as any).tagGroup.aggregate({
+                _max: { order: true }
+            })
+            const nextOrder = (maxOrderVal._max?.order ?? -1) + 1
+
             savedGroup = await (prisma as any).tagGroup.create({
                 data: {
                     name: data.name,
+                    order: nextOrder,
                     options: {
                         create: (data.options || []).map((opt, idx) => ({
                             name: opt.name,
