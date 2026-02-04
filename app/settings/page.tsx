@@ -7,9 +7,33 @@ import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Edit2, Check, X } from "lucide-react"
+import { useTheme } from "next-themes"
 import { toast } from "sonner"
 
 export default function SettingsPage() {
+    const { theme, setTheme, resolvedTheme } = useTheme()
+    const [mounted, setMounted] = useState(false)
+
+    // Avoid hydration mismatch
+    useEffect(() => {
+        setMounted(true)
+    }, [])
+
+    if (!mounted) return null
+
+    const isSystem = theme === "system"
+    const isDark = resolvedTheme === "dark"
+
+    const toggleSystem = (checked: boolean) => {
+        setTheme(checked ? "system" : (resolvedTheme || "light"))
+        toast.success(checked ? "システム設定に同期しました" : "手動設定に切り替えました")
+    }
+
+    const toggleTheme = (checked: boolean) => {
+        setTheme(checked ? "dark" : "light")
+        toast.success(checked ? "テーマを固定しました" : "テーマを固定しました")
+    }
+
     return (
         <div className="flex flex-col gap-6">
             <div>
@@ -27,24 +51,46 @@ export default function SettingsPage() {
                             画面の表示に関する設定を行います。
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-6">
                         <div className="flex items-center justify-between space-x-2">
                             <div className="space-y-0.5">
-                                <Label htmlFor="dark-mode">ダークモード</Label>
+                                <Label htmlFor="use-system">システム設定を使用する</Label>
                                 <div className="text-sm text-muted-foreground">
-                                    常にダークモードを有効にする（現在はシステム設定に従います）
+                                    OSの外観設定（iOSのダークモードなど）と同期します
                                 </div>
                             </div>
-                            <Switch id="dark-mode" defaultChecked />
+                            <Switch
+                                id="use-system"
+                                checked={isSystem}
+                                onCheckedChange={toggleSystem}
+                            />
                         </div>
-                        <div className="flex items-center justify-between space-x-2">
+
+                        <div className={`flex items-center justify-between space-x-2 transition-opacity ${isSystem ? "opacity-50 pointer-events-none" : "opacity-100"}`}>
                             <div className="space-y-0.5">
-                                <Label htmlFor="show-cents">セント（小数点以下）を表示</Label>
+                                <Label htmlFor="dark-mode">ダークモードの固定</Label>
                                 <div className="text-sm text-muted-foreground">
-                                    資産額の小数点以下を表示します
+                                    外観を常に{isDark ? "ダーク" : "ライト"}モードに固定します
                                 </div>
                             </div>
-                            <Switch id="show-cents" />
+                            <Switch
+                                id="dark-mode"
+                                checked={isDark}
+                                onCheckedChange={toggleTheme}
+                                disabled={isSystem}
+                            />
+                        </div>
+
+                        <div className="border-t pt-4">
+                            <div className="flex items-center justify-between space-x-2">
+                                <div className="space-y-0.5">
+                                    <Label htmlFor="show-cents">セント（小数点以下）を表示</Label>
+                                    <div className="text-sm text-muted-foreground">
+                                        資産額の小数点以下を表示します
+                                    </div>
+                                </div>
+                                <Switch id="show-cents" />
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
