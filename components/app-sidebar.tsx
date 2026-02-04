@@ -25,22 +25,22 @@ import {
 const data = {
     navMain: [
         {
-            title: "Dashboard",
+            title: "ダッシュボード",
             url: "/",
             icon: LayoutDashboard,
         },
         {
-            title: "Assets",
+            title: "資産管理",
             url: "/assets",
             icon: Wallet,
         },
         {
-            title: "Transactions",
+            title: "取引履歴",
             url: "/transactions",
             icon: ArrowRightLeft,
         },
         {
-            title: "Settings",
+            title: "設定",
             url: "/settings",
             icon: Settings,
         },

@@ -119,11 +119,7 @@ export default function Page() {
                 />
             </section>
 
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between mb-2">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight whitespace-nowrap">ダッシュボード</h1>
-                    <p className="text-muted-foreground">資産の現状と推移の概要</p>
-                </div>
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-end mb-2">
                 <div className="flex flex-wrap gap-2 pt-1">
                     {/* Always allow seeding if database is empty or we are in development */}
                     {(process.env.NODE_ENV === "development" || categories.length === 0) && (
