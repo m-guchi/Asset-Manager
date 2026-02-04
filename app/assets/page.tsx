@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { Plus, Tag as TagIcon, LayoutGrid, Trash2, Edit2, Loader2, Save, ChevronUp, ChevronDown, AlertCircle, GripVertical, Check, X, ArrowDownUp, Settings2 } from "lucide-react"
+import { Plus, Tag as TagIcon, LayoutGrid, Trash2, Edit2, Loader2, Save, ChevronUp, ChevronDown, AlertCircle, GripVertical, Check, X, ArrowDownUp, Settings2, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -230,7 +230,6 @@ function CategoryManagement({ categories, tagGroups, onRefresh }: { categories: 
                             <TableRow>
                                 <TableHead>資産名</TableHead>
                                 <TableHead>種類</TableHead>
-                                <TableHead>設定（分類）</TableHead>
                                 <TableHead className="text-right">操作</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -254,15 +253,6 @@ function CategoryManagement({ categories, tagGroups, onRefresh }: { categories: 
                                             <Badge variant={cat.isLiability ? "destructive" : cat.isCash ? "outline" : "secondary"} className={isChild ? "opacity-70 scale-90" : ""}>
                                                 {cat.isLiability ? "負債" : cat.isCash ? "現金・預金" : "投資商品"}
                                             </Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-wrap gap-1">
-                                                {cat.tags?.map((tagName: string, idx: number) => (
-                                                    <Badge key={`${cat.id}-t-${idx}`} variant="outline" className="text-[10px] text-muted-foreground bg-white">
-                                                        {tagName}
-                                                    </Badge>
-                                                ))}
-                                            </div>
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">
@@ -768,10 +758,15 @@ function TagGroupAssetManager({ groupId, options }: { groupId: number, options: 
     const [isSaving, setIsSaving] = useState(false)
     const [hasChanges, setHasChanges] = useState(false)
     const [selectedAssetIds, setSelectedAssetIds] = useState<number[]>([])
+    const [searchTerm, setSearchTerm] = useState("")
+
+    const filteredAssets = assets.filter(a =>
+        a.name.toLowerCase().includes(searchTerm.toLowerCase())
+    )
 
     const toggleSelectAll = (checked: boolean) => {
         if (checked) {
-            setSelectedAssetIds(assets.map(a => a.id))
+            setSelectedAssetIds(filteredAssets.map(a => a.id))
         } else {
             setSelectedAssetIds([])
         }
@@ -858,7 +853,17 @@ function TagGroupAssetManager({ groupId, options }: { groupId: number, options: 
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center mb-2">
-                <p className="text-sm text-muted-foreground">各資産の分類を選択してください。</p>
+                <div className="flex-1 max-w-sm mr-4">
+                    <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="資産を検索..."
+                            className="pl-8 h-9"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                </div>
                 <Button size="sm" onClick={handleSave} disabled={!hasChanges || isSaving}>
                     {isSaving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
                     保存
@@ -867,10 +872,10 @@ function TagGroupAssetManager({ groupId, options }: { groupId: number, options: 
 
             <div className="flex items-center gap-2 p-2 bg-muted/20 rounded-md border mb-2">
                 <Checkbox
-                    checked={assets.length > 0 && selectedAssetIds.length === assets.length}
+                    checked={filteredAssets.length > 0 && selectedAssetIds.length === filteredAssets.length}
                     onCheckedChange={toggleSelectAll}
                 />
-                <span className="text-sm text-muted-foreground mr-2">{selectedAssetIds.length > 0 ? `${selectedAssetIds.length}件選択中` : "全選択"}</span>
+                <span className="text-sm text-muted-foreground mr-2">{selectedAssetIds.length > 0 ? `${selectedAssetIds.length}件選択中` : "すべて選択"}</span>
 
                 <Select onValueChange={applyBulkType} disabled={selectedAssetIds.length === 0}>
                     <SelectTrigger className="h-8 w-[180px]">
@@ -895,7 +900,7 @@ function TagGroupAssetManager({ groupId, options }: { groupId: number, options: 
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {assets.map(asset => {
+                        {filteredAssets.map(asset => {
                             const isChild = !!asset.parentId
                             return (
                                 <TableRow key={asset.id} className={selectedAssetIds.includes(asset.id) ? "bg-muted/20" : ""}>
