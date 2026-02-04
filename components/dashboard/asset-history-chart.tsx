@@ -116,13 +116,10 @@ export function AssetHistoryChart({
     const chartConfig = React.useMemo(() => {
         const config: ChartConfig = {
             totalAssets: { label: "評価額", color: "var(--chart-1)" },
-            totalCost: { label: "取得原価", color: "#888" },
+            totalCost: { label: "取得原価", color: "var(--chart-2)" },
         }
-        activeKeys.forEach((key, i) => {
-            config[`tag_${key}`] = {
-                label: key,
-                color: CUSTOM_COLORS[key] || `var(--chart-${(i % 5) + 1})`
-            }
+        activeKeys.forEach((key) => {
+            config[`tag_${key}`] = { label: key }
         })
         return config
     }, [activeKeys])
@@ -216,9 +213,10 @@ export function AssetHistoryChart({
                                             activeKeys.map((key, i) => {
                                                 const val = activePoint[`tag_${key}`] || 0
                                                 if (val === 0) return null
+                                                const color = `var(--chart-${(i % 5) + 1})`
                                                 return (
                                                     <div key={key} className={`flex items-center gap-1.5 shrink-0 ${i > 0 ? "border-l border-border/50 pl-4" : ""}`}>
-                                                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: `var(--color-tag_${key})` }} />
+                                                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
                                                         <span className="text-[9px] text-muted-foreground font-bold">{key}</span>
                                                         <span className="text-[11px] font-bold">
                                                             {showPercent
@@ -307,14 +305,14 @@ export function AssetHistoryChart({
                                         />
                                     )}
 
-                                    {mode === "tag" && activeKeys.map((key) => (
+                                    {mode === "tag" && activeKeys.map((key, i) => (
                                         <Area
                                             key={key}
                                             dataKey={`tag_${key}`}
                                             stackId="1"
                                             type="monotone"
-                                            stroke={`var(--color-tag_${key})`}
-                                            fill={`var(--color-tag_${key})`}
+                                            stroke={`var(--chart-${(i % 5) + 1})`}
+                                            fill={`var(--chart-${(i % 5) + 1})`}
                                             fillOpacity={0.8}
                                             isAnimationActive={false}
                                         />
