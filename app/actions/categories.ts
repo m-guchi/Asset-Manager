@@ -86,6 +86,8 @@ export async function getCategories() {
                     name: cat.name || "名称なし",
                     color: cat.color || "#cccccc",
                     order: cat.order || 0,
+                    valuationOrder: cat.valuationOrder ?? 0,
+                    isValuationTarget: cat.isValuationTarget ?? true,
                     parentId: cat.parentId,
                     currentValue: consolidatedValue,
                     costBasis: consolidatedCostBasis,
@@ -322,7 +324,24 @@ export async function getCategoryDetails(id: number) {
     }
 }
 
-export async function updateValuationSettingsAction(settings: any[]) {
-    revalidatePath("/");
-    return { success: true };
+export async function updateValuationSettingsAction(settings: { id: number, valuationOrder: number, isValuationTarget: boolean }[]) {
+    try {
+        await prisma.$transaction(
+            settings.map(s =>
+                prisma.category.update({
+                    where: { id: s.id },
+                    data: {
+                        valuationOrder: s.valuationOrder,
+                        isValuationTarget: s.isValuationTarget
+                    }
+                })
+            )
+        );
+        revalidatePath("/");
+        revalidatePath("/assets/valuation");
+        return { success: true };
+    } catch (e) {
+        console.error("Failed to update valuation settings", e);
+        return { success: false };
+    }
 }
