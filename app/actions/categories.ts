@@ -22,7 +22,7 @@ export async function getCategories() {
                 },
                 transactions: true
             }
-        });
+        }) as any[];
 
         if (!allCategories || allCategories.length === 0) return [];
 
@@ -127,7 +127,7 @@ export async function saveCategory(data: any) {
 
         if (categoryId) {
             await prisma.category.update({ where: { id: categoryId }, data: baseData });
-            await prisma.categoryTag.deleteMany({ where: { categoryId } });
+            await (prisma as any).categoryTag.deleteMany({ where: { categoryId } });
         } else {
             const max = await prisma.category.aggregate({ _max: { order: true } });
             const cat = await prisma.category.create({ data: { ...baseData, order: (max._max.order ?? -1) + 1 } });
@@ -136,7 +136,7 @@ export async function saveCategory(data: any) {
         }
 
         if (data.tagSettings?.length > 0 && categoryId) {
-            await prisma.categoryTag.createMany({
+            await (prisma as any).categoryTag.createMany({
                 data: data.tagSettings.map((s: any) => ({
                     categoryId: categoryId!,
                     tagGroupId: s.groupId,
@@ -195,7 +195,7 @@ export async function getCategoryDetails(id: number) {
                     orderBy: { transactedAt: 'asc' }
                 }
             }
-        });
+        }) as any;
 
         if (!cat) return null;
 

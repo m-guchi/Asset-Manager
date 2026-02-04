@@ -22,14 +22,14 @@ export async function deleteTag(id: number) {
 
 export async function getTagGroups() {
     try {
-        const groups = await prisma.tagGroup.findMany({
+        const groups = await (prisma as any).tagGroup.findMany({
             include: {
                 options: {
                     orderBy: { order: 'asc' }
                 }
             },
-            orderBy: { order: 'asc' } // Changed from id to order
-        })
+            orderBy: { order: 'asc' }
+        }) as any[]
 
         return groups.map((g: any) => ({
             id: g.id,
@@ -63,7 +63,7 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
                 const incomingIds = incomingOptions.filter(o => o.id).map(o => o.id)
 
                 // Delete removed options
-                await tx.tagOption.deleteMany({
+                await (tx as any).tagOption.deleteMany({
                     where: {
                         tagGroupId: data.id,
                         id: { notIn: incomingIds as number[] }
@@ -74,12 +74,12 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
                 for (let i = 0; i < incomingOptions.length; i++) {
                     const opt = incomingOptions[i];
                     if (opt.id) {
-                        await tx.tagOption.update({
+                        await (tx as any).tagOption.update({
                             where: { id: opt.id },
                             data: { name: opt.name, order: i }
                         })
                     } else {
-                        await tx.tagOption.create({
+                        await (tx as any).tagOption.create({
                             data: {
                                 tagGroupId: data.id!,
                                 name: opt.name,
@@ -91,12 +91,12 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
 
                 return await tx.tagGroup.findUnique({
                     where: { id: data.id },
-                    include: { options: { orderBy: { order: 'asc' } } }
+                    include: { options: { orderBy: { order: 'asc' } } } as any
                 })
             })
         } else {
             // Create New Group
-            savedGroup = await prisma.tagGroup.create({
+            savedGroup = await (prisma as any).tagGroup.create({
                 data: {
                     name: data.name,
                     options: {
@@ -139,7 +139,7 @@ export async function reorderTagGroupsAction(items: { id: number, order: number 
     try {
         await prisma.$transaction(
             items.map(item =>
-                prisma.tagGroup.update({
+                (prisma as any).tagGroup.update({
                     where: { id: item.id },
                     data: { order: item.order }
                 })
@@ -175,7 +175,7 @@ export async function getAssetsForTagGroup(groupId: number) {
             select: { id: true, name: true, parentId: true, color: true }
         })
 
-        const existingTags = await prisma.categoryTag.findMany({
+        const existingTags = await (prisma as any).categoryTag.findMany({
             where: { tagGroupId: groupId }
         })
 
@@ -200,11 +200,11 @@ export async function updateAssetTagMappings(groupId: number, mappings: { catego
         await prisma.$transaction(async (tx) => {
             for (const m of mappings) {
                 if (m.optionId === null) {
-                    await tx.categoryTag.deleteMany({
+                    await (tx as any).categoryTag.deleteMany({
                         where: { categoryId: m.categoryId, tagGroupId: groupId }
                     })
                 } else {
-                    await tx.categoryTag.upsert({
+                    await (tx as any).categoryTag.upsert({
                         where: {
                             categoryId_tagGroupId: {
                                 categoryId: m.categoryId,

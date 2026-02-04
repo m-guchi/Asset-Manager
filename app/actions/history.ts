@@ -15,13 +15,13 @@ export async function getHistoryData() {
 
         // 1. Fetch all data at once to minimize DB pressure
         const [historyRecords, categories] = await Promise.all([
-            prisma.asset.findMany({ orderBy: { recordedAt: 'asc' } }),
+            prisma.asset.findMany({ orderBy: { recordedAt: 'asc' } }) as Promise<any[]>,
             prisma.category.findMany({
                 include: {
-                    tags: { include: { tagOption: true } },
+                    tags: { include: { tagOption: true } } as any,
                     transactions: true
                 }
-            })
+            }) as Promise<any[]>
         ]);
 
         console.log(`[getHistoryData] Data loaded: ${historyRecords.length} records, ${categories.length} categories`);
@@ -30,13 +30,13 @@ export async function getHistoryData() {
 
         // 2. Normalize and sort dates
         const dateSet = new Set<string>();
-        historyRecords.forEach(r => dateSet.add(r.recordedAt.toISOString().slice(0, 10)));
+        historyRecords.forEach((r: any) => dateSet.add(r.recordedAt.toISOString().slice(0, 10)));
         const sortedDates = Array.from(dateSet).sort();
 
         // 3. Pre-calculate category relationships and effective tags
         const childrenMap = new Map<number, number[]>();
         const categoryMap = new Map<number, any>();
-        categories.forEach(cat => {
+        categories.forEach((cat: any) => {
             categoryMap.set(cat.id, cat);
             if (cat.parentId) {
                 const siblings = childrenMap.get(cat.parentId) || [];
@@ -50,7 +50,7 @@ export async function getHistoryData() {
             if (effectiveTagCache.has(id)) return effectiveTagCache.get(id)!;
             const cat = categoryMap.get(id);
             if (!cat) return [];
-            let tags = cat.tags.map((t: any) => t.tagOption?.name).filter(Boolean);
+            let tags = (cat.tags as any[]).map((t: any) => t.tagOption?.name).filter(Boolean);
             if (tags.length === 0 && cat.parentId) {
                 tags = getEffectiveTags(cat.parentId);
             }
@@ -91,15 +91,15 @@ export async function getHistoryData() {
 
             // Update this date's values
             historyRecords
-                .filter(r => r.recordedAt.toISOString().slice(0, 10) === dateStrNormalized)
-                .forEach(r => latestValues.set(r.categoryId, Number(r.currentValue)));
+                .filter((r: any) => r.recordedAt.toISOString().slice(0, 10) === dateStrNormalized)
+                .forEach((r: any) => latestValues.set(r.categoryId, Number(r.currentValue)));
 
             // Update cost basis (cumulative transactions)
-            categories.forEach(cat => {
+            categories.forEach((cat: any) => {
                 if (cat.isCash) {
                     latestCostBasis.set(cat.id, latestValues.get(cat.id) || 0);
                 } else {
-                    const cost = (cat.transactions || [])
+                    const cost = (cat.transactions as any[] || [])
                         .filter((t: any) => new Date(t.transactedAt) <= dateObj)
                         .reduce((sum: number, t: any) => {
                             const amt = Number(t.amount);
@@ -112,7 +112,7 @@ export async function getHistoryData() {
             const point: HistoryPoint = { date: dateStr, totalAssets: 0, totalCost: 0 };
 
             // Tag Aggregation (Per Category Contribution)
-            categories.forEach(cat => {
+            categories.forEach((cat: any) => {
                 const val = (latestValues.get(cat.id) || 0) * (cat.isLiability ? -1 : 1);
                 if (val !== 0) {
                     const tags = getEffectiveTags(cat.id);
