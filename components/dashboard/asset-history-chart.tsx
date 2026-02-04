@@ -48,6 +48,7 @@ export function AssetHistoryChart({
     const [showPercent, setShowPercent] = React.useState(false)
     const [activePoint, setActivePoint] = React.useState<any>(null)
     const [isLocked, setIsLocked] = React.useState(false)
+    const [showNetWorth, setShowNetWorth] = React.useState(false)
 
     React.useEffect(() => {
         setIsMounted(true);
@@ -91,10 +92,10 @@ export function AssetHistoryChart({
                     ...p,
                     totalAssets: Number(p.totalAssets || 0),
                     totalCost: Number(p.totalCost || 0),
+                    netWorth: Number(p.netWorth ?? p.totalAssets ?? 0),
                     timestamp: isNaN(d.getTime()) ? 0 : d.getTime()
                 }
 
-                // Ensure all active keys have a value (0 if missing) for correct stacking
                 if (mode === "tag") {
                     activeKeys.forEach(key => {
                         const k = `tag_${key}`
@@ -171,7 +172,6 @@ export function AssetHistoryChart({
             <CardContent className="flex flex-col flex-1 p-0 relative min-h-0 overflow-hidden">
                 <ChartContainer config={chartConfig} className="flex-1 min-h-0 w-full text-[10px]">
                     <div className="flex flex-col h-full w-full">
-                        {/* Detail Info Bar */}
                         <div className="px-4 py-1.5 border-y border-border/40 bg-muted/10 min-h-[40px] flex items-center mt-0 shrink-0" onClick={(e) => e.stopPropagation()}>
                             {!activePoint ? (
                                 <div className="w-full text-center">
@@ -192,14 +192,16 @@ export function AssetHistoryChart({
                                             <>
                                                 <div className="flex items-center gap-1.5 shrink-0">
                                                     <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--color-totalAssets)" }} />
-                                                    <span className="text-[9px] text-muted-foreground font-bold">評価額</span>
-                                                    <span className="text-[11px] font-bold">¥{Math.round(activePoint.totalAssets).toLocaleString()}</span>
+                                                    <span className="text-[9px] text-muted-foreground font-bold">{showNetWorth ? "純資産" : "評価額"}</span>
+                                                    <span className="text-[11px] font-bold">¥{Math.round(showNetWorth ? activePoint.netWorth : activePoint.totalAssets).toLocaleString()}</span>
                                                 </div>
-                                                <div className="flex items-center gap-1.5 shrink-0 border-l border-border/50 pl-4">
-                                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#888888" }} />
-                                                    <span className="text-[9px] text-muted-foreground font-bold">取得原価</span>
-                                                    <span className="text-[11px] font-bold text-[#888888]">¥{Math.round(activePoint.totalCost).toLocaleString()}</span>
-                                                </div>
+                                                {!showNetWorth && (
+                                                    <div className="flex items-center gap-1.5 shrink-0 border-l border-border/50 pl-4">
+                                                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#888888" }} />
+                                                        <span className="text-[9px] text-muted-foreground font-bold">取得原価</span>
+                                                        <span className="text-[11px] font-bold text-[#888888]">¥{Math.round(activePoint.totalCost).toLocaleString()}</span>
+                                                    </div>
+                                                )}
                                             </>
                                         ) : (
                                             activeKeys.map((key, i) => {
@@ -225,7 +227,6 @@ export function AssetHistoryChart({
                             )}
                         </div>
 
-                        {/* Chart Area - Flex-1 to take remaining space */}
                         <div className="flex-1 w-full min-h-0 px-2 py-2" onClick={(e) => e.stopPropagation()}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <ComposedChart
@@ -277,7 +278,7 @@ export function AssetHistoryChart({
 
                                     {mode === "total" && (
                                         <Area
-                                            dataKey="totalAssets"
+                                            dataKey={showNetWorth ? "netWorth" : "totalAssets"}
                                             type="monotone"
                                             stroke="var(--color-totalAssets)"
                                             strokeWidth={2}
@@ -287,7 +288,7 @@ export function AssetHistoryChart({
                                             connectNulls
                                         />
                                     )}
-                                    {mode === "total" && (
+                                    {mode === "total" && !showNetWorth && (
                                         <Line
                                             dataKey="totalCost"
                                             type="monotone"
@@ -317,7 +318,6 @@ export function AssetHistoryChart({
                             </ResponsiveContainer>
                         </div>
 
-                        {/* Controls Footer */}
                         <div className="flex items-center justify-between px-4 pb-4 mt-0 shrink-0">
                             <div className="flex bg-muted/50 rounded-md p-0.5 border">
                                 {["1M", "3M", "1Y", "ALL"].map((range) => {
@@ -343,6 +343,16 @@ export function AssetHistoryChart({
                                         : "bg-background text-muted-foreground hover:text-foreground"}`}
                                 >
                                     100%
+                                </button>
+                            )}
+                            {mode === "total" && (
+                                <button
+                                    onClick={() => setShowNetWorth(!showNetWorth)}
+                                    className={`px-3 py-1 text-[10px] font-bold rounded-md border transition-all ${showNetWorth
+                                        ? "bg-foreground text-background"
+                                        : "bg-background text-muted-foreground hover:text-foreground"}`}
+                                >
+                                    負債を含める
                                 </button>
                             )}
                         </div>
