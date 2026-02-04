@@ -51,9 +51,9 @@ export default function SettingsPage() {
                     <CardContent>
                         <div className="grid grid-cols-2 gap-4 text-sm">
                             <div className="font-medium">Version</div>
-                            <div className="text-muted-foreground">0.1.0</div>
+                            <div className="text-muted-foreground">{process.env.NEXT_PUBLIC_APP_VERSION}</div>
                             <div className="font-medium">Build</div>
-                            <div className="text-muted-foreground">Development</div>
+                            <div className="text-muted-foreground capitalize">{process.env.NODE_ENV}</div>
                         </div>
                     </CardContent>
                 </Card>
