@@ -69,12 +69,20 @@ export async function getHistoryData() {
 
             categories.forEach((cat: any) => {
                 // Start with own value
-                let val = latestValues[cat.id] || 0
-                let cost = latestCostBasis[cat.id] || 0
+                // FIX: If category has children, we ignore its OWN value to prevent double counting 
+                // (assuming parent acts as a folder and shouldn't satisfy assets directly if it has sub-assets)
+                const hasChildren = categories.some((c: any) => c.parentId === cat.id);
+                let val = hasChildren ? 0 : (latestValues[cat.id] || 0);
+
+                // Use actual cost basis logic (or ignore for parents if needed)
+                let cost = hasChildren ? 0 : (latestCostBasis[cat.id] || 0);
 
                 // Add values from all children
                 const children = categories.filter((c: any) => c.parentId === cat.id)
                 children.forEach((child: any) => {
+                    // For children, we take their own values (assuming 2 levels max or recursive)
+                    // Note: If 3 levels, this logic needs recursion, but currently seems 2 levels.
+                    // To be safe, look up child's raw value.
                     val += (latestValues[child.id] || 0)
                     cost += (latestCostBasis[child.id] || 0)
                 })
@@ -90,7 +98,8 @@ export async function getHistoryData() {
                 const multiplier = cat.isLiability ? -1 : 1
 
                 // Breakdown by Tag (Use own values to avoid double counting if multiple items in hierarchy have same tag)
-                const val = (latestValues[cat.id] || 0)
+                const hasChildren = categories.some((c: any) => c.parentId === cat.id);
+                const val = hasChildren ? 0 : (latestValues[cat.id] || 0)
                 const tags = (cat as any).tags || []
                 tags.forEach((tag: any) => {
                     const tagName = String(tag.name)
