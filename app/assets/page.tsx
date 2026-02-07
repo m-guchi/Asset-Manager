@@ -2,9 +2,9 @@
 
 import React, { useState, useCallback, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { Plus, Tag as TagIcon, LayoutGrid, Trash2, Edit2, Loader2, Save, ChevronUp, ChevronDown, AlertCircle, GripVertical, Check, X, ArrowDownUp, Settings2, Search } from "lucide-react"
+import { Plus, LayoutGrid, Trash2, Edit2, Loader2, ArrowDownUp, Settings2, Search, Check, X, ChevronUp, ChevronDown, AlertCircle, GripVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
@@ -22,15 +22,8 @@ import {
 } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "sonner"
-import { getCategories, saveCategory, deleteCategory, updateCategoryOrder, reorderCategoriesAction } from "../actions/categories"
+import { getCategories, saveCategory, deleteCategory, reorderCategoriesAction } from "../actions/categories"
 import { getTagGroups, saveTagGroup, deleteTagGroup, reorderTagGroupsAction, getAssetsForTagGroup, updateAssetTagMappings } from "../actions/tags" // Removed getTags
-import { updateValuation } from "../actions/assets"
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@/components/ui/tooltip"
 import {
     DndContext,
     closestCenter,
@@ -46,9 +39,37 @@ import {
     sortableKeyboardCoordinates,
     useSortable,
     verticalListSortingStrategy,
-    rectSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+
+interface Category {
+    id: number;
+    name: string;
+    color: string;
+    isCash: boolean;
+    isLiability: boolean;
+    parentId: number | null;
+    tagSettings: {
+        groupId: number;
+        groupName: string;
+        optionId: number | null;
+        optionName: string;
+    }[];
+    currentValue?: number;
+    costBasis?: number;
+    ownValue?: number;
+}
+
+interface TagOption {
+    id: number;
+    name: string;
+}
+
+interface TagGroup {
+    id: number;
+    name: string;
+    options: TagOption[];
+}
 
 // アセット管理のメインコンテンツ
 function AssetsContent() {
@@ -56,8 +77,8 @@ function AssetsContent() {
     const router = useRouter()
     const activeTab = searchParams.get("tab") || "categories"
 
-    const [categories, setCategories] = useState<any[]>([])
-    const [tagGroups, setTagGroups] = useState<any[]>([])
+    const [categories, setCategories] = useState<Category[]>([])
+    const [tagGroups, setTagGroups] = useState<TagGroup[]>([])
     const [isLoading, setIsLoading] = useState(true)
 
     const fetchData = useCallback(async (silent = false) => {
@@ -148,19 +169,28 @@ export default function AssetsPage() {
 }
 
 
-function CategoryManagement({ categories, tagGroups, onRefresh }: { categories: any[], tagGroups: any[], onRefresh: () => void }) {
+function CategoryManagement({ categories, tagGroups, onRefresh }: { categories: Category[], tagGroups: TagGroup[], onRefresh: () => void }) {
     const [isReordering, setIsReordering] = useState(false)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
-    const [editingCategory, setEditingCategory] = useState<any>(null)
+    const [editingCategory, setEditingCategory] = useState<Category | null>(null)
     const [isDeleting, setIsDeleting] = useState<number | null>(null)
 
-    const handleSave = async (formData: any) => {
+    const handleSave = async (formData: {
+        id?: number,
+        name: string,
+        color: string,
+        isCash: boolean,
+        isLiability: boolean,
+        parentId?: number,
+        tagSettings: { groupId: number, optionId: number }[]
+    }) => {
         try {
             await saveCategory(formData)
             toast.success(editingCategory ? "資産を更新しました" : "資産を作成しました")
             setIsDialogOpen(false)
             onRefresh()
-        } catch (err) {
+        } catch (error) {
+            console.error("Save error:", error)
             toast.error("保存に失敗しました")
         }
     }
@@ -172,7 +202,8 @@ function CategoryManagement({ categories, tagGroups, onRefresh }: { categories: 
             await deleteCategory(id)
             toast.success("資産を削除しました")
             onRefresh()
-        } catch (err) {
+        } catch (error) {
+            console.error("Delete error:", error)
             toast.error("削除に失敗しました")
         } finally {
             setIsDeleting(null)
@@ -289,20 +320,37 @@ const PRESET_COLORS = [
     "#1e40af", "#991b1b", "#166534", "#854d0e", "#155e75", "#5b21b6", "#9d174d", "#9a3412", "#1f2937",
 ]
 
-function CategoryForm({ initialData, tagGroups, allCategories, onSave, onCancel }: any) {
+function CategoryForm({ initialData, tagGroups, allCategories, onSave, onCancel }: {
+    initialData: Category | null,
+    tagGroups: TagGroup[],
+    allCategories: Category[],
+    onSave: (data: {
+        id?: number,
+        name: string,
+        color: string,
+        isCash: boolean,
+        isLiability: boolean,
+        parentId?: number,
+        tagSettings: { groupId: number, optionId: number }[]
+    }) => void,
+    onCancel: () => void
+}) {
     const [name, setName] = useState(initialData?.name || "")
     const [color, setColor] = useState(initialData?.color || PRESET_COLORS[0])
     const [isCash, setIsCash] = useState(initialData?.isCash || false)
     const [isLiability, setIsLiability] = useState(initialData?.isLiability || false)
     const [parentId, setParentId] = useState<number | null>(initialData?.parentId || null)
 
-    // Manage selected option for each group
+    // Manage selected option for each group - simplify to just IDs for local editing
     const [tagSettings, setTagSettings] = useState<{ groupId: number, optionId: number }[]>(
-        initialData?.tagSettings || []
+        initialData?.tagSettings?.filter(s => s.optionId !== null).map(s => ({
+            groupId: s.groupId,
+            optionId: s.optionId as number
+        })) || []
     )
 
     // Filter categories that can be a parent
-    const possibleParents = allCategories.filter((c: any) => c.id !== initialData?.id && !c.parentId)
+    const possibleParents = allCategories.filter((c: Category) => c.id !== initialData?.id && !c.parentId)
 
     const handleTagChange = (groupId: number, value: string) => {
         const newSettings = tagSettings.filter(s => s.groupId !== groupId)
@@ -346,7 +394,7 @@ function CategoryForm({ initialData, tagGroups, allCategories, onSave, onCancel 
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="0">なし（単独アセット）</SelectItem>
-                        {possibleParents.map((p: any) => (
+                        {possibleParents.map((p: Category) => (
                             <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
                         ))}
                     </SelectContent>
@@ -366,7 +414,7 @@ function CategoryForm({ initialData, tagGroups, allCategories, onSave, onCancel 
 
             <div className="space-y-3 pt-4 border-t">
                 <Label className="text-base font-semibold">分類設定</Label>
-                {tagGroups.map((group: any) => (
+                {tagGroups.map((group: TagGroup) => (
                     <div key={group.id} className="grid grid-cols-[120px_1fr] items-center gap-4">
                         <Label className="text-right text-muted-foreground">{group.name}</Label>
                         <Select
@@ -378,7 +426,7 @@ function CategoryForm({ initialData, tagGroups, allCategories, onSave, onCancel 
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="unselected" className="text-muted-foreground">未選択</SelectItem>
-                                {group.options.map((opt: any) => (
+                                {group.options.map((opt: TagOption) => (
                                     <SelectItem key={opt.id} value={opt.id.toString()}>
                                         {opt.name}
                                     </SelectItem>
@@ -397,7 +445,7 @@ function CategoryForm({ initialData, tagGroups, allCategories, onSave, onCancel 
                     color,
                     isCash,
                     isLiability,
-                    parentId,
+                    parentId: parentId ?? undefined,
                     tagSettings
                 })}>
                     保存
@@ -408,8 +456,8 @@ function CategoryForm({ initialData, tagGroups, allCategories, onSave, onCancel 
 }
 
 // Reordering Components
-function CategoryReorderMode({ categories, onRefresh, onComplete }: { categories: any[], onRefresh: () => void, onComplete: () => void }) {
-    const [items, setItems] = useState(categories)
+function CategoryReorderMode({ categories, onRefresh, onComplete }: { categories: Category[], onRefresh: () => void, onComplete: () => void }) {
+    const [items, setItems] = useState<Category[]>(categories)
     const [isSaving, setIsSaving] = useState(false)
 
     useEffect(() => {
@@ -434,8 +482,7 @@ function CategoryReorderMode({ categories, onRefresh, onComplete }: { categories
                 if (oldIndex === -1 || newIndex === -1) return currentItems
                 const newTopLevel = arrayMove(topLevel, oldIndex, newIndex)
                 // Reconstruct full list (simplified for brevity, assume children follow parents logic remains)
-                // Note: The logic from previous impl was fine.
-                const newFullList: any[] = []
+                const newFullList: Category[] = []
                 newTopLevel.forEach(parent => {
                     newFullList.push(parent)
                     const children = currentItems.filter(c => c.parentId === parent.id)
@@ -497,7 +544,7 @@ function CategoryReorderMode({ categories, onRefresh, onComplete }: { categories
     )
 }
 
-function SortableCategoryItem({ category, children }: { category: any, children: React.ReactNode }) {
+function SortableCategoryItem({ category, children }: { category: Category, children: React.ReactNode }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: category.id });
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -512,9 +559,9 @@ function SortableCategoryItem({ category, children }: { category: any, children:
 // Tag Group Management (New Implementation)
 // ==========================================
 
-function TagGroupManagement({ tagGroups, onRefresh, categories }: { tagGroups: any[], onRefresh: () => void, categories: any[] }) {
+function TagGroupManagement({ tagGroups, onRefresh }: { tagGroups: TagGroup[], onRefresh: () => void, categories: Category[] }) {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
-    const [editingGroup, setEditingGroup] = useState<any>(null)
+    const [editingGroup, setEditingGroup] = useState<TagGroup | null>(null)
     const [isReordering, setIsReordering] = useState(false)
 
     // Reorder logic for Groups
@@ -600,7 +647,7 @@ function TagGroupManagement({ tagGroups, onRefresh, categories }: { tagGroups: a
                                     </div>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                    {group.options?.map((opt: any) => (
+                                    {group.options?.map((opt: TagOption) => (
                                         <Badge key={opt.id} variant="secondary" className="px-2 py-1">
                                             {opt.name}
                                         </Badge>
@@ -622,13 +669,13 @@ function TagGroupManagement({ tagGroups, onRefresh, categories }: { tagGroups: a
                         <DialogDescription>グループ名と、その選択肢を定義します。</DialogDescription>
                     </DialogHeader>
                     <TagGroupForm initialData={editingGroup}
-                        onSave={async (data: any) => {
+                        onSave={async (data: { id?: number, name: string, options: { id?: number, name: string }[] }) => {
                             await saveTagGroup(data)
                             toast.success("保存しました")
                             setIsDialogOpen(false)
                             onRefresh()
                         }}
-                        onApply={async (data: any) => {
+                        onApply={async (data: { id?: number, name: string, options: { id?: number, name: string }[] }) => {
                             const result = await saveTagGroup(data)
                             if (result.success) {
                                 toast.success("適用しました")
@@ -648,35 +695,33 @@ function TagGroupManagement({ tagGroups, onRefresh, categories }: { tagGroups: a
     )
 }
 
-function TagGroupForm({ initialData, onSave, onApply, onCancel }: any) {
+function TagGroupForm({ initialData, onSave, onApply, onCancel }: {
+    initialData: TagGroup | null,
+    onSave: (data: { id?: number, name: string, options: { id?: number, name: string }[] }) => void,
+    onApply: (data: { id?: number, name: string, options: { id?: number, name: string }[] }) => void,
+    onCancel: () => void
+}) {
     const [activeTab, setActiveTab] = useState("settings")
     const [name, setName] = useState(initialData?.name || "")
     // options: { id?: number, name: string, order: number }
     const [options, setOptions] = useState<{ id?: number, name: string }[]>(
-        initialData?.options?.map((o: any) => ({ ...o })) || []
+        initialData?.options?.map((o: TagOption) => ({ ...o })) || []
     )
     const [newOptionName, setNewOptionName] = useState("")
 
-    // Update state when initialData changes (e.g. after Apply)
-    useEffect(() => {
-        if (initialData) {
-            setName(initialData.name || "")
-            // Only update options if ID matches to avoid overwriting work in progress for new item?
-            // Actually Apply is "Save", so overwriting is correct as we want the new IDs.
-            setOptions(initialData.options?.map((o: any) => ({ ...o })) || [])
-        }
-    }, [initialData])
+    // Track the last initialData ID to detect changes and reset state
+    const [lastInitialId, setLastInitialId] = useState<number | undefined>(initialData?.id)
 
-    const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
+    if (initialData?.id !== lastInitialId) {
+        setLastInitialId(initialData?.id)
+        setName(initialData?.name || "")
+        setOptions(initialData?.options?.map((o: TagOption) => ({ ...o })) || [])
+    }
 
     const addOption = () => {
         if (!newOptionName.trim()) return
         setOptions([...options, { name: newOptionName.trim() }])
         setNewOptionName("")
-    }
-
-    const removeOption = (idx: number) => {
-        setOptions(options.filter((_, i) => i !== idx))
     }
 
     const updateOptionName = (idx: number, newName: string) => {
@@ -685,18 +730,8 @@ function TagGroupForm({ initialData, onSave, onApply, onCancel }: any) {
         setOptions(newOpts)
     }
 
-    const handleDragEnd = (event: DragEndEvent) => {
-        const { active, over } = event
-        if (over && active.id !== over.id) {
-            setOptions((items) => {
-                // sortable id is index (0,1,2...) or unique ID? 
-                // Using index or a stable ID if possible.
-                // Let's use index as ID for newly created items is tricky.
-                // Actually SortableContext needs unique primitive IDs.
-                // We'll generate a temporary ID for keying.
-                return items // TODO: Implement sort later or use simpler index based approach if items are stable
-            })
-        }
+    const removeOption = (idx: number) => {
+        setOptions(options.filter((_, i) => i !== idx))
     }
 
     // Simple move up/down instead of full DnD for inside dialog to keep it robust
@@ -778,9 +813,16 @@ function SortableTagItem({ id, children }: { id: number, children: React.ReactNo
     return <div ref={setNodeRef} style={style} {...attributes} {...listeners}>{children}</div>
 }
 
-function TagGroupAssetManager({ groupId, options }: { groupId: number, options: any[] }) {
-    const [assets, setAssets] = useState<any[]>([])
-    const [originalAssets, setOriginalAssets] = useState<any[]>([])
+function TagGroupAssetManager({ groupId, options }: { groupId: number, options: { id?: number, name: string }[] }) {
+    interface AssetWithTag {
+        id: number;
+        name: string;
+        color: string | null;
+        parentId: number | null;
+        currentOptionId: number | null;
+    }
+    const [assets, setAssets] = useState<AssetWithTag[]>([])
+    const [originalAssets, setOriginalAssets] = useState<AssetWithTag[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [isSaving, setIsSaving] = useState(false)
     const [hasChanges, setHasChanges] = useState(false)
@@ -818,23 +860,24 @@ function TagGroupAssetManager({ groupId, options }: { groupId: number, options: 
         toast.success(`適用しました`)
     }
 
-    useEffect(() => {
-        loadAssets()
-    }, [groupId])
-
-    const loadAssets = async () => {
+    const loadAssets = useCallback(async () => {
         setIsLoading(true)
         try {
-            const data = await getAssetsForTagGroup(groupId)
+            const data: AssetWithTag[] = await getAssetsForTagGroup(groupId)
             setAssets(data)
             setOriginalAssets(JSON.parse(JSON.stringify(data)))
             setHasChanges(false)
-        } catch (e) {
+        } catch (error) {
+            console.error(error);
             toast.error("資産データの読み込みに失敗しました")
         } finally {
             setIsLoading(false)
         }
-    }
+    }, [groupId])
+
+    useEffect(() => {
+        loadAssets()
+    }, [groupId, loadAssets])
 
     const handleOptionChange = (categoryId: number, optionIdStr: string) => {
         const optionId = optionIdStr === "unselected" ? null : parseInt(optionIdStr)
@@ -866,7 +909,8 @@ function TagGroupAssetManager({ groupId, options }: { groupId: number, options: 
             toast.success("割り当てを保存しました")
             setOriginalAssets(JSON.parse(JSON.stringify(assets)))
             setHasChanges(false)
-        } catch (e) {
+        } catch (error) {
+            console.error(error);
             toast.error("保存に失敗しました")
         } finally {
             setIsSaving(false)
@@ -958,7 +1002,7 @@ function TagGroupAssetManager({ groupId, options }: { groupId: number, options: 
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="unselected" className="text-muted-foreground">未設定</SelectItem>
-                                                {options.map((opt: any) => (
+                                                {options.map((opt: { id?: number, name: string }) => (
                                                     opt.id ? <SelectItem key={opt.id} value={opt.id.toString()}>{opt.name}</SelectItem> : null
                                                 ))}
                                             </SelectContent>

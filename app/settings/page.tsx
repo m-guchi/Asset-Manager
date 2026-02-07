@@ -4,9 +4,6 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Edit2, Check, X } from "lucide-react"
 import { useTheme } from "next-themes"
 import { toast } from "sonner"
 import { setDefaultTimeRangeAction, getDefaultTimeRange } from "@/app/actions/settings"
@@ -25,6 +22,7 @@ export default function SettingsPage() {
 
     // Avoid hydration mismatch
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMounted(true)
         // Fetch saved setting
         getDefaultTimeRange().then(range => setDefaultTimeRange(range))

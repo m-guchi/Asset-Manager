@@ -11,15 +11,21 @@ export interface Category {
     isCash?: boolean
     isLiability?: boolean
     tags?: string[]
+    tagSettings?: {
+        groupId: number;
+        groupName: string;
+        optionId: number | null;
+        optionName: string;
+    }[];
     conflicts?: string[]
 }
 
 export interface HistoryPoint {
     date: string
-    totalAssets: number
-    totalCost: number
-    netWorth?: number
-    [key: string]: any
+    totalAssets: number | null
+    totalCost: number | null
+    netWorth?: number | null
+    [key: string]: string | number | boolean | null | undefined
 }
 
 export interface TagGroup {

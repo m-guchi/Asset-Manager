@@ -27,13 +27,13 @@ export async function updateValuation(categoryId: number, value: number, recorde
 export async function addTransaction(categoryId: number, data: {
     type: "DEPOSIT" | "WITHDRAW" | "VALUATION"
     amount: number
-    realizedGain?: number
+    realizedGain?: number | null
     valuation?: number // Optional
     date: Date
     memo?: string
 }) {
     try {
-        const operations: any[] = [
+        const operations: Array<ReturnType<typeof prisma.transaction.create> | ReturnType<typeof prisma.asset.create>> = [
             prisma.transaction.create({
                 data: {
                     categoryId,
@@ -86,9 +86,10 @@ export async function getTransactions() {
                 }
             }
         })
-        return transactions.map((tx: any) => {
+        return transactions.map((tx) => {
             // Find the asset valuation recorded at or just before this transaction
-            const nearestAsset = tx.category.assets.find((a: any) => a.recordedAt <= tx.transactedAt) || tx.category.assets[0]
+            const assets = tx.category.assets;
+            const nearestAsset = assets.find((a) => a.recordedAt <= tx.transactedAt) || assets[0]
 
             return {
                 id: tx.id,
@@ -141,7 +142,16 @@ export async function deleteHistoryItem(type: 'tx' | 'as', id: number) {
     }
 }
 
-export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: any) {
+interface UpdateHistoryItemData {
+    amount?: number | string;
+    type?: string;
+    realizedGain?: number | string | null;
+    date: Date | string;
+    memo?: string | null;
+    valuation?: number | string | null;
+}
+
+export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: UpdateHistoryItemData) {
     try {
         if (type === 'tx') {
             const oldTx = await prisma.transaction.findUnique({ where: { id } })
@@ -152,7 +162,8 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: any
                 ? data.type
                 : (data.type === 'VALUATION' ? 'VALUATION' : (amt >= 0 ? 'DEPOSIT' : 'WITHDRAW'))
 
-            const operations: any[] = [
+            type Op = ReturnType<typeof prisma.transaction.update> | ReturnType<typeof prisma.asset.deleteMany> | ReturnType<typeof prisma.asset.create>;
+            const operations: Op[] = [
                 prisma.transaction.update({
                     where: { id },
                     data: {

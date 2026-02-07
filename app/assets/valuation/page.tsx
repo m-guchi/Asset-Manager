@@ -4,7 +4,7 @@ import React, { useState, useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, Settings, Eye, EyeOff, GripVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -12,7 +12,6 @@ import { toast } from "sonner"
 import { getCategories, updateValuationSettingsAction } from "@/app/actions/categories"
 import { updateValuation } from "@/app/actions/assets"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Switch } from "@/components/ui/switch"
 import {
     DndContext,
     closestCenter,
@@ -31,9 +30,17 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+interface ValuationCategory {
+    id: number;
+    name: string;
+    currentValue: number;
+    valuationOrder: number | null;
+    isValuationTarget: boolean | null;
+}
+
 export default function BulkValuationPage() {
     const router = useRouter()
-    const [categories, setCategories] = useState<any[]>([])
+    const [categories, setCategories] = useState<ValuationCategory[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [valuations, setValuations] = useState<Record<number, number>>({})
     const [recordedAt, setRecordedAt] = useState(new Date().toISOString().slice(0, 10))
@@ -72,7 +79,8 @@ export default function BulkValuationPage() {
             setValuations({})
             fetchData()
             router.push('/assets')
-        } catch (err) {
+        } catch (error) {
+            console.error("Save error:", error);
             toast.error("更新に失敗しました")
         } finally {
             setIsSaving(false)
@@ -192,7 +200,7 @@ function ValuationSettingsDialog({
 }: {
     open: boolean,
     onOpenChange: (open: boolean) => void,
-    categories: any[],
+    categories: ValuationCategory[],
     onSave: (settings: { id: number, valuationOrder: number, isValuationTarget: boolean }[]) => void
 }) {
     // Determine initial order: 
@@ -206,13 +214,17 @@ function ValuationSettingsDialog({
         })
     }, [categories])
 
-    const [items, setItems] = useState<any[]>([])
+    const [items, setItems] = useState<ValuationCategory[]>([])
 
-    useEffect(() => {
-        if (open) {
-            setItems(sortedCats)
-        }
-    }, [open, sortedCats])
+    // Capture the open state to detect when it changes to true
+    const [lastOpen, setLastOpen] = useState(false)
+
+    if (open && !lastOpen) {
+        setLastOpen(true)
+        setItems(sortedCats)
+    } else if (!open && lastOpen) {
+        setLastOpen(false)
+    }
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -280,7 +292,7 @@ function ValuationSettingsDialog({
     )
 }
 
-function ValuationSettingItem({ item, onToggle }: { item: any, onToggle: () => void }) {
+function ValuationSettingItem({ item, onToggle }: { item: ValuationCategory, onToggle: () => void }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
 
     const style = {

@@ -10,19 +10,29 @@ interface HistoryPoint {
     [key: string]: string | number | null
 }
 
+interface CategoryWithRelations {
+    id: number;
+    name: string;
+    isLiability: boolean;
+    isCash: boolean;
+    parentId: number | null;
+    tags: { tagGroupId: number; tagOption: { name: string } | null }[];
+    transactions: { transactedAt: Date; amount: number; type: string }[];
+}
+
 export async function getHistoryData() {
     try {
         console.log("[getHistoryData] Starting fetch... (v2-group-aware)");
 
         // 1. Fetch all data at once to minimize DB pressure
         const [historyRecords, categories] = await Promise.all([
-            prisma.asset.findMany({ orderBy: { recordedAt: 'asc' } }) as Promise<any[]>,
+            prisma.asset.findMany({ orderBy: { recordedAt: 'asc' } }),
             prisma.category.findMany({
                 include: {
-                    tags: { include: { tagOption: true } } as any,
+                    tags: { include: { tagOption: true } },
                     transactions: true
                 }
-            }) as Promise<any[]>
+            }) as unknown as Promise<CategoryWithRelations[]>
         ]);
 
         console.log(`[getHistoryData] Data loaded: ${historyRecords.length} records, ${categories.length} categories`);
@@ -31,9 +41,9 @@ export async function getHistoryData() {
 
         // 2. Normalize and sort dates
         const dateSet = new Set<string>();
-        historyRecords.forEach((r: any) => dateSet.add(r.recordedAt.toISOString().slice(0, 10)));
-        categories.forEach((cat: any) => {
-            (cat.transactions || []).forEach((t: any) => {
+        historyRecords.forEach((r) => dateSet.add(r.recordedAt.toISOString().slice(0, 10)));
+        categories.forEach((cat) => {
+            (cat.transactions || []).forEach((t) => {
                 dateSet.add(new Date(t.transactedAt).toISOString().slice(0, 10));
             });
         });
@@ -41,8 +51,8 @@ export async function getHistoryData() {
 
         // ... (rest of step 3 same)
         const childrenMap = new Map<number, number[]>();
-        const categoryMap = new Map<number, any>();
-        categories.forEach((cat: any) => {
+        const categoryMap = new Map<number, CategoryWithRelations>();
+        categories.forEach((cat) => {
             categoryMap.set(cat.id, cat);
             if (cat.parentId) {
                 const siblings = childrenMap.get(cat.parentId) || [];
@@ -56,8 +66,8 @@ export async function getHistoryData() {
             if (effectiveTagCache.has(id)) return effectiveTagCache.get(id)!;
             const cat = categoryMap.get(id);
             if (!cat) return [];
-            let tags = (cat.tags as any[]).map((t: any) => ({
-                name: t.tagOption?.name?.trim(),
+            let tags = (cat.tags || []).map((t) => ({
+                name: (t.tagOption?.name || "").trim(),
                 groupId: t.tagGroupId
             })).filter(t => t.name);
             if (tags.length === 0 && cat.parentId) {
@@ -95,7 +105,7 @@ export async function getHistoryData() {
 
         // 4. Pre-collect all unique tag keys to ensure every point has all keys
         const allTagKeys = new Set<string>();
-        categories.forEach((cat: any) => {
+        categories.forEach((cat) => {
             getEffectiveTags(cat.id).forEach(t => {
                 allTagKeys.add(`tag_${t.groupId}_${t.name}`);
             });
@@ -107,9 +117,9 @@ export async function getHistoryData() {
             const dateStrNormalized = dateStr;
 
             // Updated logic: First, apply net flow of transactions for this specific date to current values
-            categories.forEach((cat: any) => {
-                const txsToday = (cat.transactions as any[] || [])
-                    .filter((t: any) => new Date(t.transactedAt).toISOString().slice(0, 10) === dateStrNormalized);
+            categories.forEach((cat) => {
+                const txsToday = (cat.transactions || [])
+                    .filter((t) => new Date(t.transactedAt).toISOString().slice(0, 10) === dateStrNormalized);
 
                 if (txsToday.length > 0) {
                     const netFlow = txsToday.reduce((sum, t) => {
@@ -123,17 +133,17 @@ export async function getHistoryData() {
 
             // Second, if there's an EXPLICIT valuation record for today, it takes precedence
             historyRecords
-                .filter((r: any) => r.recordedAt.toISOString().slice(0, 10) === dateStrNormalized)
-                .forEach((r: any) => latestValues.set(r.categoryId, Number(r.currentValue)));
+                .filter((r) => r.recordedAt.toISOString().slice(0, 10) === dateStrNormalized)
+                .forEach((r) => latestValues.set(r.categoryId, Number(r.currentValue)));
 
             // Update cost basis (cumulative transactions)
-            categories.forEach((cat: any) => {
+            categories.forEach((cat) => {
                 if (cat.isCash) {
                     latestCostBasis.set(cat.id, latestValues.get(cat.id) || 0);
                 } else {
-                    const cost = (cat.transactions as any[] || [])
-                        .filter((t: any) => new Date(t.transactedAt) <= dateObj)
-                        .reduce((sum: number, t: any) => {
+                    const cost = (cat.transactions || [])
+                        .filter((t) => new Date(t.transactedAt) <= dateObj)
+                        .reduce((sum: number, t) => {
                             const amt = Number(t.amount);
                             return t.type === 'DEPOSIT' ? sum + amt : (t.type === 'WITHDRAW' ? sum - amt : sum);
                         }, 0);
@@ -151,7 +161,7 @@ export async function getHistoryData() {
             allTagKeys.forEach(k => point[k] = 0);
 
             // Tag Aggregation (Per Category Contribution)
-            categories.forEach((cat: any) => {
+            categories.forEach((cat) => {
                 const val = (latestValues.get(cat.id) || 0) * (cat.isLiability ? -1 : 1);
                 const tags = getEffectiveTags(cat.id);
 

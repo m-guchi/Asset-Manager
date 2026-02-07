@@ -1,7 +1,7 @@
 "use client"
 
 import { Card, CardContent } from "@/components/ui/card"
-import { ArrowUpRight, ArrowDownRight, TrendingUp, Wallet, Banknote, Percent } from "lucide-react"
+import { ArrowUpRight, ArrowDownRight, TrendingUp, Wallet, Percent } from "lucide-react"
 
 interface SummaryCardsProps {
     netWorth: number
