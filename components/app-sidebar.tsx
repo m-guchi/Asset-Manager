@@ -78,7 +78,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         <SidebarMenuButton size="lg" asChild>
                             <Link href="/" onClick={() => isMobile && setOpenMobile(false)}>
                                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                                    <Image src="/asset-manager/icon.svg" alt="App Logo" className="size-4" width={16} height={16} />
+                                    <Image src="/icon.svg" alt="App Logo" className="size-4" width={16} height={16} />
                                 </div>
                                 <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                                     <span className="truncate font-semibold uppercase tracking-widest">
