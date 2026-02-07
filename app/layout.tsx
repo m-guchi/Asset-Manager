@@ -12,7 +12,12 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
     title: "Asset Manager",
-    description: "Track your true portfolio performance",
+    description: "資産の推移と構成を、美しく直感的に管理するポートフォリオ・トラッカー",
+    manifest: "/manifest.json",
+    icons: {
+        icon: "/icon.svg",
+        apple: "/icon.svg",
+    },
 };
 
 export default function RootLayout({
