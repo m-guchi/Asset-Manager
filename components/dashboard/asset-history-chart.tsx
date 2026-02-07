@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/chart"
 
 import { HistoryPoint, TagGroup } from "@/types/asset"
+import { getDefaultTimeRange } from "@/app/actions/settings"
 
 // Consistent colors matching the Allocation Chart (Shadcn Chart colors)
 const CUSTOM_COLORS: Record<string, string> = {
@@ -37,16 +38,18 @@ const mockTagGroups: TagGroup[] = [
 interface AssetHistoryChartProps {
     data?: HistoryPoint[];
     tagGroups?: TagGroup[];
+    initialTimeRange?: string;
 }
 
 export function AssetHistoryChart({
     data = [],
-    tagGroups = mockTagGroups
+    tagGroups = mockTagGroups,
+    initialTimeRange = "1Y"
 }: AssetHistoryChartProps) {
     const [isMounted, setIsMounted] = React.useState(false);
     const [mode, setMode] = React.useState<"total" | "tag">("total")
     const [selectedTagGroup, setSelectedTagGroup] = React.useState<number>(1)
-    const [timeRange, setTimeRange] = React.useState("1Y")
+    const [timeRange, setTimeRange] = React.useState(initialTimeRange)
     const [showPercent, setShowPercent] = React.useState(false)
     const [activePoint, setActivePoint] = React.useState<any>(null)
     const [hoverPoint, setHoverPoint] = React.useState<any>(null)
