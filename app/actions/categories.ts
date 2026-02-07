@@ -325,8 +325,8 @@ export async function getCategoryDetails(id: number) {
                 // Process current point
                 // Logic to carry over value if null
                 let valFromPrev = (prev.value || 0) + curr.netFlow;
-                let actualValue: number | null = curr.value !== null ? curr.value : valFromPrev;
-                if (actualValue !== null && actualValue <= 0) actualValue = null;
+                let actualValue: number = curr.value !== null ? curr.value : valFromPrev;
+                if (actualValue < 0) actualValue = 0;
 
                 processed.push({
                     date: curr.date,
@@ -367,10 +367,10 @@ export async function getCategoryDetails(id: number) {
                 items: calculateHistoryForCategory(c)
             }));
 
-            // Collect all unique dates
+            // Collect all unique dates (normalized to YYYY-MM-DD)
             const allDates = new Set<string>();
             childHistories.forEach((ch: any) => {
-                ch.items.forEach((i: any) => allDates.add(i.date.toISOString()));
+                ch.items.forEach((i: any) => allDates.add(i.date.toISOString().split('T')[0]));
             });
 
             const sortedDates = Array.from(allDates).sort();
@@ -385,7 +385,7 @@ export async function getCategoryDetails(id: number) {
 
                 childHistories.forEach((ch: any) => {
                     // Update running value if this child has an entry on this date
-                    const entry = ch.items.find((i: any) => i.date.toISOString() === dateStr);
+                    const entry = ch.items.find((i: any) => i.date.toISOString().split('T')[0] === dateStr);
                     if (entry) {
                         runningValues[ch.id] = entry.value;
                         runningCosts[ch.id] = entry.cost;

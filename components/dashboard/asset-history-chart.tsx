@@ -47,8 +47,17 @@ export function AssetHistoryChart({
     const [timeRange, setTimeRange] = React.useState("1Y")
     const [showPercent, setShowPercent] = React.useState(false)
     const [activePoint, setActivePoint] = React.useState<any>(null)
+    const [hoverPoint, setHoverPoint] = React.useState<any>(null)
     const [isLocked, setIsLocked] = React.useState(false)
     const [showNetWorth, setShowNetWorth] = React.useState(false)
+    const [isAnimating, setIsAnimating] = React.useState(false)
+
+    // Trigger animation when mode or group changes
+    React.useEffect(() => {
+        setIsAnimating(true)
+        const timer = setTimeout(() => setIsAnimating(false), 1300)
+        return () => clearTimeout(timer)
+    }, [mode, selectedTagGroup, showNetWorth, showPercent, timeRange])
 
     React.useEffect(() => {
         setIsMounted(true);
@@ -99,7 +108,7 @@ export function AssetHistoryChart({
 
                 if (mode === "tag") {
                     activeKeys.forEach(key => {
-                        const k = `tag_${key}`
+                        const k = `tag_${selectedTagGroup}_${key}`
                         if (point[k] === undefined || point[k] === null) {
                             point[k] = 0
                         }
@@ -173,7 +182,7 @@ export function AssetHistoryChart({
             <CardContent className="flex flex-col flex-1 p-0 relative min-h-0 overflow-hidden">
                 <ChartContainer config={chartConfig} className="flex-1 min-h-0 w-full text-[10px]">
                     <div className="flex flex-col h-full w-full">
-                        <div className="px-4 py-1.5 border-y border-border/40 bg-muted/10 min-h-[40px] flex items-center mt-0 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <div className="px-4 border-y border-border/40 bg-muted/10 h-11 flex items-center mt-0 shrink-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
                             {!activePoint ? (
                                 <div className="w-full text-center">
                                     <span className="text-[10px] text-muted-foreground animate-pulse font-medium">
@@ -234,30 +243,46 @@ export function AssetHistoryChart({
                                 <ComposedChart
                                     data={filteredData}
                                     onMouseMove={(e: any) => {
-                                        if (!isLocked && e && e.activePayload) {
-                                            setActivePoint(e.activePayload[0].payload)
+                                        if (e && e.activePayload) {
+                                            const p = e.activePayload[0].payload;
+                                            setHoverPoint(p);
+                                            if (!isLocked) setActivePoint(p);
                                         }
                                     }}
                                     // @ts-ignore
                                     onTouchStart={(e: any) => {
-                                        if (!isLocked && e && e.activePayload) {
-                                            setActivePoint(e.activePayload[0].payload)
+                                        if (e && e.activePayload) {
+                                            const p = e.activePayload[0].payload;
+                                            setHoverPoint(p);
+                                            if (!isLocked) setActivePoint(p);
                                         }
                                     }}
                                     // @ts-ignore
                                     onTouchMove={(e: any) => {
-                                        if (!isLocked && e && e.activePayload) {
-                                            setActivePoint(e.activePayload[0].payload)
+                                        if (e && e.activePayload) {
+                                            const p = e.activePayload[0].payload;
+                                            setHoverPoint(p);
+                                            if (!isLocked) setActivePoint(p);
                                         }
                                     }}
                                     onClick={(e: any) => {
                                         if (e && e.activePayload) {
-                                            setActivePoint(e.activePayload[0].payload)
-                                            setIsLocked(true)
+                                            const p = e.activePayload[0].payload;
+                                            if (isLocked) {
+                                                // If already locked, unlock it
+                                                setIsLocked(false);
+                                            } else {
+                                                // If not locked, lock at the current hovered point
+                                                setActivePoint(p);
+                                                setIsLocked(true);
+                                            }
+                                        } else {
+                                            setIsLocked(false);
                                         }
                                     }}
                                     onMouseLeave={() => {
-                                        if (!isLocked) setActivePoint(null)
+                                        setHoverPoint(null);
+                                        if (!isLocked) setActivePoint(null);
                                     }}
                                     stackOffset={mode === "tag" && showPercent ? "expand" : "none"}
                                     margin={{ top: 10, right: 30, left: 10, bottom: 0 }}
@@ -288,8 +313,22 @@ export function AssetHistoryChart({
                                         cursor={false}
                                         isAnimationActive={false}
                                     />
-                                    {activePoint && (
-                                        <ReferenceLine x={activePoint.timestamp} stroke="currentColor" strokeOpacity={0.4} strokeWidth={1} />
+                                    {isLocked && activePoint && (
+                                        <ReferenceLine
+                                            x={activePoint.timestamp}
+                                            stroke="currentColor"
+                                            strokeOpacity={0.8}
+                                            strokeWidth={1}
+                                        />
+                                    )}
+                                    {hoverPoint && (!isLocked || (hoverPoint.timestamp !== activePoint?.timestamp)) && (
+                                        <ReferenceLine
+                                            x={hoverPoint.timestamp}
+                                            stroke="currentColor"
+                                            strokeOpacity={0.3}
+                                            strokeWidth={1}
+                                            strokeDasharray="3 3"
+                                        />
                                     )}
                                     <ReferenceLine y={0} stroke="currentColor" strokeOpacity={0.3} strokeDasharray="3 3" />
 
@@ -301,8 +340,8 @@ export function AssetHistoryChart({
                                             strokeWidth={2}
                                             fill="var(--color-totalAssets)"
                                             fillOpacity={0.2}
+                                            isAnimationActive={isAnimating}
                                             animationDuration={1200}
-                                            animationEasing="ease-in-out"
                                         />
                                     )}
                                     {mode === "total" && !showNetWorth && (
@@ -313,8 +352,8 @@ export function AssetHistoryChart({
                                             strokeWidth={1.5}
                                             strokeDasharray="5 5"
                                             dot={false}
+                                            isAnimationActive={isAnimating}
                                             animationDuration={1200}
-                                            animationEasing="ease-in-out"
                                             connectNulls
                                         />
                                     )}
@@ -328,8 +367,8 @@ export function AssetHistoryChart({
                                             stroke={`var(--chart-${(i % 5) + 1})`}
                                             fill={`var(--chart-${(i % 5) + 1})`}
                                             fillOpacity={0.4}
+                                            isAnimationActive={isAnimating}
                                             animationDuration={1200}
-                                            animationEasing="ease-in-out"
                                         />
                                     ))}
                                 </ComposedChart>

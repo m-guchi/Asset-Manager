@@ -93,6 +93,14 @@ export async function getHistoryData() {
             return { val, cost };
         };
 
+        // 4. Pre-collect all unique tag keys to ensure every point has all keys
+        const allTagKeys = new Set<string>();
+        categories.forEach((cat: any) => {
+            getEffectiveTags(cat.id).forEach(t => {
+                allTagKeys.add(`tag_${t.groupId}_${t.name}`);
+            });
+        });
+
         // 5. Generate points
         const points: HistoryPoint[] = sortedDates.map(dateStr => {
             const dateObj = new Date(dateStr);
@@ -133,27 +141,32 @@ export async function getHistoryData() {
                 }
             });
 
-            const point: HistoryPoint = { date: dateStr, totalAssets: 0, totalCost: 0 };
+            // Initialize point with ALL tag keys set to 0
+            const point: HistoryPoint = {
+                date: dateStr,
+                totalAssets: 0,
+                totalCost: 0,
+                timestamp: dateObj.getTime()
+            };
+            allTagKeys.forEach(k => point[k] = 0);
 
             // Tag Aggregation (Per Category Contribution)
             categories.forEach((cat: any) => {
                 const val = (latestValues.get(cat.id) || 0) * (cat.isLiability ? -1 : 1);
-                if (val !== 0) {
-                    const tags = getEffectiveTags(cat.id);
+                const tags = getEffectiveTags(cat.id);
 
-                    // Deduplicate based on groupId + name to ensure uniqueness within the category context
-                    const uniqueTagsMap = new Map<string, { name: string, groupId: number }>();
-                    tags.forEach(t => {
-                        const compositeKey = `${t.groupId}_${t.name}`;
-                        uniqueTagsMap.set(compositeKey, t);
-                    });
+                // Deduplicate based on groupId + name to ensure uniqueness within the category context
+                const uniqueTagsMap = new Map<string, { name: string, groupId: number }>();
+                tags.forEach(t => {
+                    const compositeKey = `${t.groupId}_${t.name}`;
+                    uniqueTagsMap.set(compositeKey, t);
+                });
 
-                    uniqueTagsMap.forEach(t => {
-                        // Key includes groupId to distinguish identical names in different groups
-                        const key = `tag_${t.groupId}_${t.name}`;
-                        point[key] = (Number(point[key]) || 0) + val;
-                    });
-                }
+                uniqueTagsMap.forEach(t => {
+                    // Key includes groupId to distinguish identical names in different groups
+                    const key = `tag_${t.groupId}_${t.name}`;
+                    point[key] = (Number(point[key]) || 0) + val;
+                });
             });
 
             // Total Aggregation (Roots only)
@@ -173,14 +186,16 @@ export async function getHistoryData() {
                 }
             });
 
-            point.totalAssets = grossAssets || null;
-            point.totalCost = totalCost || null;
-            point.netWorth = (grossAssets - liabilities) || null;
+            point.totalAssets = grossAssets;
+            point.totalCost = totalCost;
+            point.netWorth = (grossAssets - liabilities);
 
-            // Clean up tag values that are 0 to be null for cleaner charts
+            // The previous logic to set tag values to 0 for null/negative is now handled by initialization
+            // and the removal of `if (val !== 0)` condition.
+            // However, ensure no negative values remain for tags if they are meant to be non-negative in charts.
             Object.keys(point).forEach(key => {
-                if (key.startsWith('tag_') && point[key] === 0) {
-                    point[key] = null;
+                if (key.startsWith('tag_') && (Number(point[key]) < 0)) {
+                    point[key] = 0;
                 }
             });
 

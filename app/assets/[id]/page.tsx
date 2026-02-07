@@ -504,6 +504,7 @@ export default function AssetDetailPage() {
                                                 fill={child.color}
                                                 fillOpacity={0.2}
                                                 strokeWidth={2}
+                                                isAnimationActive={false}
                                             />
                                         ))
                                     ) : (
@@ -516,6 +517,7 @@ export default function AssetDetailPage() {
                                             fillOpacity={0.1}
                                             strokeWidth={2}
                                             stackId="1"
+                                            isAnimationActive={false}
                                         />
                                     )}
                                     {!category.isCash && (
@@ -527,6 +529,7 @@ export default function AssetDetailPage() {
                                             strokeWidth={2}
                                             strokeDasharray="4 4"
                                             dot={false}
+                                            isAnimationActive={false}
                                             connectNulls
                                         />
                                     )}
