@@ -105,7 +105,7 @@ export async function getTemplateCsv(targetAssetId?: number) {
 
         if (isSimpleAsset) {
             const header = "操作,ID,日付,評価額,メモ";
-            let rows = [header];
+            const rows = [header];
 
             // Prepend history if needed
             if (targetAssetId) {
@@ -124,8 +124,8 @@ export async function getTemplateCsv(targetAssetId?: number) {
                             "(既存データ)"
                         ].join(","));
                     });
-                } catch (e) {
-                    console.error("Failed to fetch history for simple template", e);
+                } catch {
+                    console.error("Failed to fetch history for simple template");
                 }
             }
 
@@ -133,7 +133,7 @@ export async function getTemplateCsv(targetAssetId?: number) {
         }
 
         const header = "操作,ID,日付,入金額,出金額,売却額,評価額,メモ";
-        let rows = [header];
+        const rows = [header];
 
         // Check if we need to prepend history for a specific asset
         if (targetAssetId) {
@@ -197,8 +197,8 @@ export async function getTemplateCsv(targetAssetId?: number) {
                         h.memo
                     ].join(","));
                 });
-            } catch (e) {
-                console.error("Failed to fetch history for template", e);
+            } catch {
+                console.error("Failed to fetch history for template");
             }
         }
 
@@ -281,7 +281,7 @@ export async function importData(csvContent: string, targetAssetId: number) {
                     }
                     importedCount++;
                     continue;
-                } catch (e) {
+                } catch {
                     errorCount++;
                     errors.push(`${i + 1}行目: 削除に失敗しました (ID: ${recordId})`);
                     continue;
@@ -364,7 +364,7 @@ export async function importData(csvContent: string, targetAssetId: number) {
                     });
                     importedCount++;
                     successDetails.push(`${dateStr}: ${val.toLocaleString()} (評価額)${futureNote}`);
-                } catch (e) {
+                } catch {
                     errorCount++;
                     errors.push(`${i + 1}行目: データベースエラー`);
                 }

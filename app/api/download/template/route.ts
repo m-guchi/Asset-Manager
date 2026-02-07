@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
         const example2 = "2024-02-01,,,,105000,月次評価";
         const example3 = "2024-03-01,,10000,12000,,一部売却";
 
-        let rows = [header, example1, example2, example3];
+        const rows = [header, example1, example2, example3];
         let filename = "import_template";
 
         // Check if we need to append history for a specific asset
