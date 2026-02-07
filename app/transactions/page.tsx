@@ -377,14 +377,14 @@ export default function TransactionsPage() {
                 </Dialog>
             </div>
 
-            <Card>
-                <CardHeader>
+            <Card className="flex-1 overflow-hidden flex flex-col">
+                <CardHeader className="flex-none">
                     <CardTitle>履歴一覧</CardTitle>
                     <CardDescription>過去の全ての入出金・評価履歴</CardDescription>
                 </CardHeader>
-                <CardContent className="p-0 md:p-6">
+                <CardContent className="p-0 md:p-6 flex-1 overflow-y-auto min-h-0">
                     <Table>
-                        <TableHeader>
+                        <TableHeader className="sticky top-0 bg-card z-10 shadow-sm">
                             <TableRow>
                                 <TableHead className="w-[110px]">日付</TableHead>
                                 <TableHead>資産</TableHead>

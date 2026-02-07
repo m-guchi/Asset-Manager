@@ -117,8 +117,8 @@ export default function BulkValuationPage() {
                 </Button>
             </div>
 
-            <Card>
-                <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <Card className="flex-1 overflow-hidden flex flex-col min-h-0">
+                <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4 flex-none">
                     <CardTitle>入力フォーム</CardTitle>
                     <div className="flex items-center gap-2">
                         <Label htmlFor="valuation-date" className="text-sm whitespace-nowrap">更新基準日:</Label>
@@ -131,9 +131,9 @@ export default function BulkValuationPage() {
                         />
                     </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex-1 overflow-y-auto min-h-0">
                     <Table>
-                        <TableHeader>
+                        <TableHeader className="sticky top-0 bg-card z-10 shadow-sm">
                             <TableRow>
                                 <TableHead>項目</TableHead>
                                 <TableHead className="text-right">現在評価額</TableHead>
@@ -168,7 +168,7 @@ export default function BulkValuationPage() {
                         </TableBody>
                     </Table>
                 </CardContent>
-                <CardFooter className="flex justify-end border-t pt-4">
+                <CardFooter className="flex justify-end border-t pt-4 flex-none">
                     <Button disabled={isSaving || Object.keys(valuations).length === 0} onClick={handleSave}>
                         {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {Object.keys(valuations).length}件の評価額を一括保存
