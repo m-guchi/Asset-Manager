@@ -128,7 +128,15 @@ export async function saveCategory(data: any) {
         let categoryId = data.id;
 
         if (categoryId) {
-            await prisma.category.update({ where: { id: categoryId }, data: baseData });
+            // Fetch existing to preserve order if not provided
+            const existing = await prisma.category.findUnique({ where: { id: categoryId }, select: { order: true } });
+            await prisma.category.update({
+                where: { id: categoryId },
+                data: {
+                    ...baseData,
+                    order: data.order !== undefined ? data.order : (existing?.order ?? 0)
+                }
+            });
             await (prisma as any).categoryTag.deleteMany({ where: { categoryId } });
         } else {
             const max = await prisma.category.aggregate({ _max: { order: true } });
