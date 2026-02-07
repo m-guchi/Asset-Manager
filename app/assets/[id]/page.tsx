@@ -131,7 +131,7 @@ export default function AssetDetailPage() {
                     type: (newTrx.type === 'DEPOSIT' || newTrx.type === 'WITHDRAW') ? newTrx.type : (amt >= 0 ? "DEPOSIT" : "WITHDRAW"),
                     amount: Math.abs(amt),
                     valuation: newTrx.valuation ? Number(newTrx.valuation) : undefined,
-                    realizedGain: newTrx.type === "TRANSACTION" && amt < 0 ? newTrx.realizedGain : undefined,
+                    realizedGain: (newTrx.type === "WITHDRAW" || (newTrx.type === "TRANSACTION" && amt < 0)) ? newTrx.realizedGain : undefined,
                     date: new Date(newTrx.date),
                     memo: newTrx.memo
                 })
@@ -225,11 +225,11 @@ export default function AssetDetailPage() {
     const profitPercent = category.costBasis > 0 ? (profit / category.costBasis) * 100 : 0
     const isPositive = profit >= 0
 
-    const totalRealizedGain = category.transactions?.reduce((sum: number, tx: any) => sum + (tx.realizedGain || 0), 0) || 0;
+    const totalRealizedGain = category.transactions?.reduce((sum: number, tx: any) => sum + Number(tx.realizedGain || 0), 0) || 0;
     const isRealizedPositive = totalRealizedGain >= 0;
 
-    const totalDeposit = category.transactions?.filter((tx: any) => tx.type === 'DEPOSIT').reduce((sum: number, tx: any) => sum + tx.amount, 0) || 0;
-    const totalWithdrawal = category.transactions?.filter((tx: any) => tx.type === 'WITHDRAW').reduce((sum: number, tx: any) => sum + tx.amount, 0) || 0;
+    const totalDeposit = category.transactions?.filter((tx: any) => tx.type === 'DEPOSIT').reduce((sum: number, tx: any) => sum + Math.abs(Number(tx.amount)), 0) || 0;
+    const totalWithdrawal = category.transactions?.filter((tx: any) => tx.type === 'WITHDRAW').reduce((sum: number, tx: any) => sum + Math.abs(Number(tx.amount)), 0) || 0;
 
     const formatXAxis = (tickItem: number) => {
         const date = new Date(tickItem)
