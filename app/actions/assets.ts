@@ -8,10 +8,13 @@ import { getCurrentUserId } from "@/lib/auth"
 export async function updateValuation(categoryId: number, value: number, recordedAt = new Date()) {
     try {
         const userId = await getCurrentUserId()
+        if (!userId) {
+            throw new Error("User not authenticated")
+        }
         await prisma.asset.create({
             data: {
                 categoryId,
-                userId,
+                userId: userId!,
                 currentValue: value,
                 recordedAt
             }
@@ -37,11 +40,14 @@ export async function addTransaction(categoryId: number, data: {
 }) {
     try {
         const userId = await getCurrentUserId()
+        if (!userId) {
+            throw new Error("User not authenticated")
+        }
         const operations: Array<ReturnType<typeof prisma.transaction.create> | ReturnType<typeof prisma.asset.create>> = [
             prisma.transaction.create({
                 data: {
                     categoryId,
-                    userId,
+                    userId: userId!,
                     type: data.type as TransactionType,
                     amount: data.amount,
                     realizedGain: data.realizedGain,
@@ -57,7 +63,7 @@ export async function addTransaction(categoryId: number, data: {
                 prisma.asset.create({
                     data: {
                         categoryId,
-                        userId,
+                        userId: userId!,
                         currentValue: data.valuation,
                         recordedAt: data.date
                     }
@@ -81,8 +87,11 @@ export async function addTransaction(categoryId: number, data: {
 export async function getTransactions() {
     try {
         const userId = await getCurrentUserId()
+        if (!userId) {
+            return []
+        }
         const transactions = await prisma.transaction.findMany({
-            where: { userId },
+            where: { userId: userId! },
             orderBy: { transactedAt: 'desc' },
             include: {
                 category: {
@@ -96,13 +105,14 @@ export async function getTransactions() {
         })
         return transactions.map((tx) => {
             // Find the asset valuation recorded at or just before this transaction
-            const assets = tx.category.assets;
+            const category = tx.category;
+            const assets = category.assets;
             const nearestAsset = assets.find((a) => a.recordedAt <= tx.transactedAt) || assets[0]
 
             return {
                 id: tx.id,
                 date: tx.transactedAt,
-                category: tx.category.name,
+                category: category.name,
                 categoryId: tx.categoryId,
                 type: tx.type,
                 amount: Number(tx.amount),
@@ -162,6 +172,9 @@ interface UpdateHistoryItemData {
 export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: UpdateHistoryItemData) {
     try {
         const userId = await getCurrentUserId()
+        if (!userId) {
+            throw new Error("User not authenticated")
+        }
         if (type === 'tx') {
             const oldTx = await prisma.transaction.findUnique({ where: { id } })
             if (!oldTx) return { success: false }
@@ -214,7 +227,7 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: Upd
                         prisma.asset.create({
                             data: {
                                 categoryId: oldTx.categoryId,
-                                userId,
+                                userId: userId!,
                                 currentValue: numVal,
                                 recordedAt: new Date(data.date)
                             }

@@ -106,8 +106,11 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
         } else {
             // Create New Group
             const userId = await getCurrentUserId()
+            if (!userId) {
+                throw new Error("User not authenticated")
+            }
             const maxOrderVal = await prisma.tagGroup.aggregate({
-                where: { userId },
+                where: { userId: userId! },
                 _max: { order: true }
             })
             const nextOrder = (maxOrderVal._max?.order ?? -1) + 1
@@ -115,7 +118,7 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
             savedGroup = await prisma.tagGroup.create({
                 data: {
                     name: data.name,
-                    userId,
+                    userId: userId!,
                     order: nextOrder,
                     options: {
                         create: (data.options || []).map((opt, idx) => ({
@@ -189,9 +192,12 @@ export async function renameTagGroup(id: number, name: string) {
 export async function getAssetsForTagGroup(groupId: number) {
     try {
         const userId = await getCurrentUserId()
+        if (!userId) {
+            throw new Error("User not authenticated")
+        }
         // 1. Fetch all raw
         const categories = await prisma.category.findMany({
-            where: { userId },
+            where: { userId: userId! },
             select: { id: true, name: true, parentId: true, color: true, order: true }
         })
 
