@@ -31,8 +31,12 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # 本番用接続情報をSecretsから注入
-          DATABASE_URL: ${{ secrets.DATABASE_URL }} 
+            # 本番用接続情報をSecretsから注入
+            DATABASE_URL: ${{ secrets.DATABASE_URL }} 
+            NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+            NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+            AUTH_GOOGLE_ID: ${{ secrets.AUTH_GOOGLE_ID }}
+            AUTH_GOOGLE_SECRET: ${{ secrets.AUTH_GOOGLE_SECRET }}
 
       - name: Create archive
         run: |
