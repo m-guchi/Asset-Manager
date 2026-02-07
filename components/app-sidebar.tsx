@@ -8,6 +8,7 @@ import {
     Settings,
     Wallet,
     ArrowRightLeft,
+    Database,
 } from "lucide-react"
 
 import {
@@ -47,6 +48,11 @@ const data = {
         },
     ],
     navSecondary: [
+        {
+            title: "データ管理",
+            url: "/data-management",
+            icon: Database,
+        },
         {
             title: "設定",
             url: "/settings",
