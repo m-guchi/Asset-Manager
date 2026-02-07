@@ -267,7 +267,7 @@ export default function AssetDetailPage() {
                         </div>
                         {!category.isCash && (
                             <div className={`text-sm mt-1 flex items-center gap-2 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                                {isPositive ? '+' : ''}¥{Math.abs(profit).toLocaleString()}
+                                {isPositive ? '+' : '-'}¥{Math.abs(profit).toLocaleString()}
                                 <span className="text-xs bg-muted/20 px-1.5 py-0.5 rounded text-muted-foreground">
                                     {category.costBasis > 0 ? `${isPositive ? '+' : ''}${profitPercent.toFixed(1)}%` : '-'}
                                 </span>
@@ -326,7 +326,7 @@ export default function AssetDetailPage() {
                             </CardHeader>
                             <CardContent>
                                 <div className={`text-2xl font-bold ${isRealizedPositive ? 'text-green-600' : 'text-red-500'}`}>
-                                    {isRealizedPositive ? '+' : ''}¥{Math.abs(totalRealizedGain).toLocaleString()}
+                                    {isRealizedPositive ? '+' : '-'}¥{Math.abs(totalRealizedGain).toLocaleString()}
                                 </div>
                                 <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-dashed">
                                     <div className="flex justify-between items-center text-xs">
