@@ -89,6 +89,8 @@ export default function AssetDetailPage() {
     const [historyFilter, setHistoryFilter] = React.useState<string>("ALL")
     const [isTrxModalOpen, setIsTrxModalOpen] = React.useState(false)
     const [editingItem, setEditingItem] = React.useState<TransactionItem | null>(null)
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
+    const [deletingItemId, setDeletingItemId] = React.useState<string | null>(null)
 
     const fetchData = React.useCallback(async () => {
         setIsLoading(true)
@@ -172,17 +174,26 @@ export default function AssetDetailPage() {
         }
     }
 
-    const handleDelete = async (itemIdStr: string) => {
-        if (!confirm("この記録を削除してもよろしいですか？")) return
-        const [typeStr, itemId] = itemIdStr.split('-')
+    const handleDelete = (itemIdStr: string) => {
+        setDeletingItemId(itemIdStr)
+        setIsDeleteModalOpen(true)
+    }
+
+    const confirmDelete = async () => {
+        if (!deletingItemId) return
+
+        const [typeStr, itemId] = deletingItemId.split('-')
         const itemType = typeStr === 'tx' ? 'tx' : 'as'
         const res = await deleteHistoryItem(itemType, Number(itemId))
+
         if (res.success) {
             toast.success("削除しました")
             fetchData()
         } else {
             toast.error("削除に失敗しました")
         }
+        setIsDeleteModalOpen(false)
+        setDeletingItemId(null)
     }
 
     const openEdit = (item: TransactionItem) => {
@@ -864,6 +875,22 @@ export default function AssetDetailPage() {
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsTrxModalOpen(false)}>キャンセル</Button>
                         <Button onClick={handleAddTrx}>保存する</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>記録の削除</DialogTitle>
+                        <DialogDescription>
+                            この記録を削除してもよろしいですか？この操作は取り消せません。
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>キャンセル</Button>
+                        <Button variant="destructive" onClick={confirmDelete}>削除する</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
