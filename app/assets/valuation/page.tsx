@@ -117,8 +117,8 @@ export default function BulkValuationPage() {
                 </Button>
             </div>
 
-            <Card className="flex-1 overflow-hidden flex flex-col min-h-0">
-                <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4 flex-none">
+            <Card>
+                <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <CardTitle>入力フォーム</CardTitle>
                     <div className="flex items-center gap-2">
                         <Label htmlFor="valuation-date" className="text-sm whitespace-nowrap">更新基準日:</Label>
@@ -131,33 +131,30 @@ export default function BulkValuationPage() {
                         />
                     </div>
                 </CardHeader>
-                <CardContent className="flex-1 overflow-y-auto min-h-0">
+                <CardContent className="px-3 sm:px-6 flex-1 overflow-y-auto min-h-0">
                     <Table>
                         <TableHeader className="sticky top-0 bg-card z-10 shadow-sm">
                             <TableRow>
-                                <TableHead>項目</TableHead>
-                                <TableHead className="text-right">現在評価額</TableHead>
-                                <TableHead className="text-right">前回評価額</TableHead>
+                                <TableHead className="px-1 w-[80px]">項目</TableHead>
+                                <TableHead className="text-right px-1">現在評価額</TableHead>
+                                <TableHead className="text-right px-1 w-16">前回</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {displayedCategories.map((cat) => (
                                 <TableRow key={cat.id}>
-                                    <TableCell className="font-medium text-xs break-words w-[80px] px-2 py-3">{cat.name}</TableCell>
-                                    <TableCell className="px-2 py-3">
+                                    <TableCell className="font-medium text-xs break-words w-[80px] px-1 py-1 leading-tight">{cat.name}</TableCell>
+                                    <TableCell className="px-1 py-1">
                                         <Input
                                             type="number"
-                                            className="text-right w-32 ml-auto h-8"
+                                            className="text-right w-full h-10 text-base"
                                             placeholder={cat.currentValue.toString()}
                                             value={valuations[cat.id] || ""}
                                             onChange={(e) => setValuations({ ...valuations, [cat.id]: parseFloat(e.target.value) })}
                                         />
                                     </TableCell>
-                                    <TableCell className="text-right px-2 py-3 opacity-50 text-[10px] text-muted-foreground w-16 whitespace-nowrap">
-                                        <div className="flex flex-col items-end">
-                                            <span>前回</span>
-                                            <span>¥{Number(cat.currentValue).toLocaleString()}</span>
-                                        </div>
+                                    <TableCell className="text-right px-1 py-1 opacity-50 text-[10px] text-muted-foreground w-16 whitespace-nowrap">
+                                        ¥{Number(cat.currentValue).toLocaleString()}
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -171,7 +168,7 @@ export default function BulkValuationPage() {
                         </TableBody>
                     </Table>
                 </CardContent>
-                <CardFooter className="flex justify-end border-t pt-4 flex-none">
+                <CardFooter className="flex justify-end border-t pt-4">
                     <Button disabled={isSaving || Object.keys(valuations).length === 0} onClick={handleSave}>
                         {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {Object.keys(valuations).length}件の評価額を一括保存
