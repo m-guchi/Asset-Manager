@@ -1,6 +1,6 @@
 {
   "name": "asset-manager",
-  "version": "1.0.0-5",
+  "version": "1.0.0-6",
   "private": true,
   "scripts": {
     "tunnel:start": "ssh -L 3307:localhost:3306 -p 19622 -f -N guchi@18.178.75.179",
