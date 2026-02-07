@@ -103,6 +103,7 @@ jobs:
             echo "NEXTAUTH_SECRET=\"${{ secrets.NEXTAUTH_SECRET }}\"" >> .env
             echo "AUTH_GOOGLE_ID=\"${{ secrets.AUTH_GOOGLE_ID }}\"" >> .env
             echo "AUTH_GOOGLE_SECRET=\"${{ secrets.AUTH_GOOGLE_SECRET }}\"" >> .env
+            echo "AUTH_TRUST_HOST=\"true\"" >> .env
             echo "PORT=3102" >> .env
 
             # 依存関係のインストール
