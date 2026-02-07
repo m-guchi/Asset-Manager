@@ -24,6 +24,10 @@ interface CategoryWithRelations {
 export async function getHistoryData() {
     try {
         const userId = await getCurrentUserId()
+        if (!userId) {
+            console.warn("[getHistoryData] No user ID found, returning empty history");
+            return [];
+        }
         console.log("[getHistoryData] Starting fetch... (v2-group-aware)");
 
         // 1. Fetch all data at once to minimize DB pressure
@@ -40,7 +44,7 @@ export async function getHistoryData() {
 
         console.log(`[getHistoryData] Data loaded: ${historyRecords.length} records, ${categories.length} categories`);
 
-        if (!historyRecords.length || !categories.length) return [];
+        if (!historyRecords || !historyRecords.length || !categories || !categories.length) return [];
 
         // 2. Normalize and sort dates
         const dateSet = new Set<string>();

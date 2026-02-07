@@ -30,6 +30,10 @@ interface CategoryWithRelations {
 export async function getCategories() {
     try {
         const userId = await getCurrentUserId()
+        if (!userId) {
+            console.warn("[getCategories] No user ID found, returning empty list");
+            return [];
+        }
         const allCategories = await prisma.category.findMany({
             where: { userId },
             include: {

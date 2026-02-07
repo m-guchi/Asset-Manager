@@ -12,7 +12,6 @@ import {
     LogOut,
 } from "lucide-react"
 import { signOut } from "next-auth/react"
-
 import {
     Sidebar,
     SidebarContent,
@@ -77,8 +76,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
                             <Link href="/" onClick={() => isMobile && setOpenMobile(false)}>
-                                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                                    <Image src="/icon.svg" alt="App Logo" className="size-4" width={16} height={16} />
+                                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-zinc-100 border border-zinc-200 shadow-sm overflow-hidden dark:bg-zinc-800 dark:border-zinc-700">
+                                    <Image src="/asset-manager/icon.svg" alt="App Logo" className="size-4" width={16} height={16} />
                                 </div>
                                 <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                                     <span className="truncate font-semibold uppercase tracking-widest">

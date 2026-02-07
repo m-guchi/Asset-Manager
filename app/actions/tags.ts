@@ -24,6 +24,7 @@ export async function deleteTag() {
 export async function getTagGroups() {
     try {
         const userId = await getCurrentUserId()
+        if (!userId) return [];
         const groups = await prisma.tagGroup.findMany({
             where: { userId },
             include: {
