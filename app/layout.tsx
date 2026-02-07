@@ -11,7 +11,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-    title: "Asset Manager",
+    title: "資産管理",
     description: "資産の推移と構成を、美しく直感的に管理するポートフォリオ・トラッカー",
     manifest: "/asset-manager/manifest.json",
     icons: {
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     },
     appleWebApp: {
         capable: true,
-        title: "Asset Manager",
+        title: "資産管理",
         statusBarStyle: "black-translucent",
     },
 };
