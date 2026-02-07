@@ -2,6 +2,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
 import GoogleProvider from "next-auth/providers/google"
 import { NextAuthOptions } from "next-auth"
+import { seedDummyData } from "@/lib/db/seed"
 
 export const authOptions: NextAuthOptions = {
     adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],
@@ -20,6 +21,13 @@ export const authOptions: NextAuthOptions = {
                 session.user.id = token.sub
             }
             return session
+        },
+    },
+    events: {
+        async createUser({ user }) {
+            if (user.id) {
+                await seedDummyData(user.id);
+            }
         },
     },
     pages: {
