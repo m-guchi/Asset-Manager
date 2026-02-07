@@ -41,7 +41,7 @@ jobs:
       - name: Create archive
         run: |
           # 必要なファイルをすべてまとめてtar.gzにする
-          tar -czf deploy.tar.gz package.json package-lock.json public .next prisma next.config.ts
+          tar -czf deploy.tar.gz package.json package-lock.json public .next prisma next.config.ts scripts lib tsconfig.json
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -88,7 +88,7 @@ jobs:
             
             # 古いファイルをクリーンアップ（設定ファイルやnode_modulesは残す）
             echo "Cleaning up old files..."
-            rm -rf .next public package.json package-lock.json prisma next.config.ts
+            rm -rf .next public package.json package-lock.json prisma next.config.ts scripts lib tsconfig.json
 
             # アーカイブを展開
             echo "Extracting archive..."
@@ -99,6 +99,10 @@ jobs:
             echo "Updating .env file..."
             rm -f .env
             echo "DATABASE_URL=\"${{ secrets.DATABASE_URL }}\"" > .env
+            echo "NEXTAUTH_URL=\"${{ secrets.NEXTAUTH_URL }}\"" >> .env
+            echo "NEXTAUTH_SECRET=\"${{ secrets.NEXTAUTH_SECRET }}\"" >> .env
+            echo "AUTH_GOOGLE_ID=\"${{ secrets.AUTH_GOOGLE_ID }}\"" >> .env
+            echo "AUTH_GOOGLE_SECRET=\"${{ secrets.AUTH_GOOGLE_SECRET }}\"" >> .env
             echo "PORT=3102" >> .env
 
             # 依存関係のインストール
@@ -122,6 +126,6 @@ jobs:
 
             # ヘルスチェック（起動確認）
             echo "Waiting for app to start..."
-            sleep 10
-            curl -f http://localhost:3102 || (echo "Health check failed!" && exit 1)
+            sleep 15
+            curl -f http://localhost:3102/asset-manager || (echo "Health check failed!" && exit 1)
             echo "Deployment successful and app is running."
