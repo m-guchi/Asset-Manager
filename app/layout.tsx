@@ -13,10 +13,15 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
     title: "Asset Manager",
     description: "資産の推移と構成を、美しく直感的に管理するポートフォリオ・トラッカー",
-    manifest: "/manifest.json",
+    manifest: "/asset-manager/manifest.json",
     icons: {
-        icon: "/icon.svg",
-        apple: "/icon.svg",
+        icon: "/asset-manager/icon.svg",
+        apple: "/asset-manager/icon.svg",
+    },
+    appleWebApp: {
+        capable: true,
+        title: "Asset Manager",
+        statusBarStyle: "black-translucent",
     },
 };
 

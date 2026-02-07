@@ -195,11 +195,17 @@ function CategoryManagement({ categories, tagGroups, onRefresh }: { categories: 
         }
     }
 
-    const handleDelete = async (id: number) => {
-        if (!confirm("この資産を削除してもよろしいですか？履歴データもすべて削除されます。")) return
-        setIsDeleting(id)
+    const [categoryToDelete, setCategoryToDelete] = useState<number | null>(null)
+
+    const handleDeleteClick = (id: number) => {
+        setCategoryToDelete(id)
+    }
+
+    const confirmDeleteCategory = async () => {
+        if (!categoryToDelete) return
+        setIsDeleting(categoryToDelete)
         try {
-            await deleteCategory(id)
+            await deleteCategory(categoryToDelete)
             toast.success("資産を削除しました")
             onRefresh()
         } catch (error) {
@@ -207,6 +213,7 @@ function CategoryManagement({ categories, tagGroups, onRefresh }: { categories: 
             toast.error("削除に失敗しました")
         } finally {
             setIsDeleting(null)
+            setCategoryToDelete(null)
         }
     }
 
@@ -293,7 +300,7 @@ function CategoryManagement({ categories, tagGroups, onRefresh }: { categories: 
                                                 <Button variant="ghost" size="icon" onClick={() => { setEditingCategory(cat); setIsDialogOpen(true); }}>
                                                     <Edit2 className="h-4 w-4" />
                                                 </Button>
-                                                <Button variant="ghost" size="icon" className="text-destructive" disabled={isDeleting === cat.id} onClick={() => handleDelete(cat.id)}>
+                                                <Button variant="ghost" size="icon" className="text-destructive" disabled={isDeleting === cat.id} onClick={() => handleDeleteClick(cat.id)}>
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
                                             </div>
@@ -305,6 +312,26 @@ function CategoryManagement({ categories, tagGroups, onRefresh }: { categories: 
                     </Table>
                 )}
             </CardContent>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={!!categoryToDelete} onOpenChange={(open) => !open && setCategoryToDelete(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>資産の削除</DialogTitle>
+                        <DialogDescription>
+                            この資産を削除してもよろしいですか？<br />
+                            関連する履歴データもすべて削除されます。この操作は取り消せません。
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setCategoryToDelete(null)}>キャンセル</Button>
+                        <Button variant="destructive" onClick={confirmDeleteCategory} disabled={!!isDeleting}>
+                            {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            削除する
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </Card>
     )
 }
@@ -563,6 +590,7 @@ function TagGroupManagement({ tagGroups, onRefresh }: { tagGroups: TagGroup[], o
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [editingGroup, setEditingGroup] = useState<TagGroup | null>(null)
     const [isReordering, setIsReordering] = useState(false)
+    const [groupToDelete, setGroupToDelete] = useState<TagGroup | null>(null)
 
     // Reorder logic for Groups
     const [localGroups, setLocalGroups] = useState(tagGroups)
@@ -587,6 +615,20 @@ function TagGroupManagement({ tagGroups, onRefresh }: { tagGroups: TagGroup[], o
         onRefresh()
         setIsReordering(false)
         toast.success("並び順を保存しました")
+    }
+
+    const confirmDeleteGroup = async () => {
+        if (!groupToDelete) return
+        try {
+            await deleteTagGroup(groupToDelete.id)
+            toast.success("グループを削除しました")
+            onRefresh()
+        } catch (error) {
+            console.error(error)
+            toast.error("削除に失敗しました")
+        } finally {
+            setGroupToDelete(null)
+        }
     }
 
     return (
@@ -639,9 +681,7 @@ function TagGroupManagement({ tagGroups, onRefresh }: { tagGroups: TagGroup[], o
                                             <Edit2 className="h-4 w-4 mr-2" />
                                             編集
                                         </Button>
-                                        <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={async () => {
-                                            if (confirm("このグループを削除しますか？")) { await deleteTagGroup(group.id); onRefresh(); }
-                                        }}>
+                                        <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => setGroupToDelete(group)}>
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </div>
@@ -691,7 +731,24 @@ function TagGroupManagement({ tagGroups, onRefresh }: { tagGroups: TagGroup[], o
                         onCancel={() => setIsDialogOpen(false)} />
                 </DialogContent>
             </Dialog>
-        </Card>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={!!groupToDelete} onOpenChange={(open) => !open && setGroupToDelete(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>グループの削除</DialogTitle>
+                        <DialogDescription>
+                            「{groupToDelete?.name}」を削除してもよろしいですか？<br />
+                            このグループに割り当てられた設定も解除されます。
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setGroupToDelete(null)}>キャンセル</Button>
+                        <Button variant="destructive" onClick={confirmDeleteGroup}>削除する</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </Card >
     )
 }
 

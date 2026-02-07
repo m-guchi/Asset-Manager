@@ -58,6 +58,10 @@ export function AssetHistoryChart({
 
     React.useEffect(() => {
         setIsMounted(true);
+        const savedRange = localStorage.getItem("defaultTimeRange");
+        if (savedRange) {
+            setTimeRange(savedRange);
+        }
     }, []);
 
     // Ensure we have a valid group selected

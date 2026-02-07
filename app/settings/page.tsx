@@ -1,12 +1,18 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
+import * as React from "react"
 import { useTheme } from "next-themes"
-import { toast } from "sonner"
-import { setDefaultTimeRangeAction, getDefaultTimeRange } from "@/app/actions/settings"
+import { Monitor, Moon, Sun, Clock, Info, Check } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
 import {
     Select,
     SelectContent,
@@ -14,122 +20,147 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 
 export default function SettingsPage() {
-    const { theme, setTheme, resolvedTheme } = useTheme()
-    const [mounted, setMounted] = useState(false)
-    const [defaultTimeRange, setDefaultTimeRange] = useState("1Y")
+    const { setTheme, theme, systemTheme } = useTheme()
 
-    // Avoid hydration mismatch
-    useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+    // In a real app, this would be persisted in local storage or user preferences in DB
+    const [defaultTimeRange, setDefaultTimeRange] = React.useState("1Y")
+    // Add mounted state to prevent hydration mismatch
+    const [mounted, setMounted] = React.useState(false)
+
+    React.useEffect(() => {
         setMounted(true)
-        // Fetch saved setting
-        getDefaultTimeRange().then(range => setDefaultTimeRange(range))
+        // Load preference from local storage on mount
+        const savedRange = localStorage.getItem("defaultTimeRange")
+        if (savedRange) setDefaultTimeRange(savedRange)
     }, [])
 
-    if (!mounted) return null
-
-    const isSystem = theme === "system"
-    const isDark = resolvedTheme === "dark"
-
-    const toggleSystem = (checked: boolean) => {
-        setTheme(checked ? "system" : (resolvedTheme || "light"))
-        toast.success(checked ? "システム設定に同期しました" : "手動設定に切り替えました")
-    }
-
-    const toggleTheme = (checked: boolean) => {
-        setTheme(checked ? "dark" : "light")
-        toast.success(checked ? "テーマを固定しました" : "テーマを固定しました")
-    }
-
-    const handleTimeRangeChange = async (value: string) => {
+    const handleTimeRangeChange = (value: string) => {
         setDefaultTimeRange(value)
-        await setDefaultTimeRangeAction(value)
-        toast.success("デフォルトの時間軸を更新しました")
+        localStorage.setItem("defaultTimeRange", value)
+    }
+
+    // Prevent rendering theme-dependent UI until mounted
+    if (!mounted) {
+        return <div className="p-8">Loading settings...</div>
     }
 
     return (
-        <div className="flex flex-col gap-6">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight">設定</h1>
-                <p className="text-muted-foreground">
-                    アプリケーション全体の設定
-                </p>
+        <div className="flex flex-col gap-6 p-4 md:p-8">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">設定</h1>
+                    <p className="text-muted-foreground">
+                        アプリケーションの表示や動作の設定を行います。
+                    </p>
+                </div>
             </div>
 
             <div className="grid gap-6">
+                {/* Visual Settings */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>表示設定</CardTitle>
+                        <CardTitle className="flex items-center gap-2">
+                            <Monitor className="h-5 w-5" />
+                            外観設定
+                        </CardTitle>
                         <CardDescription>
-                            画面の表示に関する設定を行います。
+                            アプリケーションのテーマを設定します。
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        <div className="flex items-center justify-between space-x-2">
-                            <div className="space-y-0.5">
-                                <Label htmlFor="use-system">システム設定を使用する</Label>
-                                <div className="text-sm text-muted-foreground">
-                                    OSの外観設定と同期します
-                                </div>
+                        <div className="flex flex-col space-y-3">
+                            <Label>テーマモード</Label>
+                            <div className="flex flex-wrap gap-2">
+                                <Button
+                                    variant={theme === "light" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setTheme("light")}
+                                    className="min-w-[100px] justify-start"
+                                >
+                                    <Sun className="mr-2 h-4 w-4" />
+                                    ライト
+                                    {theme === "light" && <Check className="ml-auto h-4 w-4" />}
+                                </Button>
+                                <Button
+                                    variant={theme === "dark" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setTheme("dark")}
+                                    className="min-w-[100px] justify-start"
+                                >
+                                    <Moon className="mr-2 h-4 w-4" />
+                                    ダーク
+                                    {theme === "dark" && <Check className="ml-auto h-4 w-4" />}
+                                </Button>
                             </div>
-                            <Switch
-                                id="use-system"
-                                checked={isSystem}
-                                onCheckedChange={toggleSystem}
-                            />
                         </div>
 
-                        <div className={`flex items-center justify-between space-x-2 transition-opacity ${isSystem ? "opacity-50 pointer-events-none" : "opacity-100"}`}>
-                            <div className="space-y-0.5">
-                                <Label htmlFor="dark-mode">ダークモードの固定</Label>
-                                <div className="text-sm text-muted-foreground">
-                                    外観を常に{isDark ? "ダーク" : "ライト"}モードに固定します
-                                </div>
-                            </div>
+                        <div className="flex items-center space-x-2 border-t pt-4">
                             <Switch
-                                id="dark-mode"
-                                checked={isDark}
-                                onCheckedChange={toggleTheme}
-                                disabled={isSystem}
+                                id="system-mode"
+                                checked={theme === "system"}
+                                onCheckedChange={(checked) => setTheme(checked ? "system" : (systemTheme || "light"))}
                             />
-                        </div>
-
-                        <div className="flex items-center justify-between space-x-2 border-t pt-4">
-                            <div className="space-y-0.5">
-                                <Label htmlFor="default-range">デフォルトの時間軸</Label>
-                                <div className="text-sm text-muted-foreground">
-                                    ダッシュボードの初期表示範囲を設定します
-                                </div>
-                            </div>
-                            <div className="w-[120px]">
-                                <Select value={defaultTimeRange} onValueChange={handleTimeRangeChange}>
-                                    <SelectTrigger id="default-range">
-                                        <SelectValue placeholder="選択..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="1M">1ヶ月</SelectItem>
-                                        <SelectItem value="3M">3ヶ月</SelectItem>
-                                        <SelectItem value="1Y">1年</SelectItem>
-                                        <SelectItem value="ALL">全範囲</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                            <div className="grid gap-1.5 leading-none">
+                                <Label htmlFor="system-mode" className="cursor-pointer">システム設定に従う</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    デバイスのシステム設定に合わせてテーマを自動で切り替えます。
+                                </p>
                             </div>
                         </div>
                     </CardContent>
                 </Card>
 
+                {/* Dashboard Settings */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>アプリケーション情報</CardTitle>
+                        <CardTitle className="flex items-center gap-2">
+                            <Clock className="h-5 w-5" />
+                            ダッシュボード設定
+                        </CardTitle>
+                        <CardDescription>
+                            ダッシュボードの表示設定を管理します。
+                        </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div className="font-medium">Version</div>
-                            <div className="text-muted-foreground">{process.env.NEXT_PUBLIC_APP_VERSION}</div>
-                            <div className="font-medium">Build</div>
-                            <div className="text-muted-foreground capitalize">{process.env.NODE_ENV}</div>
+                    <CardContent className="space-y-4">
+                        <div className="grid w-full max-w-sm items-center gap-1.5">
+                            <Label htmlFor="default-range">資産推移グラフの初期表示期間</Label>
+                            <Select value={defaultTimeRange} onValueChange={handleTimeRangeChange}>
+                                <SelectTrigger id="default-range">
+                                    <SelectValue placeholder="期間を選択" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="1M">1ヶ月</SelectItem>
+                                    <SelectItem value="3M">3ヶ月</SelectItem>
+                                    <SelectItem value="1Y">1年</SelectItem>
+                                    <SelectItem value="ALL">全期間</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p className="text-sm text-muted-foreground">
+                                開いたときに最初に表示される期間を設定します。
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* App Information */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Info className="h-5 w-5" />
+                            アプリケーション情報
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                        <div className="flex justify-between py-2 border-b">
+                            <span className="text-muted-foreground">Version</span>
+                            <span className="font-mono">{process.env.NEXT_PUBLIC_APP_VERSION || "1.0.0"}</span>
+                        </div>
+                        <div className="flex justify-between py-2 border-b">
+                            <span className="text-muted-foreground">Environment</span>
+                            <span className="font-mono">{process.env.NODE_ENV}</span>
                         </div>
                     </CardContent>
                 </Card>
