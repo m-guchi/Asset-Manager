@@ -3,12 +3,15 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { TransactionType } from "@prisma/client"
+import { getCurrentUserId } from "@/lib/auth"
 
 export async function updateValuation(categoryId: number, value: number, recordedAt = new Date()) {
     try {
+        const userId = await getCurrentUserId()
         await prisma.asset.create({
             data: {
                 categoryId,
+                userId,
                 currentValue: value,
                 recordedAt
             }
@@ -33,10 +36,12 @@ export async function addTransaction(categoryId: number, data: {
     memo?: string
 }) {
     try {
+        const userId = await getCurrentUserId()
         const operations: Array<ReturnType<typeof prisma.transaction.create> | ReturnType<typeof prisma.asset.create>> = [
             prisma.transaction.create({
                 data: {
                     categoryId,
+                    userId,
                     type: data.type as TransactionType,
                     amount: data.amount,
                     realizedGain: data.realizedGain,
@@ -52,6 +57,7 @@ export async function addTransaction(categoryId: number, data: {
                 prisma.asset.create({
                     data: {
                         categoryId,
+                        userId,
                         currentValue: data.valuation,
                         recordedAt: data.date
                     }
@@ -74,7 +80,9 @@ export async function addTransaction(categoryId: number, data: {
 
 export async function getTransactions() {
     try {
+        const userId = await getCurrentUserId()
         const transactions = await prisma.transaction.findMany({
+            where: { userId },
             orderBy: { transactedAt: 'desc' },
             include: {
                 category: {
@@ -153,6 +161,7 @@ interface UpdateHistoryItemData {
 
 export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: UpdateHistoryItemData) {
     try {
+        const userId = await getCurrentUserId()
         if (type === 'tx') {
             const oldTx = await prisma.transaction.findUnique({ where: { id } })
             if (!oldTx) return { success: false }
@@ -205,6 +214,7 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: Upd
                         prisma.asset.create({
                             data: {
                                 categoryId: oldTx.categoryId,
+                                userId,
                                 currentValue: numVal,
                                 recordedAt: new Date(data.date)
                             }

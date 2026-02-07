@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { getCurrentUserId } from "@/lib/auth"
 
 interface CategoryWithRelations {
     id: number;
@@ -28,7 +29,9 @@ interface CategoryWithRelations {
  */
 export async function getCategories() {
     try {
+        const userId = await getCurrentUserId()
         const allCategories = await prisma.category.findMany({
+            where: { userId },
             include: {
                 tags: {
                     include: {
@@ -163,6 +166,7 @@ interface SaveCategoryData {
 
 export async function saveCategory(data: SaveCategoryData) {
     try {
+        const userId = await getCurrentUserId()
         const baseData = {
             name: data.name,
             color: data.color,
@@ -186,10 +190,10 @@ export async function saveCategory(data: SaveCategoryData) {
             });
             await prisma.categoryTag.deleteMany({ where: { categoryId } });
         } else {
-            const max = await prisma.category.aggregate({ _max: { order: true } });
-            const cat = await prisma.category.create({ data: { ...baseData, order: (max._max.order ?? -1) + 1 } });
+            const max = await prisma.category.aggregate({ where: { userId }, _max: { order: true } });
+            const cat = await prisma.category.create({ data: { ...baseData, userId, order: (max._max.order ?? -1) + 1 } });
             categoryId = cat.id;
-            await prisma.asset.create({ data: { categoryId: cat.id, currentValue: 0 } });
+            await prisma.asset.create({ data: { categoryId: cat.id, userId, currentValue: 0 } });
         }
 
         if (data.tagSettings && data.tagSettings.length > 0 && categoryId) {

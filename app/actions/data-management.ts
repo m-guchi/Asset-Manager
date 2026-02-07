@@ -1,6 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { getCurrentUserId } from "@/lib/auth"
 
 // Helper to escape CSV fields
 function escapeCsv(field: string | number | null | undefined): string {
@@ -21,13 +22,16 @@ function formatDateJst(date: Date): string {
 
 export async function exportAllData() {
     try {
+        const userId = await getCurrentUserId()
         const transactions = await prisma.transaction.findMany({
+            where: { userId },
             include: { category: true },
             orderBy: { transactedAt: 'asc' }
         });
 
         // Use Asset model for Valuation History
         const valuations = await prisma.asset.findMany({
+            where: { userId },
             include: { category: true },
             orderBy: { recordedAt: 'asc' }
         });
@@ -211,6 +215,7 @@ export async function getTemplateCsv(targetAssetId?: number) {
 
 export async function importData(csvContent: string, targetAssetId: number) {
     try {
+        const userId = await getCurrentUserId()
         if (!targetAssetId) {
             return { success: false, error: "対象資産が選択されていません" };
         }
@@ -358,6 +363,7 @@ export async function importData(csvContent: string, targetAssetId: number) {
                     await prisma.asset.create({
                         data: {
                             categoryId: targetAssetId,
+                            userId,
                             recordedAt: date,
                             currentValue: val
                         }
@@ -435,6 +441,7 @@ export async function importData(csvContent: string, targetAssetId: number) {
                     await prisma.asset.create({
                         data: {
                             categoryId: targetAssetId,
+                            userId,
                             recordedAt: date,
                             currentValue: valuationVal
                         }
@@ -445,6 +452,7 @@ export async function importData(csvContent: string, targetAssetId: number) {
                     await prisma.transaction.create({
                         data: {
                             categoryId: targetAssetId,
+                            userId,
                             transactedAt: date,
                             type: 'DEPOSIT',
                             amount: Math.abs(depositVal),
@@ -457,6 +465,7 @@ export async function importData(csvContent: string, targetAssetId: number) {
                     await prisma.transaction.create({
                         data: {
                             categoryId: targetAssetId,
+                            userId,
                             transactedAt: date,
                             type: 'WITHDRAW',
                             amount: Math.abs(withdrawVal),
