@@ -519,6 +519,24 @@ export async function getCategoryDetails(id: number) {
             }
         });
 
+        // Enrich transactions with profit/loss ratio from history
+        mergedList.forEach((item: any) => {
+            const dateStr = item.date.split('T')[0];
+            const historyItem = history.find((h: any) => h.date.startsWith(dateStr));
+
+            if (historyItem && historyItem.cost > 0) {
+                const profit = historyItem.value - historyItem.cost;
+                item.profitRatio = (profit / historyItem.cost) * 100;
+
+                // Ensure valuation is set if missing (e.g. transaction only days)
+                if (item.pointInTimeValuation === null || item.pointInTimeValuation === undefined) {
+                    item.pointInTimeValuation = historyItem.value;
+                }
+            } else {
+                item.profitRatio = null;
+            }
+        });
+
         // Re-sort final list by date desc
         mergedList.sort((a: any, b: any) => b.rawDate.getTime() - a.rawDate.getTime());
 

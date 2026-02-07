@@ -620,7 +620,14 @@ export default function AssetDetailPage() {
                                             {item.amount !== 0 ? `¥${(item.type === 'WITHDRAW' ? -item.amount : item.amount).toLocaleString()}` : "-"}
                                         </TableCell>
                                         <TableCell className="text-right">
-                                            {(item.pointInTimeValuation !== null && item.pointInTimeValuation !== undefined) ? `¥${item.pointInTimeValuation.toLocaleString()}` : "-"}
+                                            <div className="flex flex-col items-end">
+                                                <span>{(item.pointInTimeValuation !== null && item.pointInTimeValuation !== undefined) ? `¥${item.pointInTimeValuation.toLocaleString()}` : "-"}</span>
+                                                {item.profitRatio !== undefined && item.profitRatio !== null && !category.isCash && (
+                                                    <span className={`text-xs ${item.profitRatio >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                                        {item.profitRatio >= 0 ? '+' : ''}{item.profitRatio.toFixed(1)}%
+                                                    </span>
+                                                )}
+                                            </div>
                                         </TableCell>
                                         <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{item.memo}</TableCell>
                                         <TableCell className="text-right">
