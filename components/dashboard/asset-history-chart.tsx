@@ -389,7 +389,10 @@ export function AssetHistoryChart({
                                     return (
                                         <button
                                             key={range}
-                                            onClick={() => setTimeRange(range)}
+                                            onClick={() => {
+                                                setTimeRange(range);
+                                                localStorage.setItem("defaultTimeRange", range);
+                                            }}
                                             className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${timeRange === range
                                                 ? "bg-background text-foreground shadow-sm"
                                                 : "text-muted-foreground hover:text-foreground"}`}

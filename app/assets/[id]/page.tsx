@@ -91,6 +91,18 @@ export default function AssetDetailPage() {
     const [editingItem, setEditingItem] = React.useState<TransactionItem | null>(null)
     const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
     const [deletingItemId, setDeletingItemId] = React.useState<string | null>(null)
+    const [isMounted, setIsMounted] = React.useState(false)
+
+    React.useEffect(() => {
+        setIsMounted(true)
+        const savedRange = localStorage.getItem("defaultTimeRange")
+        if (savedRange) setTimeRange(savedRange)
+    }, [])
+
+    const handleTimeRangeChange = (range: string) => {
+        setTimeRange(range)
+        localStorage.setItem("defaultTimeRange", range)
+    }
 
     const fetchData = React.useCallback(async () => {
         setIsLoading(true)
@@ -379,25 +391,9 @@ export default function AssetDetailPage() {
             </div>
 
             {/* Chart Section */}
-            < Card >
+            <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">資産推移</CardTitle>
-                    <div className="flex bg-muted/50 rounded-md p-0.5 border">
-                        {["1M", "3M", "1Y", "ALL"].map((range) => {
-                            const label = { "1M": "1ヶ月", "3M": "3ヶ月", "1Y": "1年", "ALL": "全期間" }[range] || range;
-                            return (
-                                <button
-                                    key={range}
-                                    onClick={() => setTimeRange(range)}
-                                    className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${timeRange === range
-                                        ? "bg-background text-foreground shadow-sm"
-                                        : "text-muted-foreground hover:text-foreground"}`}
-                                >
-                                    {label}
-                                </button>
-                            )
-                        })}
-                    </div>
                 </CardHeader>
                 <CardContent>
                     <div className="h-[300px] w-full">
@@ -576,10 +572,29 @@ export default function AssetDetailPage() {
                             </ChartContainer>
                         )}
                     </div>
+                    {isMounted && (
+                        <div className="flex items-center justify-between px-4 pb-4 mt-2">
+                            <div className="flex bg-muted/50 rounded-md p-0.5 border">
+                                {["1M", "3M", "1Y", "ALL"].map((range) => {
+                                    const label = { "1M": "1ヶ月", "3M": "3ヶ月", "1Y": "1年", "ALL": "全期間" }[range] || range;
+                                    return (
+                                        <button
+                                            key={range}
+                                            onClick={() => handleTimeRangeChange(range)}
+                                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${timeRange === range
+                                                ? "bg-background text-foreground shadow-sm"
+                                                : "text-muted-foreground hover:text-foreground"}`}
+                                        >
+                                            {label}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
-            </Card >
+            </Card>
 
-            {/* Transaction History */}
             {/* Transaction History */}
             <div className="flex flex-col gap-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
