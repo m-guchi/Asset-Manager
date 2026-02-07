@@ -7,7 +7,7 @@ const packageJsonPath = path.join(process.cwd(), 'package.json');
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 const version = packageJson.version || '0.0.0';
 
-const isProd = process.env.NODE_ENV === "production";
+
 
 const nextConfig: NextConfig = {
     basePath: "/asset-manager",

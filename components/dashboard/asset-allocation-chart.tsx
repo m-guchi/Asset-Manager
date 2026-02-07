@@ -6,10 +6,7 @@ import { Label, Pie, PieChart, Legend } from "recharts"
 import {
     Card,
     CardContent,
-    CardDescription,
-    CardFooter,
     CardHeader,
-    CardTitle,
 } from "@/components/ui/card"
 import {
     ChartConfig,
@@ -18,14 +15,7 @@ import {
     ChartTooltipContent,
 } from "@/components/ui/chart"
 
-import { Category } from "@/types/asset"
-
-interface TagGroup {
-    id: number
-    name: string
-    tags?: string[]
-    options?: { id: number, name: string }[]
-}
+import { Category, TagGroup } from "@/types/asset"
 
 const chartConfigBase = {
     value: {
@@ -38,8 +28,8 @@ export function AssetAllocationChart({
     allCategories = [],
     tagGroups = []
 }: {
-    categories: any[],
-    allCategories?: any[],
+    categories: Category[],
+    allCategories?: Category[],
     tagGroups?: TagGroup[]
 }) {
     const [mode, setMode] = React.useState<"category" | "tag">("category")
@@ -51,12 +41,6 @@ export function AssetAllocationChart({
             setSelectedTagGroup(tagGroups[0].id)
         }
     }, [mode, tagGroups, selectedTagGroup])
-
-    const availableTags = React.useMemo(() => {
-        // Use allCategories for tag extraction to include child tags
-        const source = allCategories.length > 0 ? allCategories : categories
-        return Array.from(new Set(source.flatMap(d => d.tags))).sort()
-    }, [categories, allCategories])
 
     // Logic to transform data based on mode
     const chartData = React.useMemo(() => {
@@ -82,9 +66,9 @@ export function AssetAllocationChart({
             targetTags.forEach(t => tagMap.set(t, 0));
 
             // Helper to find effective tag for a category in the current group
-            const findEffectiveTag = (cat: any): string | null => {
+            const findEffectiveTag = (cat: Category): string | null => {
                 // 1. Check direct tags in this group
-                const directTag = cat.tagSettings?.find((s: any) => s.groupId === selectedTagGroup)?.optionName;
+                const directTag = cat.tagSettings?.find((s) => s.groupId === selectedTagGroup)?.optionName;
                 if (directTag && targetTags.includes(directTag)) return directTag;
 
                 // Fallback to legacy string check if tagSettings is missing
@@ -121,10 +105,8 @@ export function AssetAllocationChart({
         }
     }, [categories, allCategories, mode, selectedTagGroup, tagGroups])
 
-    const activeGroupName = tagGroups.find(g => g.id === selectedTagGroup)?.name || "タグ別"
-
     const chartConfig = React.useMemo(() => {
-        const config: any = { ...chartConfigBase }
+        const config: ChartConfig = { ...chartConfigBase }
         chartData.forEach((d) => {
             config[d.name] = {
                 label: d.name,

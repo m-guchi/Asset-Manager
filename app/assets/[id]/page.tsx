@@ -2,11 +2,11 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useParams, useRouter } from "next/navigation"
+import { useParams } from "next/navigation"
 import { ArrowLeft, Plus, History, RefreshCw, Edit2, Trash2, ArrowUpRight, ArrowDownRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -25,7 +25,6 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from "@/components/ui/dialog"
 import {
     Select,
@@ -37,11 +36,9 @@ import {
 import { toast } from "sonner"
 import {
     Area,
-    AreaChart,
     CartesianGrid,
     XAxis,
     YAxis,
-    ResponsiveContainer,
     ComposedChart,
     Line
 } from "recharts"
@@ -59,12 +56,13 @@ interface TransactionItem {
     date: string | Date;
     type: string;
     amount: number;
-    pointInTimeValuation: number;
+    pointInTimeValuation: number | null;
     memo: string | null;
-    realizedGain?: number;
+    realizedGain?: number | null;
     categoryName?: string;
     categoryColor?: string;
-    profitRatio?: number;
+    profitRatio?: number | null;
+    categoryId?: number;
 }
 
 interface CategoryDetail {
@@ -78,12 +76,11 @@ interface CategoryDetail {
     parent: { id: number; name: string } | null;
     children: { id: number; name: string; color: string; currentValue: number; isLiability: boolean | null }[];
     transactions: TransactionItem[];
-    history: { date: string; value: number; cost: number }[];
+    history: Record<string, string | number>[];
 }
 
 export default function AssetDetailPage() {
     const params = useParams()
-    const router = useRouter()
     const id = Number((params as { id: string }).id)
 
     const [category, setCategory] = React.useState<CategoryDetail | null>(null)
@@ -110,7 +107,7 @@ export default function AssetDetailPage() {
     const filteredTransactions = React.useMemo(() => {
         if (!category) return []
         if (historyFilter === "ALL") return category.transactions
-        return category.transactions.filter((t: any) => t.categoryId === Number(historyFilter))
+        return category.transactions.filter((t: TransactionItem) => t.categoryName === historyFilter)
     }, [category, historyFilter])
 
     const [newTrx, setNewTrx] = React.useState({
@@ -119,11 +116,10 @@ export default function AssetDetailPage() {
         amount: "",
         valuation: "",
         memo: "",
-        realizedGain: undefined as number | undefined
+        realizedGain: undefined as number | null | undefined
     })
-    const [isCalculateMode, setIsCalculateMode] = React.useState(false) // New state
-    const [saleAmount, setSaleAmount] = React.useState("") // New state
-    const [baseValuation, setBaseValuation] = React.useState(0) // Added missing state
+    const [saleAmount, setSaleAmount] = React.useState("")
+    const [baseValuation, setBaseValuation] = React.useState(0)
 
     // Update default values when category loads or edit starts
     React.useEffect(() => {
@@ -147,8 +143,9 @@ export default function AssetDetailPage() {
 
         let res;
         if (editingItem) {
-            const [type, itemId] = editingItem.id.split('-')
-            res = await updateHistoryItem(type as any, Number(itemId), newTrx)
+            const [typeStr, itemId] = editingItem.id.split('-')
+            const itemType = typeStr === 'tx' ? 'tx' : 'as'
+            res = await updateHistoryItem(itemType, Number(itemId), newTrx)
         } else {
             if (newTrx.type === 'VALUATION') {
                 res = await updateValuation(id, Number(newTrx.valuation), new Date(newTrx.date))
@@ -177,8 +174,9 @@ export default function AssetDetailPage() {
 
     const handleDelete = async (itemIdStr: string) => {
         if (!confirm("この記録を削除してもよろしいですか？")) return
-        const [type, itemId] = itemIdStr.split('-')
-        const res = await deleteHistoryItem(type as any, Number(itemId))
+        const [typeStr, itemId] = itemIdStr.split('-')
+        const itemType = typeStr === 'tx' ? 'tx' : 'as'
+        const res = await deleteHistoryItem(itemType, Number(itemId))
         if (res.success) {
             toast.success("削除しました")
             fetchData()
@@ -228,6 +226,7 @@ export default function AssetDetailPage() {
         }
 
         // Calculate ratio based on baseValuation (valuation before this transaction)
+        if (!category) return;
         const ratio = saleNum / baseValuation;
         const reduction = Math.floor(category.costBasis * ratio);
         const realized = saleNum - reduction;
@@ -258,10 +257,7 @@ export default function AssetDetailPage() {
     const totalDeposit = (category?.transactions || []).filter((tx) => tx.type === 'DEPOSIT').reduce((sum: number, tx) => sum + Math.abs(Number(tx.amount)), 0);
     const totalWithdrawal = (category?.transactions || []).filter((tx) => tx.type === 'WITHDRAW').reduce((sum: number, tx) => sum + Math.abs(Number(tx.amount)), 0);
 
-    const formatXAxis = (tickItem: number) => {
-        const date = new Date(tickItem)
-        return `${date.getFullYear()}/${date.getMonth() + 1}`
-    }
+
 
     return (
         <div className="flex flex-col gap-6 pb-20">
@@ -304,7 +300,7 @@ export default function AssetDetailPage() {
                         {category?.children && category.children.length > 0 && (
                             <div className="mt-4 pt-4 border-t space-y-2">
                                 <div className="text-xs text-muted-foreground mb-2">内訳</div>
-                                {category.children.map((child: any) => (
+                                {category.children.map((child: CategoryDetail['children'][0]) => (
                                     <Link key={child.id} href={`/assets/${child.id}`} className="flex items-center justify-between text-sm group hover:bg-muted/50 p-1 rounded -mx-1 transition-colors">
                                         <div className="flex items-center gap-2">
                                             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: child.color }} />
@@ -397,7 +393,7 @@ export default function AssetDetailPage() {
                         {category.history && (
                             <ChartContainer
                                 config={(() => {
-                                    const c: any = {
+                                    const c: Record<string, { label: string; color: string }> = {
                                         value: {
                                             label: "評価額",
                                             color: category.color || "hsl(var(--primary))",
@@ -408,7 +404,7 @@ export default function AssetDetailPage() {
                                         },
                                     };
                                     if (category.children && category.children.length > 0) {
-                                        category.children.forEach((child: any) => {
+                                        category.children.forEach((child) => {
                                             c[`child_${child.id}`] = {
                                                 label: child.name,
                                                 color: child.color || "#cccccc"
@@ -423,7 +419,6 @@ export default function AssetDetailPage() {
                                     data={(() => {
                                         if (!category.history || category.history.length === 0) return []
 
-                                        // Filter logic (same as before)
                                         const now = new Date()
                                         const cutoff = new Date()
                                         let isAll = false
@@ -437,17 +432,23 @@ export default function AssetDetailPage() {
 
                                         const multiplier = category.isLiability ? -1 : 1;
 
-                                        const allData = category.history.map((h: any) => {
-                                            const point: any = {
-                                                ...h,
-                                                date: new Date(h.date).getTime(),
-                                                value: h.value * multiplier,
-                                                cost: h.cost * multiplier
+                                        interface HistoryRecord {
+                                            date: number;
+                                            value: number;
+                                            cost: number;
+                                            [key: string]: number;
+                                        }
+
+                                        const allData: HistoryRecord[] = category.history.map((h) => {
+                                            const hRecord = h as Record<string, string | number>;
+                                            const point: HistoryRecord = {
+                                                date: new Date(hRecord.date).getTime(),
+                                                value: Number(hRecord.value || 0) * multiplier,
+                                                cost: Number(hRecord.cost || 0) * multiplier
                                             }
-                                            // Make sure to flip child values too if they exist in history
-                                            Object.keys(h).forEach(k => {
+                                            Object.keys(hRecord).forEach(k => {
                                                 if (k.startsWith('child_')) {
-                                                    point[k] = h[k] * multiplier;
+                                                    point[k] = Number(hRecord[k] || 0) * multiplier;
                                                 }
                                             });
                                             return point;
@@ -456,9 +457,9 @@ export default function AssetDetailPage() {
                                         if (isAll) return allData
 
                                         const cutoffTime = cutoff.getTime()
-                                        const filtered = allData.filter((h: any) => h.date >= cutoffTime)
+                                        const filtered = allData.filter((h) => h.date >= cutoffTime)
 
-                                        const beforeCutoff = allData.slice().reverse().find((h: any) => h.date < cutoffTime)
+                                        const beforeCutoff = allData.slice().reverse().find((h) => h.date < cutoffTime)
 
                                         if (beforeCutoff) {
                                             const startPoint = { ...beforeCutoff, date: cutoffTime }
@@ -505,7 +506,7 @@ export default function AssetDetailPage() {
                                                     if (isNaN(d.getTime())) return "";
                                                     return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
                                                 }}
-                                                formatter={(value: any, name: any, item: any, index: any) => (
+                                                formatter={(value, name, item) => (
                                                     <div className="flex w-full items-center justify-between gap-4">
                                                         <div className="flex items-center gap-2">
                                                             <div className="h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: item.color }} />

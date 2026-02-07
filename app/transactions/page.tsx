@@ -65,10 +65,27 @@ const formSchema = z.object({
     memo: z.string().optional(),
 })
 
+interface TransactionRecord {
+    id: number | string;
+    date: string | Date;
+    category: string;
+    categoryId: number;
+    type: string;
+    amount: number;
+    valuation: number;
+    memo: string;
+}
+
+interface CategoryMinimal {
+    id: number;
+    name: string;
+    isCash: boolean;
+}
+
 export default function TransactionsPage() {
     const [open, setOpen] = React.useState(false)
-    const [transactions, setTransactions] = React.useState<any[]>([])
-    const [categories, setCategories] = React.useState<any[]>([])
+    const [transactions, setTransactions] = React.useState<TransactionRecord[]>([])
+    const [categories, setCategories] = React.useState<CategoryMinimal[]>([])
     const [isLoading, setIsLoading] = React.useState(true)
 
     const fetchData = React.useCallback(async () => {
@@ -142,16 +159,20 @@ export default function TransactionsPage() {
         const amt = parseInt(values.amount || "0")
         const val = parseInt(values.valuation)
 
-        let finalType: "DEPOSIT" | "WITHDRAW" | "VALUATION" = values.type as any
+        let finalType: "DEPOSIT" | "WITHDRAW" | "VALUATION" = "VALUATION";
+        if (values.type === "TRANSACTION") {
+            finalType = amt >= 0 ? "DEPOSIT" : "WITHDRAW"
+        } else {
+            finalType = "VALUATION"
+        }
         let finalAmount = amt
 
         if (values.type === "TRANSACTION") {
-            finalType = amt >= 0 ? "DEPOSIT" : "WITHDRAW"
             finalAmount = Math.abs(amt)
         }
 
         const res = await addTransaction(catId, {
-            type: finalType as any,
+            type: finalType,
             amount: finalType === "VALUATION" ? 0 : finalAmount,
             valuation: val,
             date: values.date,

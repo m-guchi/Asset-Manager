@@ -1,39 +1,31 @@
 "use client"
 import * as React from "react"
-import { Area, AreaChart, CartesianGrid, XAxis, Tooltip, ResponsiveContainer, YAxis, ReferenceLine, Line, ComposedChart } from "recharts"
+import { Area, CartesianGrid, XAxis, Tooltip, ResponsiveContainer, YAxis, ReferenceLine, Line, ComposedChart } from "recharts"
 
 import {
     Card,
     CardContent,
     CardHeader,
-    CardTitle,
 } from "@/components/ui/card"
 import {
     ChartConfig,
     ChartContainer,
-    ChartTooltip,
-    ChartTooltipContent,
 } from "@/components/ui/chart"
 
 import { HistoryPoint, TagGroup } from "@/types/asset"
-import { getDefaultTimeRange } from "@/app/actions/settings"
 
-// Consistent colors matching the Allocation Chart (Shadcn Chart colors)
-const CUSTOM_COLORS: Record<string, string> = {
-    "投資資金": "#2563eb",     // Blue
-    "生活防衛費": "#10b981",   // Green 
-    "代替通貨": "#f59e0b",     // Orange
-    "安全資産": "#2563eb",
-    "リスク資産": "#10b981",
-    "超ハイリスク": "#f59e0b",
-    "日本円": "#2563eb",
-    "米ドル": "#10b981",
-}
-
+// Tag groups definition for demo or fallback
 const mockTagGroups: TagGroup[] = [
     { id: 1, name: "目的別", tags: ["投資資金", "生活防衛費", "代替通貨"] },
     { id: 2, name: "資産クラス別", tags: ["安全資産", "リスク資産"] },
 ]
+
+interface ChartPoint extends HistoryPoint {
+    timestamp: number;
+    totalAssets: number;
+    totalCost: number;
+    netWorth: number;
+}
 
 interface AssetHistoryChartProps {
     data?: HistoryPoint[];
@@ -51,8 +43,8 @@ export function AssetHistoryChart({
     const [selectedTagGroup, setSelectedTagGroup] = React.useState<number>(1)
     const [timeRange, setTimeRange] = React.useState(initialTimeRange)
     const [showPercent, setShowPercent] = React.useState(false)
-    const [activePoint, setActivePoint] = React.useState<any>(null)
-    const [hoverPoint, setHoverPoint] = React.useState<any>(null)
+    const [activePoint, setActivePoint] = React.useState<ChartPoint | null>(null)
+    const [hoverPoint, setHoverPoint] = React.useState<ChartPoint | null>(null)
     const [isLocked, setIsLocked] = React.useState(false)
     const [showNetWorth, setShowNetWorth] = React.useState(false)
     const [isAnimating, setIsAnimating] = React.useState(false)
@@ -90,7 +82,7 @@ export function AssetHistoryChart({
 
         const now = new Date()
         const cutoff = new Date()
-        let isAll = timeRange === "ALL"
+        const isAll = timeRange === "ALL"
 
         if (!isAll) {
             cutoff.setHours(0, 0, 0, 0)
@@ -103,7 +95,7 @@ export function AssetHistoryChart({
         return data
             .map(p => {
                 const d = new Date(p.date)
-                const point: any = {
+                const point: ChartPoint = {
                     ...p,
                     totalAssets: Number(p.totalAssets || 0),
                     totalCost: Number(p.totalCost || 0),
@@ -125,7 +117,7 @@ export function AssetHistoryChart({
             .filter(p => p.timestamp > 0)
             .filter(p => isAll || p.timestamp >= cTime)
             .sort((a, b) => a.timestamp - b.timestamp)
-    }, [data, timeRange, activeKeys, mode])
+    }, [data, timeRange, activeKeys, mode, selectedTagGroup])
 
     const chartConfig = React.useMemo(() => {
         const config: ChartConfig = {
@@ -230,8 +222,8 @@ export function AssetHistoryChart({
                                                         <span className="text-[9px] text-muted-foreground font-bold">{key}</span>
                                                         <span className="text-[11px] font-bold">
                                                             {showPercent
-                                                                ? `${((val / (activeKeys.reduce((a, k) => a + (activePoint[`tag_${selectedTagGroup}_${k}`] || 0), 0) || 1)) * 100).toFixed(1)}%`
-                                                                : `¥${Math.round(val).toLocaleString()}`
+                                                                ? `${((Number(activePoint[k] || 0) / (activeKeys.reduce((a, sky) => a + Number(activePoint[`tag_${selectedTagGroup}_${sky}`] || 0), 0) || 1)) * 100).toFixed(1)}%`
+                                                                : `¥${Math.round(Number(activePoint[k] || 0)).toLocaleString()}`
                                                             }
                                                         </span>
                                                     </div>
@@ -248,32 +240,32 @@ export function AssetHistoryChart({
                                 <ComposedChart
                                     key={`${mode}-${selectedTagGroup}-${showPercent}-${showNetWorth}-${timeRange}`}
                                     data={filteredData}
-                                    onMouseMove={(e: any) => {
-                                        if (e && e.activePayload) {
-                                            const p = e.activePayload[0].payload;
+                                    onMouseMove={(e) => {
+                                        if (e && e.activePayload && e.activePayload.length > 0) {
+                                            const p = e.activePayload[0].payload as ChartPoint;
                                             setHoverPoint(p);
                                             if (!isLocked) setActivePoint(p);
                                         }
                                     }}
-                                    // @ts-ignore
-                                    onTouchStart={(e: any) => {
-                                        if (e && e.activePayload) {
-                                            const p = e.activePayload[0].payload;
+                                    // @ts-expect-error: Recharts internal event payload types are not fully exposed
+                                    onTouchStart={(e) => {
+                                        if (e && e.activePayload && e.activePayload.length > 0) {
+                                            const p = e.activePayload[0].payload as ChartPoint;
                                             setHoverPoint(p);
                                             if (!isLocked) setActivePoint(p);
                                         }
                                     }}
-                                    // @ts-ignore
-                                    onTouchMove={(e: any) => {
-                                        if (e && e.activePayload) {
-                                            const p = e.activePayload[0].payload;
+                                    // @ts-expect-error: Recharts internal event payload types are not fully exposed
+                                    onTouchMove={(e) => {
+                                        if (e && e.activePayload && e.activePayload.length > 0) {
+                                            const p = e.activePayload[0].payload as ChartPoint;
                                             setHoverPoint(p);
                                             if (!isLocked) setActivePoint(p);
                                         }
                                     }}
-                                    onClick={(e: any) => {
-                                        if (e && e.activePayload) {
-                                            const p = e.activePayload[0].payload;
+                                    onClick={(e) => {
+                                        if (e && e.activePayload && e.activePayload.length > 0) {
+                                            const p = e.activePayload[0].payload as ChartPoint;
                                             if (isLocked) {
                                                 // If already locked, unlock it
                                                 setIsLocked(false);
@@ -313,8 +305,13 @@ export function AssetHistoryChart({
                                         domain={showPercent ? [0, 1] : ['auto', 'auto']}
                                     />
                                     <Tooltip
-                                        content={(props: any) => (
-                                            <TooltipUpdater {...props} onUpdate={setActivePoint} isLocked={isLocked} />
+                                        content={(props) => (
+                                            <TooltipUpdater
+                                                active={props.active}
+                                                payload={props.payload}
+                                                onUpdate={setActivePoint}
+                                                isLocked={isLocked}
+                                            />
                                         )}
                                         cursor={false}
                                         isAnimationActive={false}
@@ -428,10 +425,19 @@ export function AssetHistoryChart({
 }
 
 // Helper component to sync Tooltip state with activePoint
-// @ts-ignore
-const TooltipUpdater = ({ active, payload, onUpdate, isLocked }: any) => {
+function TooltipUpdater({
+    active,
+    payload,
+    onUpdate,
+    isLocked
+}: {
+    active?: boolean,
+    payload?: { payload?: ChartPoint }[],
+    onUpdate: (p: ChartPoint | null) => void,
+    isLocked: boolean
+}) {
     React.useEffect(() => {
-        if (active && payload && payload.length > 0 && !isLocked) {
+        if (active && payload && payload.length > 0 && !isLocked && payload[0].payload) {
             onUpdate(payload[0].payload)
         }
     }, [active, payload, isLocked, onUpdate])

@@ -13,14 +13,14 @@ interface CategoryWithRelations {
     parentId: number | null;
     isCash: boolean | null;
     isLiability: boolean | null;
-    assets: { currentValue: any; recordedAt: Date }[];
+    assets: { id: number; currentValue: number; recordedAt: Date }[];
     tags: {
         tagGroupId: number;
         tagGroup: { name: string };
         tagOptionId: number | null;
         tagOption: { name: string } | null;
     }[];
-    transactions: { amount: any; type: string }[];
+    transactions: { id: number; amount: number; type: string; memo: string | null; transactedAt: Date; realizedGain: number | null }[];
 }
 
 /**
@@ -218,12 +218,13 @@ export async function deleteCategory(id: number) {
         await prisma.category.delete({ where: { id } });
         revalidatePath("/");
         return { success: true };
-    } catch (_e) {
+    } catch (error) {
+        console.error("Delete error", error);
         return { success: false };
     }
 }
 
-export async function updateCategoryOrder(_id: number, _direction: 'up' | 'down') {
+export async function updateCategoryOrder() {
     // Basic implementation to satisfy types
     revalidatePath("/");
     return { success: true };
@@ -248,16 +249,16 @@ export async function reorderCategoriesAction(items: { id: number, order: number
 }
 
 interface TransactionDetail {
-    amount: any;
+    amount: number;
     type: string;
     id: number;
     memo: string | null;
     transactedAt: Date;
-    realizedGain: any;
+    realizedGain: number | null;
 }
 
 interface AssetDetail {
-    currentValue: any;
+    currentValue: number;
     recordedAt: Date;
     id: number;
 }
@@ -372,7 +373,14 @@ export async function getCategoryDetails(id: number) {
             // Fill gaps and create steps
             if (sorted.length === 0) return [];
 
-            const processed: any[] = [];
+            interface HistoryPoint {
+                date: Date;
+                value: number;
+                cost: number;
+                netFlow: number;
+            }
+
+            const processed: HistoryPoint[] = [];
 
             // Add initial point if needed or just handle logic in loop
             processed.push({ ...sorted[0], value: sorted[0].value || 0 });
@@ -433,10 +441,10 @@ export async function getCategoryDetails(id: number) {
         };
 
         const hasChildren = catWithNested.children && catWithNested.children.length > 0;
-        let history: any[] = [];
+        let history: Record<string, number | string>[] = [];
         let currentValue = 0;
         let costBasis = 0;
-        let childrenInfo: any[] = [];
+        let childrenInfo: { id: number, name: string, color: string, currentValue: number, isLiability: boolean }[] = [];
 
         if (hasChildren) {
             // Aggregate Children
@@ -445,8 +453,9 @@ export async function getCategoryDetails(id: number) {
                 return {
                     id: c.id,
                     name: c.name,
-                    color: c.color,
-                    currentValue: lastAsset?.currentValue || 0
+                    color: c.color || "#ccc",
+                    currentValue: lastAsset?.currentValue || 0,
+                    isLiability: !!c.isLiability
                 };
             });
 
@@ -469,14 +478,14 @@ export async function getCategoryDetails(id: number) {
             const runningCosts: Record<number, number> = {};
 
             history = sortedDates.map(dateStr => {
-                const point: Record<string, any> = { date: dateStr, value: 0, cost: 0 };
+                const point: Record<string, number | string> = { date: dateStr, value: 0, cost: 0 };
 
                 childHistories.forEach((ch) => {
                     // Update running value if this child has an entry on this date
                     const entry = ch.items.find((i: { date: Date }) => i.date.toISOString().split('T')[0] === dateStr);
                     if (entry) {
-                        runningValues[ch.id] = (entry as any).value;
-                        runningCosts[ch.id] = (entry as any).cost;
+                        runningValues[ch.id] = (entry as { value: number }).value;
+                        runningCosts[ch.id] = (entry as { cost: number }).cost;
                     }
                     // Apply current running value
                     point[`child_${ch.id}`] = runningValues[ch.id] || 0;
@@ -494,14 +503,14 @@ export async function getCategoryDetails(id: number) {
             }, 0);
 
             // Recalculate cost basis
-            costBasis = history.length > 0 ? history[history.length - 1].cost : 0;
+            costBasis = history.length > 0 ? Number(history[history.length - 1].cost || 0) : 0;
 
         } else {
             // Single Category Logic
             const rawHistory = calculateHistoryForCategory(catWithNested);
             history = rawHistory.map(h => ({
                 date: h.date.toISOString(),
-                value: h.value,
+                value: h.value as number,
                 cost: h.cost
             }));
 
@@ -521,7 +530,7 @@ export async function getCategoryDetails(id: number) {
         }
 
         // Transactions & Assets
-        const formatTx = (t: any, catName: string, catColor: string, catId: number) => ({
+        const formatTx = (t: { id: number, transactedAt: Date, type: string, amount: number, memo: string | null, realizedGain: number | null }, catName: string, catColor: string, catId: number) => ({
             id: `tx-${t.id}`,
             rawDate: t.transactedAt,
             date: t.transactedAt.toISOString(),
@@ -535,7 +544,7 @@ export async function getCategoryDetails(id: number) {
             realizedGain: t.realizedGain
         });
 
-        const formatAsset = (a: any, catName: string, catColor: string, catId: number) => ({
+        const formatAsset = (a: { id: number, recordedAt: Date, currentValue: number }, catName: string, catColor: string, catId: number) => ({
             id: `as-${a.id}`,
             rawDate: a.recordedAt,
             date: a.recordedAt.toISOString(),
@@ -560,9 +569,23 @@ export async function getCategoryDetails(id: number) {
 
         // Merge logic: Group by CategoryId + Date (YYYY-MM-DD)
         const allRaw = [...rawTransactions, ...rawAssets].sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
-        const mergedList: any[] = [];
+        interface MergedItem {
+            id: string;
+            rawDate: Date;
+            date: string;
+            type: string;
+            amount: number;
+            memo: string | null;
+            pointInTimeValuation: number | null;
+            categoryName: string;
+            categoryColor: string;
+            categoryId: number;
+            realizedGain?: number | null;
+            profitRatio?: number | null;
+        }
+        const mergedList: MergedItem[] = [];
 
-        const groups = new Map<string, any[]>();
+        const groups = new Map<string, MergedItem[]>();
         allRaw.forEach(item => {
             const day = item.date.split('T')[0];
             const key = `${item.categoryId}_${day}`;
@@ -587,23 +610,23 @@ export async function getCategoryDetails(id: number) {
             }
         });
 
-        mergedList.forEach((item: any) => {
+        mergedList.forEach((item) => {
             const dateStr = item.date.split('T')[0];
-            const historyItem = history.find((h: { date: string }) => h.date.startsWith(dateStr));
+            const historyItem = history.find((h) => (h.date as string).startsWith(dateStr));
 
-            if (historyItem && historyItem.cost > 0) {
-                const profit = (historyItem.value as number) - historyItem.cost;
-                item.profitRatio = (profit / historyItem.cost) * 100;
+            if (historyItem && Number(historyItem.cost) > 0) {
+                const profit = (historyItem.value as number) - (historyItem.cost as number);
+                item.profitRatio = (profit / (historyItem.cost as number)) * 100;
 
                 if (item.pointInTimeValuation === null || item.pointInTimeValuation === undefined) {
-                    item.pointInTimeValuation = historyItem.value;
+                    item.pointInTimeValuation = historyItem.value as number;
                 }
             } else {
                 item.profitRatio = null;
             }
         });
 
-        mergedList.sort((a: any, b: any) => b.rawDate.getTime() - a.rawDate.getTime());
+        mergedList.sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
 
         return {
             id: catWithNested.id,

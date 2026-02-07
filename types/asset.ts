@@ -11,6 +11,12 @@ export interface Category {
     isCash?: boolean
     isLiability?: boolean
     tags?: string[]
+    tagSettings?: {
+        groupId: number;
+        groupName: string;
+        optionId: number | null;
+        optionName: string;
+    }[];
     conflicts?: string[]
 }
 

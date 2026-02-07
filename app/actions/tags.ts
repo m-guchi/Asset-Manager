@@ -10,11 +10,11 @@ export async function getTags() {
     return []
 }
 
-export async function saveTag(_data: any) {
+export async function saveTag() {
     return { success: false, error: "Deprecated" }
 }
 
-export async function deleteTag(id: number) {
+export async function deleteTag() {
     return { success: false, error: "Deprecated" }
 }
 
@@ -96,7 +96,7 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
 
                 return await tx.tagGroup.findUnique({
                     where: { id: data.id },
-                    include: { options: { orderBy: { order: 'asc' } } } as any
+                    include: { options: { orderBy: { order: 'asc' } } }
                 })
             })
         } else {
@@ -151,7 +151,7 @@ export async function reorderTagGroupsAction(items: { id: number, order: number 
     try {
         await prisma.$transaction(
             items.map(item =>
-                (prisma as any).tagGroup.update({
+                prisma.tagGroup.update({
                     where: { id: item.id },
                     data: { order: item.order }
                 })
@@ -192,7 +192,7 @@ export async function getAssetsForTagGroup(groupId: number) {
             .filter((c) => !c.parentId)
             .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-        const childrenMap = new Map<number, any[]>();
+        const childrenMap = new Map<number, (typeof categories[0])[]>();
         categories.forEach((c) => {
             if (c.parentId) {
                 const existing = childrenMap.get(c.parentId) || [];
@@ -201,7 +201,7 @@ export async function getAssetsForTagGroup(groupId: number) {
             }
         });
 
-        const sorted: any[] = [];
+        const sorted: (typeof categories[0])[] = [];
         roots.forEach((root) => {
             sorted.push(root);
             const children = (childrenMap.get(root.id) || []).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -233,11 +233,11 @@ export async function updateAssetTagMappings(groupId: number, mappings: { catego
         await prisma.$transaction(async (tx) => {
             for (const m of mappings) {
                 if (m.optionId === null) {
-                    await (tx as any).categoryTag.deleteMany({
+                    await tx.categoryTag.deleteMany({
                         where: { categoryId: m.categoryId, tagGroupId: groupId }
                     })
                 } else {
-                    await (tx as any).categoryTag.upsert({
+                    await tx.categoryTag.upsert({
                         where: {
                             categoryId_tagGroupId: {
                                 categoryId: m.categoryId,
