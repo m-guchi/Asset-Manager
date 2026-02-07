@@ -208,12 +208,8 @@ export default function TransactionsPage() {
     return (
         <div className="flex flex-col gap-6 p-4 md:p-8">
             <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">取引履歴</h1>
-                    <p className="text-muted-foreground">
-                        入出金の履歴管理と新規登録を行います（取得原価計算用）
-                    </p>
-                </div>
+                <div />
+
                 <Dialog open={open} onOpenChange={setOpen}>
                     <DialogTrigger asChild>
                         <Button>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Separator } from "@/components/ui/separator";
+import { PageTitle } from "@/components/page-title";
 
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -46,7 +47,7 @@ export default function RootLayout({
                                 <SidebarTrigger className="-ml-1" />
                                 <Separator orientation="vertical" className="mr-2 h-4" />
                                 <div className="flex items-center gap-2">
-                                    <Link href="/" className="font-semibold text-sm hover:text-primary transition-colors">Dashboard</Link>
+                                    <PageTitle />
                                 </div>
                             </header>
                             <div className="flex flex-1 flex-col gap-4 p-4 pt-0">

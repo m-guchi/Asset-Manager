@@ -154,12 +154,6 @@ export default function DataManagementPage() {
     return (
         <div className="flex flex-col gap-6 p-4 md:p-8">
             <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">データ管理</h1>
-                    <p className="text-muted-foreground">
-                        資産データのバックアップ・復元を行います。
-                    </p>
-                </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

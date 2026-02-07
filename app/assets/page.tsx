@@ -123,12 +123,6 @@ function AssetsContent() {
     return (
         <div className="flex flex-col gap-6 p-4 md:p-8">
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">資産管理</h1>
-                    <p className="text-muted-foreground">
-                        資産と、分類（グループ）の管理を行います。
-                    </p>
-                </div>
             </div>
 
             <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">

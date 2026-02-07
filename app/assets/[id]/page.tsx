@@ -289,20 +289,10 @@ export default function AssetDetailPage() {
                 <Link href={category?.parent ? `/assets/${category.parent.id}` : "/"} className="p-2 -ml-2 hover:bg-muted/50 rounded-full transition-colors">
                     <ArrowLeft className="h-5 w-5" />
                 </Link>
-                <div className="flex flex-col">
-                    <div className="flex items-center gap-2">
-                        {category?.parent && (
-                            <Link href={`/assets/${category.parent.id}`} className="text-xs text-muted-foreground hover:underline">
-                                {category.parent.name} /
-                            </Link>
-                        )}
-                        <h1 className="text-xl font-bold">{category?.name}</h1>
-                    </div>
-                </div>
             </div>
 
             {/* Main Stats */}
-            <div className={`grid grid-cols-1 ${category.isCash ? 'md:grid-cols-1' : 'md:grid-cols-3'} gap-4`}>
+            <div className={`grid grid-cols-1 ${category?.isCash ? 'md:grid-cols-1' : 'md:grid-cols-3'} gap-4`}>
                 <Card>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground">評価額</CardTitle>
@@ -397,20 +387,20 @@ export default function AssetDetailPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="h-[300px] w-full">
-                        {category.history && (
+                        {category?.history && (
                             <ChartContainer
                                 config={(() => {
                                     const c: Record<string, { label: string; color: string }> = {
                                         value: {
                                             label: "評価額",
-                                            color: category.color || "hsl(var(--primary))",
+                                            color: category?.color || "hsl(var(--primary))",
                                         },
                                         cost: {
                                             label: "取得原価",
                                             color: "hsl(var(--muted-foreground))",
                                         },
                                     };
-                                    if (category.children && category.children.length > 0) {
+                                    if (category?.children && category.children.length > 0) {
                                         category.children.forEach((child) => {
                                             c[`child_${child.id}`] = {
                                                 label: child.name,

@@ -105,12 +105,8 @@ export default function BulkValuationPage() {
     return (
         <div className="flex flex-col gap-6 p-4 md:p-8">
             <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">評価額一括更新</h1>
-                    <p className="text-muted-foreground">
-                        複数の資産の評価額を一度に更新します。
-                    </p>
-                </div>
+                <div />
+
                 <Button variant="outline" size="sm" onClick={() => setIsSettingsOpen(true)}>
                     <Settings className="mr-2 h-4 w-4" />
                     表示設定
