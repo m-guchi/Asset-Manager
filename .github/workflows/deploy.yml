@@ -123,7 +123,13 @@ jobs:
             # PM2で再起動
             echo "Restarting PM2..."
             pm2 delete asset-manager || true
-            PORT=3102 pm2 start npm --name asset-manager -- start
+            PORT=3102 \
+            NEXTAUTH_URL="${{ secrets.NEXTAUTH_URL }}" \
+            NEXTAUTH_SECRET="${{ secrets.NEXTAUTH_SECRET }}" \
+            AUTH_GOOGLE_ID="${{ secrets.AUTH_GOOGLE_ID }}" \
+            AUTH_GOOGLE_SECRET="${{ secrets.AUTH_GOOGLE_SECRET }}" \
+            AUTH_TRUST_HOST="true" \
+            pm2 start npm --name asset-manager -- start
 
             # ヘルスチェック（起動確認）
             echo "Waiting for app to start..."
