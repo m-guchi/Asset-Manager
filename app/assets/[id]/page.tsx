@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Plus, History, RefreshCw, Edit2, Trash2 } from "lucide-react"
+import { ArrowLeft, Plus, History, RefreshCw, Edit2, Trash2, ArrowUpRight, ArrowDownRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -91,7 +91,8 @@ export default function AssetDetailPage() {
         type: "VALUATION",
         amount: "",
         valuation: "",
-        memo: ""
+        memo: "",
+        realizedGain: undefined as number | undefined
     })
     const [isCalculateMode, setIsCalculateMode] = React.useState(false) // New state
     const [saleAmount, setSaleAmount] = React.useState("") // New state
@@ -102,8 +103,9 @@ export default function AssetDetailPage() {
         if (category && !editingItem) {
             setNewTrx(prev => ({
                 ...prev,
-                type: category.isCash ? "VALUATION" : "TRANSACTION",
-                valuation: category.currentValue.toString()
+                type: category.isCash ? "VALUATION" : "DEPOSIT",
+                valuation: category.currentValue.toString(),
+                realizedGain: undefined
             }))
         }
     }, [category, editingItem])
@@ -126,9 +128,10 @@ export default function AssetDetailPage() {
             } else {
                 const amt = Number(newTrx.amount) || 0
                 res = await addTransaction(id, {
-                    type: amt >= 0 ? "DEPOSIT" : "WITHDRAW",
+                    type: (newTrx.type === 'DEPOSIT' || newTrx.type === 'WITHDRAW') ? newTrx.type : (amt >= 0 ? "DEPOSIT" : "WITHDRAW"),
                     amount: Math.abs(amt),
                     valuation: newTrx.valuation ? Number(newTrx.valuation) : undefined,
+                    realizedGain: (newTrx.type === "WITHDRAW" || (newTrx.type === "TRANSACTION" && amt < 0)) ? newTrx.realizedGain : undefined,
                     date: new Date(newTrx.date),
                     memo: newTrx.memo
                 })
@@ -157,7 +160,6 @@ export default function AssetDetailPage() {
         }
     }
 
-
     const openEdit = (item: any) => {
         setEditingItem(item)
         // Calculate base valuation (valuation BEFORE this transaction)
@@ -167,13 +169,49 @@ export default function AssetDetailPage() {
 
         setNewTrx({
             date: new Date(item.date).toISOString().split('T')[0],
-            type: item.type === 'VALUATION' ? 'VALUATION' : 'TRANSACTION',
-            amount: signedAmount.toString(),
+            type: item.type,
+            amount: Math.abs(item.amount || 0).toString(), // Always set amount as positive for editing
             valuation: item.pointInTimeValuation?.toString() || "",
-            memo: item.memo || ""
+            memo: item.memo || "",
+            realizedGain: item.realizedGain
         })
+
+        if (item.realizedGain !== undefined && item.realizedGain !== null) {
+            const saleVal = Math.abs(item.amount) + item.realizedGain
+            setSaleAmount(saleVal.toString())
+        } else {
+            setSaleAmount("")
+        }
         setIsTrxModalOpen(true)
     }
+
+    const handleSaleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setSaleAmount(val);
+
+        if (!val || isNaN(Number(val))) {
+            setNewTrx(prev => ({ ...prev, amount: "", realizedGain: undefined }));
+            return;
+        }
+
+        const saleNum = Number(val);
+        if (baseValuation <= 0) { // Should not happen if category.currentValue is used for new transactions
+            setNewTrx(prev => ({ ...prev, amount: "", realizedGain: undefined }));
+            return;
+        }
+
+        // Calculate ratio based on baseValuation (valuation before this transaction)
+        const ratio = saleNum / baseValuation;
+        const reduction = Math.floor(category.costBasis * ratio);
+        const realized = saleNum - reduction;
+
+        setNewTrx(prev => ({
+            ...prev,
+            amount: reduction.toString(), // 元本減少分は正の値
+            realizedGain: realized,
+            valuation: (baseValuation - saleNum).toString()
+        }));
+    };
 
     if (isLoading && !category) {
         return <div className="p-8 text-center"><RefreshCw className="animate-spin inline mr-2" />読み込み中...</div>
@@ -186,6 +224,12 @@ export default function AssetDetailPage() {
     const profit = category.currentValue - category.costBasis
     const profitPercent = category.costBasis > 0 ? (profit / category.costBasis) * 100 : 0
     const isPositive = profit >= 0
+
+    const totalRealizedGain = category.transactions?.reduce((sum: number, tx: any) => sum + Number(tx.realizedGain || 0), 0) || 0;
+    const isRealizedPositive = totalRealizedGain >= 0;
+
+    const totalDeposit = category.transactions?.filter((tx: any) => tx.type === 'DEPOSIT').reduce((sum: number, tx: any) => sum + Math.abs(Number(tx.amount)), 0) || 0;
+    const totalWithdrawal = category.transactions?.filter((tx: any) => tx.type === 'WITHDRAW').reduce((sum: number, tx: any) => sum + Math.abs(Number(tx.amount)), 0) || 0;
 
     const formatXAxis = (tickItem: number) => {
         const date = new Date(tickItem)
@@ -212,19 +256,23 @@ export default function AssetDetailPage() {
             </div>
 
             {/* Main Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className={`grid grid-cols-1 ${category.isCash ? 'md:grid-cols-1' : 'md:grid-cols-3'} gap-4`}>
                 <Card>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground">評価額</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">¥{category.currentValue.toLocaleString()}</div>
-                        <div className={`text-sm mt-1 flex items-center gap-2 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                            {isPositive ? '+' : ''}¥{Math.abs(profit).toLocaleString()}
-                            <span className="text-xs bg-muted/20 px-1.5 py-0.5 rounded text-muted-foreground">
-                                {category.costBasis > 0 ? `${isPositive ? '+' : ''}${profitPercent.toFixed(1)}%` : '-'}
-                            </span>
+                        <div className="text-2xl font-bold">
+                            ¥{((category.isLiability ? -1 : 1) * category.currentValue).toLocaleString()}
                         </div>
+                        {!category.isCash && (
+                            <div className={`text-sm mt-1 flex items-center gap-2 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                                {isPositive ? '+' : ''}¥{Math.abs(profit).toLocaleString()}
+                                <span className="text-xs bg-muted/20 px-1.5 py-0.5 rounded text-muted-foreground">
+                                    {category.costBasis > 0 ? `${isPositive ? '+' : ''}${profitPercent.toFixed(1)}%` : '-'}
+                                </span>
+                            </div>
+                        )}
                         {/* Child Asset Breakdown */}
                         {category.children && category.children.length > 0 && (
                             <div className="mt-4 pt-4 border-t space-y-2">
@@ -235,28 +283,69 @@ export default function AssetDetailPage() {
                                             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: child.color }} />
                                             <span className="group-hover:underline">{child.name}</span>
                                         </div>
-                                        <span className="font-mono">¥{child.currentValue.toLocaleString()}</span>
+                                        <span className="font-mono">¥{((category.isLiability || child.isLiability ? -1 : 1) * child.currentValue).toLocaleString()}</span>
                                     </Link>
                                 ))}
                             </div>
                         )}
                     </CardContent>
                 </Card>
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">取得原価</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-muted-foreground">¥{category.costBasis.toLocaleString()}</div>
-                        <div className="text-sm mt-1 text-muted-foreground">
-                            元本: ¥{category.costBasis.toLocaleString()}
-                        </div>
-                    </CardContent>
-                </Card>
+                {!category.isCash && (
+                    <>
+                        <Card>
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-medium text-muted-foreground">取得原価</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold text-muted-foreground">¥{category.costBasis.toLocaleString()}</div>
+                                <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-dashed">
+                                    <div className="flex justify-between items-center text-xs">
+                                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                                            <div className="bg-green-100 dark:bg-green-900/30 p-1 rounded-full text-green-600 dark:text-green-400">
+                                                <ArrowDownRight className="h-3 w-3" />
+                                            </div>
+                                            <span>総入金額</span>
+                                        </div>
+                                        <span className="font-mono font-medium">¥{totalDeposit.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                                            <div className="bg-red-100 dark:bg-red-900/30 p-1 rounded-full text-red-600 dark:text-red-400">
+                                                <ArrowUpRight className="h-3 w-3" />
+                                            </div>
+                                            <span>総出金額</span>
+                                        </div>
+                                        <span className="font-mono font-medium">¥{totalWithdrawal.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-medium text-muted-foreground">累計実現損益</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className={`text-2xl font-bold ${isRealizedPositive ? 'text-green-600' : 'text-red-500'}`}>
+                                    {isRealizedPositive ? '+' : ''}¥{Math.abs(totalRealizedGain).toLocaleString()}
+                                </div>
+                                <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-dashed">
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-muted-foreground">売却受取額</span>
+                                        <span className="font-mono font-medium">¥{(totalWithdrawal + totalRealizedGain).toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-muted-foreground">元本減少額</span>
+                                        <span className="font-mono font-medium text-muted-foreground">-¥{totalWithdrawal.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </>
+                )}
             </div>
 
             {/* Chart Section */}
-            <Card>
+            < Card >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">資産推移</CardTitle>
                     <div className="flex bg-muted/50 rounded-md p-0.5 border">
@@ -445,7 +534,7 @@ export default function AssetDetailPage() {
                         )}
                     </div>
                 </CardContent>
-            </Card>
+            </Card >
 
             {/* Transaction History */}
             {/* Transaction History */}
@@ -476,11 +565,13 @@ export default function AssetDetailPage() {
                             setBaseValuation(category.currentValue)
                             setNewTrx({
                                 date: new Date().toISOString().split('T')[0],
-                                type: category.isCash ? "VALUATION" : "TRANSACTION",
+                                type: category.isCash ? "VALUATION" : "DEPOSIT",
                                 amount: "",
                                 valuation: category.currentValue.toString(),
-                                memo: ""
+                                memo: "",
+                                realizedGain: undefined
                             })
+                            setSaleAmount("")
                             setIsTrxModalOpen(true)
                         }} size="sm" className="h-9">
                             <Plus className="h-4 w-4 mr-2" />
@@ -529,7 +620,14 @@ export default function AssetDetailPage() {
                                             {item.amount !== 0 ? `¥${(item.type === 'WITHDRAW' ? -item.amount : item.amount).toLocaleString()}` : "-"}
                                         </TableCell>
                                         <TableCell className="text-right">
-                                            {(item.pointInTimeValuation !== null && item.pointInTimeValuation !== undefined) ? `¥${item.pointInTimeValuation.toLocaleString()}` : "-"}
+                                            <div className="flex flex-col items-end">
+                                                <span>{(item.pointInTimeValuation !== null && item.pointInTimeValuation !== undefined) ? `¥${item.pointInTimeValuation.toLocaleString()}` : "-"}</span>
+                                                {item.profitRatio !== undefined && item.profitRatio !== null && !category.isCash && (
+                                                    <span className={`text-xs ${item.profitRatio >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                                        {item.profitRatio >= 0 ? '+' : ''}{item.profitRatio.toFixed(1)}%
+                                                    </span>
+                                                )}
+                                            </div>
                                         </TableCell>
                                         <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{item.memo}</TableCell>
                                         <TableCell className="text-right">
@@ -557,15 +655,15 @@ export default function AssetDetailPage() {
                     setEditingItem(null)
                     setBaseValuation(0);
                     setSaleAmount("");
-                    setIsCalculateMode(false);
                 } else if (!editingItem) {
                     setBaseValuation(category.currentValue);
                     setNewTrx({
                         date: new Date().toISOString().split('T')[0],
-                        type: category.isCash ? "VALUATION" : "TRANSACTION",
+                        type: category.isCash ? "VALUATION" : "DEPOSIT",
                         amount: "",
                         valuation: category.currentValue.toString(),
-                        memo: ""
+                        memo: "",
+                        realizedGain: undefined
                     });
                 }
             }}>
@@ -594,7 +692,14 @@ export default function AssetDetailPage() {
                             <Input
                                 type="date"
                                 value={newTrx.date}
-                                onChange={(e) => setNewTrx({ ...newTrx, date: e.target.value })}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setNewTrx(prev => ({
+                                        ...prev,
+                                        date: val,
+                                        valuation: editingItem ? "" : prev.valuation
+                                    }));
+                                }}
                             />
                         </div>
 
@@ -602,98 +707,109 @@ export default function AssetDetailPage() {
                             <Label className="text-xs font-semibold">種別</Label>
                             <Select
                                 value={newTrx.type}
-                                onValueChange={(val) => setNewTrx({ ...newTrx, type: val })}
+                                onValueChange={(val) => {
+                                    setNewTrx({
+                                        ...newTrx,
+                                        type: val,
+                                        amount: "",
+                                        realizedGain: undefined,
+                                        valuation: baseValuation.toString()
+                                    })
+                                    setSaleAmount("")
+                                }}
                                 disabled={category.isCash || !!editingItem}
                             >
                                 <SelectTrigger>
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="TRANSACTION">入出金</SelectItem>
+                                    <SelectItem value="DEPOSIT">入金・投資</SelectItem>
+                                    <SelectItem value="WITHDRAW">売却・出金</SelectItem>
                                     <SelectItem value="VALUATION">評価額更新</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
-                        {newTrx.type === "TRANSACTION" && !category.isCash && (
-                            <>
+                        {/* Sale Amount Input for Withdrawal */}
+                        {newTrx.type === "WITHDRAW" && !category.isCash && (
+                            <div className="flex flex-col gap-2 mb-4">
+                                <Label className="text-xs font-semibold">売却金額 (手取り)</Label>
                                 <div className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        id="calcMode"
-                                        checked={isCalculateMode}
-                                        onChange={(e) => {
-                                            setIsCalculateMode(e.target.checked);
-                                            if (!e.target.checked) setSaleAmount("");
-                                        }}
-                                        className="rounded border-gray-300"
+                                    <Input
+                                        type="number"
+                                        placeholder="いくらで売れましたか？"
+                                        value={saleAmount}
+                                        onChange={handleSaleAmountChange}
+                                        className="font-mono"
                                     />
-                                    <label htmlFor="calcMode" className="text-sm cursor-pointer select-none">
-                                        売却額から元本減少分を自動計算
-                                    </label>
+                                    <span className="text-sm font-medium">円</span>
                                 </div>
+                                <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
+                                    <span>現在評価額に対する割合:</span>
+                                    <span className="font-mono">
+                                        {saleAmount && !isNaN(Number(saleAmount))
+                                            ? `${((Number(saleAmount) / (category.currentValue || 1)) * 100).toFixed(1)}%`
+                                            : "-"}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
 
-                                <div className="flex flex-col gap-2">
+                        {(newTrx.type === "DEPOSIT" || newTrx.type === "WITHDRAW") && !category.isCash && (
+                            <>
+                                <div className={`flex flex-col gap-2 ${newTrx.type === "WITHDRAW" ? "p-3 bg-muted/50 rounded-md border border-dashed" : ""}`}>
                                     <Label className="text-xs font-semibold">
-                                        {isCalculateMode ? "売却金額 (手取り)" : "取引金額 (マイナスで出金)"}
+                                        {newTrx.type === "WITHDRAW" ? "元本減少分 (自動計算可)" : "金額"}
                                     </Label>
-                                    {isCalculateMode ? (
-                                        <>
-                                            <Input
-                                                type="number"
-                                                placeholder="例: 100000"
-                                                value={saleAmount}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
-                                                    setSaleAmount(val);
-
-                                                    if (!val) {
-                                                        setNewTrx({ ...newTrx, amount: "" });
-                                                        return;
-                                                    }
-
-                                                    if (baseValuation <= 0) return;
-
-                                                    const ratio = Number(val) / baseValuation;
-                                                    const reduction = Math.floor(category.costBasis * ratio);
-
-                                                    setNewTrx({
-                                                        ...newTrx,
-                                                        amount: (-reduction).toString(),
-                                                        valuation: Math.floor(baseValuation - Number(val)).toString()
-                                                    });
-                                                }}
-                                            />
-                                            {saleAmount && (
-                                                <div className="mt-1 p-2 bg-muted/30 rounded border text-xs flex justify-between items-center">
-                                                    <span className="text-muted-foreground">計算される元本減少分:</span>
-                                                    <span className="font-mono font-bold text-destructive">-¥{Math.abs(Number(newTrx.amount)).toLocaleString()}</span>
-                                                </div>
-                                            )}
-                                        </>
-                                    ) : (
+                                    <div className="flex items-center gap-2">
                                         <Input
                                             type="number"
+                                            placeholder="金額"
                                             value={newTrx.amount}
                                             onChange={(e) => {
                                                 const val = e.target.value;
                                                 const numVal = Number(val);
+
+                                                let updatedRealizedGain = newTrx.realizedGain;
+                                                if (newTrx.type === "WITHDRAW" && saleAmount !== "" && !isNaN(numVal)) {
+                                                    updatedRealizedGain = Number(saleAmount) - numVal;
+                                                }
+
                                                 setNewTrx({
                                                     ...newTrx,
                                                     amount: val,
-                                                    valuation: !isNaN(numVal) ? (baseValuation + numVal).toString() : newTrx.valuation
+                                                    realizedGain: updatedRealizedGain,
+                                                    valuation: !isNaN(numVal) && newTrx.type === "DEPOSIT"
+                                                        ? (baseValuation + numVal).toString()
+                                                        : (!isNaN(numVal) && newTrx.type === "WITHDRAW" // 出金の場合はvaluationを減らす
+                                                            ? (baseValuation - Number(saleAmount || 0)).toString() // 売却額分減るのが自然？それとも元本分？通常は売却額分資産価値が減る（現金化される）
+                                                            : newTrx.valuation)
                                                 });
                                             }}
                                         />
+                                        <span className="text-sm font-medium">円</span>
+                                    </div>
+                                    {newTrx.type === "WITHDRAW" && (
+                                        <p className="text-[10px] text-muted-foreground">
+                                            ※売却金額を入力すると自動計算されますが、必要に応じて修正してください。
+                                        </p>
                                     )}
-                                    <p className="text-[10px] text-muted-foreground">
-                                        {isCalculateMode
-                                            ? "※この金額は元本計算のみに使用され、履歴には『元本の減少分』が記録されます。"
-                                            : "※この金額は「取得原価」の計算に利用されます。売却時は、売却額ではなく「元本の減少分」を入力するとグラフが正確になります。"}
-                                    </p>
                                 </div>
+
+                                {/* Realized Gain Display/Input */}
+                                {newTrx.type === "WITHDRAW" && (
+                                    <div className="flex flex-col gap-2 p-2 rounded bg-slate-50 dark:bg-slate-900 border">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs font-medium">実現損益</span>
+                                            <span className={`font-mono font-bold ${(newTrx.realizedGain || 0) >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                                {(newTrx.realizedGain || 0) >= 0 ? '+' : ''}{Number(newTrx.realizedGain || 0).toLocaleString()} 円
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
                             </>
                         )}
+
 
                         <div className="flex flex-col gap-2">
                             <Label className="text-xs font-semibold">取引後/更新後の評価額</Label>
@@ -719,6 +835,6 @@ export default function AssetDetailPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     )
 }

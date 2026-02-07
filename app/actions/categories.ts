@@ -445,7 +445,8 @@ export async function getCategoryDetails(id: number) {
             pointInTimeValuation: null,
             categoryName: catName,
             categoryColor: catColor,
-            categoryId: catId
+            categoryId: catId,
+            realizedGain: t.realizedGain
         });
 
         const formatAsset = (a: any, catName: string, catColor: string, catId: number) => ({
@@ -515,6 +516,24 @@ export async function getCategoryDetails(id: number) {
             } else {
                 // No merge needed
                 groupItems.forEach(i => mergedList.push(i));
+            }
+        });
+
+        // Enrich transactions with profit/loss ratio from history
+        mergedList.forEach((item: any) => {
+            const dateStr = item.date.split('T')[0];
+            const historyItem = history.find((h: any) => h.date.startsWith(dateStr));
+
+            if (historyItem && historyItem.cost > 0) {
+                const profit = historyItem.value - historyItem.cost;
+                item.profitRatio = (profit / historyItem.cost) * 100;
+
+                // Ensure valuation is set if missing (e.g. transaction only days)
+                if (item.pointInTimeValuation === null || item.pointInTimeValuation === undefined) {
+                    item.pointInTimeValuation = historyItem.value;
+                }
+            } else {
+                item.profitRatio = null;
             }
         });
 

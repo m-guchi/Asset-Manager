@@ -1,6 +1,6 @@
 {
   "name": "asset-manager",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "scripts": {
     "tunnel:start": "ssh -L 3307:localhost:3306 -p 19622 -f -N guchi@18.178.75.179",
@@ -8,6 +8,7 @@
     "tunnel:check": "lsof -i :3307 || echo 'No tunnel running'",
     "dev": "next dev",
     "dev:tunnel": "npm run tunnel:kill && npm run tunnel:start && next dev",
+    "migrate": "prisma migrate dev",
     "prod": "env-cmd -f .env.prod-local next dev",
     "prod:tunnel": "npm run tunnel:kill && npm run tunnel:start && env-cmd -f .env.prod-local next dev",
     "build": "next build",

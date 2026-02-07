@@ -27,6 +27,7 @@ export async function updateValuation(categoryId: number, value: number, recorde
 export async function addTransaction(categoryId: number, data: {
     type: "DEPOSIT" | "WITHDRAW" | "VALUATION"
     amount: number
+    realizedGain?: number
     valuation?: number // Optional
     date: Date
     memo?: string
@@ -38,6 +39,7 @@ export async function addTransaction(categoryId: number, data: {
                     categoryId,
                     type: data.type as TransactionType,
                     amount: data.amount,
+                    realizedGain: data.realizedGain,
                     transactedAt: data.date,
                     memo: data.memo
                 }
@@ -146,7 +148,9 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: any
             if (!oldTx) return { success: false }
 
             const amt = Number(data.amount) || 0
-            const txType = data.type === 'VALUATION' ? 'VALUATION' : (amt >= 0 ? 'DEPOSIT' : 'WITHDRAW')
+            const txType = (data.type === 'DEPOSIT' || data.type === 'WITHDRAW')
+                ? data.type
+                : (data.type === 'VALUATION' ? 'VALUATION' : (amt >= 0 ? 'DEPOSIT' : 'WITHDRAW'))
 
             const operations: any[] = [
                 prisma.transaction.update({
@@ -154,18 +158,33 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: any
                     data: {
                         type: txType as TransactionType,
                         amount: Math.abs(amt),
+                        realizedGain: data.realizedGain !== undefined ? Number(data.realizedGain) : undefined,
                         transactedAt: new Date(data.date),
                         memo: data.memo
                     }
-                }),
-                // Delete old asset record associated with the OLD date of transaction
-                prisma.asset.deleteMany({
-                    where: {
-                        categoryId: oldTx.categoryId,
-                        recordedAt: oldTx.transactedAt
-                    }
                 })
             ];
+
+            // Check if there are other transactions on the OLD date
+            const otherTxCount = await prisma.transaction.count({
+                where: {
+                    categoryId: oldTx.categoryId,
+                    transactedAt: oldTx.transactedAt,
+                    id: { not: id }
+                }
+            });
+
+            if (otherTxCount === 0) {
+                // Only delete asset record if no other transactions exist on that day
+                operations.push(
+                    prisma.asset.deleteMany({
+                        where: {
+                            categoryId: oldTx.categoryId,
+                            recordedAt: oldTx.transactedAt
+                        }
+                    })
+                );
+            }
 
             // Create new asset record only if valuation is provided
             if (data.valuation !== undefined && data.valuation !== null && data.valuation !== "") {

@@ -592,7 +592,7 @@ function TagGroupManagement({ tagGroups, onRefresh, categories }: { tagGroups: a
             </CardContent>
 
             <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingGroup(null); }}>
-                <DialogContent>
+                <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw]">
                     <DialogHeader>
                         <DialogTitle>{editingGroup ? "グループの編集" : "新規グループ作成"}</DialogTitle>
                         <DialogDescription>グループ名と、その選択肢を定義します。</DialogDescription>
@@ -687,8 +687,8 @@ function TagGroupForm({ initialData, onSave, onApply, onCancel }: any) {
     }
 
     return (
-        <div className="py-2">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="py-2 w-full max-w-full overflow-hidden">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-full">
                 <TabsList className="grid w-full grid-cols-2 mb-4">
                     <TabsTrigger value="settings">基本設定</TabsTrigger>
                     <TabsTrigger value="assets" disabled={!initialData?.id}>資産の割り当て</TabsTrigger>
@@ -854,8 +854,8 @@ function TagGroupAssetManager({ groupId, options }: { groupId: number, options: 
     }
 
     return (
-        <div className="space-y-4">
-            <div className="flex justify-between items-center mb-2">
+        <div className="space-y-4 w-full max-w-full overflow-hidden">
+            <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
                 <div className="flex-1 max-w-sm mr-4">
                     <div className="relative">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -873,33 +873,37 @@ function TagGroupAssetManager({ groupId, options }: { groupId: number, options: 
                 </Button>
             </div>
 
-            <div className="flex items-center gap-2 p-2 bg-muted/20 rounded-md border mb-2">
-                <Checkbox
-                    checked={filteredAssets.length > 0 && selectedAssetIds.length === filteredAssets.length}
-                    onCheckedChange={toggleSelectAll}
-                />
-                <span className="text-sm text-muted-foreground mr-2">{selectedAssetIds.length > 0 ? `${selectedAssetIds.length}件選択中` : "すべて選択"}</span>
+            <div className="flex flex-wrap items-center gap-2 p-2 bg-muted/20 rounded-md border mb-2">
+                <div className="flex items-center gap-2">
+                    <Checkbox
+                        checked={filteredAssets.length > 0 && selectedAssetIds.length === filteredAssets.length}
+                        onCheckedChange={toggleSelectAll}
+                    />
+                    <span className="text-sm text-muted-foreground mr-2">{selectedAssetIds.length > 0 ? `${selectedAssetIds.length}件選択中` : "すべて選択"}</span>
+                </div>
 
-                <Select onValueChange={applyBulkType} disabled={selectedAssetIds.length === 0}>
-                    <SelectTrigger className="h-8 w-[180px]">
-                        <SelectValue placeholder="一括適用..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="unselected">未設定にする</SelectItem>
-                        {options.map(opt => (
-                            opt.id ? <SelectItem key={opt.id} value={opt.id.toString()}>{opt.name}</SelectItem> : null
-                        ))}
-                    </SelectContent>
-                </Select>
+                <div className="flex-1 min-w-[140px]">
+                    <Select onValueChange={applyBulkType} disabled={selectedAssetIds.length === 0}>
+                        <SelectTrigger className="h-8 w-full">
+                            <SelectValue placeholder="一括適用..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="unselected">未設定にする</SelectItem>
+                            {options.map(opt => (
+                                opt.id ? <SelectItem key={opt.id} value={opt.id.toString()}>{opt.name}</SelectItem> : null
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
             </div>
 
-            <div className="border rounded-md overflow-hidden max-h-[400px] overflow-y-auto">
-                <Table>
+            <div className="border rounded-md overflow-hidden max-h-[400px] overflow-y-auto overflow-x-auto">
+                <Table className="min-w-[400px]">
                     <TableHeader className="bg-muted/50 sticky top-0 z-10">
                         <TableRow>
-                            <TableHead className="w-[40px]"></TableHead>
-                            <TableHead className="w-[60%]">資産名</TableHead>
-                            <TableHead>分類</TableHead>
+                            <TableHead className="w-[40px] px-2"></TableHead>
+                            <TableHead className="min-w-[120px]">資産名</TableHead>
+                            <TableHead className="min-w-[120px]">分類</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
