@@ -2,6 +2,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
 import GoogleProvider from "next-auth/providers/google"
 import { NextAuthOptions } from "next-auth"
+import { seedDummyData } from "@/lib/db/seed"
 
 export const authOptions: NextAuthOptions = {
     adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],
@@ -11,17 +12,27 @@ export const authOptions: NextAuthOptions = {
             clientSecret: process.env.AUTH_GOOGLE_SECRET!,
         }),
     ],
+    session: {
+        strategy: "jwt"
+    },
     callbacks: {
-        session({ session, user }) {
-            if (session.user) {
-                session.user.id = user.id
+        session({ session, token }) {
+            if (session.user && token.sub) {
+                session.user.id = token.sub
             }
             return session
         },
     },
+    events: {
+        async createUser({ user }) {
+            if (user.id) {
+                await seedDummyData(user.id);
+            }
+        },
+    },
     pages: {
-        signIn: "/asset-manager/login",
-        error: "/asset-manager/login",
+        signIn: "/login",
+        error: "/login",
     },
     secret: process.env.NEXTAUTH_SECRET,
     debug: process.env.NODE_ENV === "development",

@@ -39,6 +39,8 @@ export function PageTitle() {
                 setTitle("データ管理")
             } else if (pathname === "/settings") {
                 setTitle("設定")
+            } else if (pathname === "/profile") {
+                setTitle("プロフィール")
             } else {
                 setTitle("資産管理")
             }

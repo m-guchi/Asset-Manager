@@ -1,11 +1,12 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
+import { redirect } from "next/navigation"
 
-export async function getCurrentUserId(): Promise<string> {
+export async function getCurrentUserId(): Promise<string | null> {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-        throw new Error("Unauthorized: User not authenticated")
+        return null
     }
 
     return session.user.id

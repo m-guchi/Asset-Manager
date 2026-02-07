@@ -9,8 +9,10 @@ import {
     Wallet,
     ArrowRightLeft,
     Database,
+    LogOut,
+    User,
 } from "lucide-react"
-
+import { signOut } from "next-auth/react"
 import {
     Sidebar,
     SidebarContent,
@@ -49,6 +51,11 @@ const data = {
     ],
     navSecondary: [
         {
+            title: "プロフィール",
+            url: "/profile",
+            icon: User,
+        },
+        {
             title: "データ管理",
             url: "/data-management",
             icon: Database,
@@ -64,6 +71,10 @@ const data = {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const { isMobile, setOpenMobile } = useSidebar()
 
+    const handleLogout = () => {
+        signOut({ callbackUrl: "/asset-manager/login" })
+    }
+
     return (
         <Sidebar collapsible="icon" {...props} className="border-r-0">
             <SidebarHeader>
@@ -71,7 +82,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
                             <Link href="/" onClick={() => isMobile && setOpenMobile(false)}>
-                                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-zinc-100 border border-zinc-200 shadow-sm overflow-hidden dark:bg-zinc-800 dark:border-zinc-700">
                                     <Image src="/asset-manager/icon.svg" alt="App Logo" className="size-4" width={16} height={16} />
                                 </div>
                                 <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
@@ -114,6 +125,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                     ))}
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            tooltip="ログアウト"
+                            size="lg"
+                            onClick={handleLogout}
+                            className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                        >
+                            <LogOut className="size-4" />
+                            <span className="text-sm font-medium group-data-[collapsible=icon]:hidden">ログアウト</span>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
                 </SidebarMenu>
                 <div className="p-2 pb-6 text-[10px] text-center text-muted-foreground opacity-30 group-data-[collapsible=icon]:hidden">
                     version {process.env.NEXT_PUBLIC_APP_VERSION}
