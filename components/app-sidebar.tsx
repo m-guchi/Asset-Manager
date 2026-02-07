@@ -9,7 +9,9 @@ import {
     Wallet,
     ArrowRightLeft,
     Database,
+    LogOut,
 } from "lucide-react"
+import { signOut } from "next-auth/react"
 
 import {
     Sidebar,
@@ -64,6 +66,10 @@ const data = {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const { isMobile, setOpenMobile } = useSidebar()
 
+    const handleLogout = () => {
+        signOut({ callbackUrl: "/asset-manager/login" })
+    }
+
     return (
         <Sidebar collapsible="icon" {...props} className="border-r-0">
             <SidebarHeader>
@@ -114,6 +120,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                     ))}
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            tooltip="ログアウト"
+                            size="lg"
+                            onClick={handleLogout}
+                            className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                        >
+                            <LogOut className="size-4" />
+                            <span className="text-sm font-medium group-data-[collapsible=icon]:hidden">ログアウト</span>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
                 </SidebarMenu>
                 <div className="p-2 pb-6 text-[10px] text-center text-muted-foreground opacity-30 group-data-[collapsible=icon]:hidden">
                     version {process.env.NEXT_PUBLIC_APP_VERSION}

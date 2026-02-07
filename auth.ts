@@ -11,17 +11,20 @@ export const authOptions: NextAuthOptions = {
             clientSecret: process.env.AUTH_GOOGLE_SECRET!,
         }),
     ],
+    session: {
+        strategy: "jwt"
+    },
     callbacks: {
-        session({ session, user }) {
-            if (session.user) {
-                session.user.id = user.id
+        session({ session, token }) {
+            if (session.user && token.sub) {
+                session.user.id = token.sub
             }
             return session
         },
     },
     pages: {
-        signIn: "/asset-manager/login",
-        error: "/asset-manager/login",
+        signIn: "/login",
+        error: "/login",
     },
     secret: process.env.NEXTAUTH_SECRET,
     debug: process.env.NODE_ENV === "development",
