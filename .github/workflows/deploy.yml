@@ -103,11 +103,21 @@ jobs:
 
             # DBマイグレーション実行
             echo "Running migrations..."
-            # サーバー上でも念のため generate する
             npx prisma generate
             npx prisma migrate deploy
+
+            # DB接続・データ取得テスト
+            echo "Testing production DB data retrieval..."
+            # npx tsx を使って TypeScript 実行
+            npx -y tsx scripts/test-db-connection.ts
 
             # PM2で再起動
             echo "Restarting PM2..."
             pm2 delete asset-manager || true
             PORT=3102 pm2 start npm --name asset-manager -- start
+
+            # ヘルスチェック（起動確認）
+            echo "Waiting for app to start..."
+            sleep 10
+            curl -f http://localhost:3102 || (echo "Health check failed!" && exit 1)
+            echo "Deployment successful and app is running."
