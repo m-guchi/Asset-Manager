@@ -91,6 +91,18 @@ export default function AssetDetailPage() {
     const [editingItem, setEditingItem] = React.useState<TransactionItem | null>(null)
     const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
     const [deletingItemId, setDeletingItemId] = React.useState<string | null>(null)
+    const [isMounted, setIsMounted] = React.useState(false)
+
+    React.useEffect(() => {
+        setIsMounted(true)
+        const savedRange = localStorage.getItem("defaultTimeRange")
+        if (savedRange) setTimeRange(savedRange)
+    }, [])
+
+    const handleTimeRangeChange = (range: string) => {
+        setTimeRange(range)
+        localStorage.setItem("defaultTimeRange", range)
+    }
 
     const fetchData = React.useCallback(async () => {
         setIsLoading(true)
@@ -277,20 +289,10 @@ export default function AssetDetailPage() {
                 <Link href={category?.parent ? `/assets/${category.parent.id}` : "/"} className="p-2 -ml-2 hover:bg-muted/50 rounded-full transition-colors">
                     <ArrowLeft className="h-5 w-5" />
                 </Link>
-                <div className="flex flex-col">
-                    <div className="flex items-center gap-2">
-                        {category?.parent && (
-                            <Link href={`/assets/${category.parent.id}`} className="text-xs text-muted-foreground hover:underline">
-                                {category.parent.name} /
-                            </Link>
-                        )}
-                        <h1 className="text-xl font-bold">{category?.name}</h1>
-                    </div>
-                </div>
             </div>
 
             {/* Main Stats */}
-            <div className={`grid grid-cols-1 ${category.isCash ? 'md:grid-cols-1' : 'md:grid-cols-3'} gap-4`}>
+            <div className={`grid grid-cols-1 ${category?.isCash ? 'md:grid-cols-1' : 'md:grid-cols-3'} gap-4`}>
                 <Card>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground">評価額</CardTitle>
@@ -379,42 +381,26 @@ export default function AssetDetailPage() {
             </div>
 
             {/* Chart Section */}
-            < Card >
+            <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">資産推移</CardTitle>
-                    <div className="flex bg-muted/50 rounded-md p-0.5 border">
-                        {["1M", "3M", "1Y", "ALL"].map((range) => {
-                            const label = { "1M": "1ヶ月", "3M": "3ヶ月", "1Y": "1年", "ALL": "全期間" }[range] || range;
-                            return (
-                                <button
-                                    key={range}
-                                    onClick={() => setTimeRange(range)}
-                                    className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${timeRange === range
-                                        ? "bg-background text-foreground shadow-sm"
-                                        : "text-muted-foreground hover:text-foreground"}`}
-                                >
-                                    {label}
-                                </button>
-                            )
-                        })}
-                    </div>
                 </CardHeader>
                 <CardContent>
                     <div className="h-[300px] w-full">
-                        {category.history && (
+                        {category?.history && (
                             <ChartContainer
                                 config={(() => {
                                     const c: Record<string, { label: string; color: string }> = {
                                         value: {
                                             label: "評価額",
-                                            color: category.color || "hsl(var(--primary))",
+                                            color: category?.color || "hsl(var(--primary))",
                                         },
                                         cost: {
                                             label: "取得原価",
                                             color: "hsl(var(--muted-foreground))",
                                         },
                                     };
-                                    if (category.children && category.children.length > 0) {
+                                    if (category?.children && category.children.length > 0) {
                                         category.children.forEach((child) => {
                                             c[`child_${child.id}`] = {
                                                 label: child.name,
@@ -428,7 +414,7 @@ export default function AssetDetailPage() {
                             >
                                 <ComposedChart
                                     data={(() => {
-                                        if (!category.history || category.history.length === 0) return []
+                                        if (!category?.history || category.history.length === 0) return []
 
                                         const now = new Date()
                                         const cutoff = new Date()
@@ -441,7 +427,7 @@ export default function AssetDetailPage() {
                                         else if (timeRange === "1Y") cutoff.setFullYear(now.getFullYear() - 1)
                                         else isAll = true
 
-                                        const multiplier = category.isLiability ? -1 : 1;
+                                        const multiplier = category?.isLiability ? -1 : 1;
 
                                         interface HistoryRecord {
                                             date: number;
@@ -450,7 +436,7 @@ export default function AssetDetailPage() {
                                             [key: string]: number;
                                         }
 
-                                        const allData: HistoryRecord[] = category.history.map((h) => {
+                                        const allData: HistoryRecord[] = category?.history?.map((h) => {
                                             const hRecord = h as Record<string, string | number>;
                                             const point: HistoryRecord = {
                                                 date: new Date(hRecord.date).getTime(),
@@ -576,10 +562,29 @@ export default function AssetDetailPage() {
                             </ChartContainer>
                         )}
                     </div>
+                    {isMounted && (
+                        <div className="flex items-center justify-between px-4 pb-4 mt-2">
+                            <div className="flex bg-muted/50 rounded-md p-0.5 border">
+                                {["1M", "3M", "1Y", "ALL"].map((range) => {
+                                    const label = { "1M": "1ヶ月", "3M": "3ヶ月", "1Y": "1年", "ALL": "全期間" }[range] || range;
+                                    return (
+                                        <button
+                                            key={range}
+                                            onClick={() => handleTimeRangeChange(range)}
+                                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${timeRange === range
+                                                ? "bg-background text-foreground shadow-sm"
+                                                : "text-muted-foreground hover:text-foreground"}`}
+                                        >
+                                            {label}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
-            </Card >
+            </Card>
 
-            {/* Transaction History */}
             {/* Transaction History */}
             <div className="flex flex-col gap-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -710,7 +715,7 @@ export default function AssetDetailPage() {
                     });
                 }
             }}>
-                <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
+                <DialogContent onOpenAutoFocus={(e) => e.preventDefault()} className="max-h-[90vh] flex flex-col overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>{editingItem ? "履歴を編集" : "履歴を追加"}</DialogTitle>
                         <DialogDescription>{editingItem ? "過去の記録を修正します。" : "入出金または評価額の更新を記録します。"}</DialogDescription>
