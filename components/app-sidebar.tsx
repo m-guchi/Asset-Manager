@@ -68,7 +68,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                                     <PieChart className="size-4" />
                                 </div>
-                                <div className="grid flex-1 text-left text-sm leading-tight">
+                                <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                                     <span className="truncate font-semibold uppercase tracking-widest">
                                         ASSETS
                                     </span>
@@ -82,13 +82,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </SidebarMenu>
             </SidebarHeader>
             <SidebarContent>
-                <SidebarMenu className="p-3 gap-2.5">
+                <SidebarMenu className="p-2 gap-2.5">
                     {data.navMain.map((item) => (
                         <SidebarMenuItem key={item.title}>
                             <SidebarMenuButton asChild tooltip={item.title} size="lg">
                                 <Link href={item.url} onClick={() => isMobile && setOpenMobile(false)}>
                                     <item.icon />
-                                    <span className="text-sm font-medium">{item.title}</span>
+                                    <span className="text-sm font-medium group-data-[collapsible=icon]:hidden">{item.title}</span>
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
@@ -97,19 +97,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarContent>
             <SidebarFooter className="mt-auto">
                 <div className="mx-4 mb-3 border-t pt-2 opacity-50" />
-                <SidebarMenu className="p-3 pt-0 gap-2.5">
+                <SidebarMenu className="p-2 pt-0 gap-2.5">
                     {data.navSecondary.map((item) => (
                         <SidebarMenuItem key={item.title}>
                             <SidebarMenuButton asChild tooltip={item.title} size="lg">
                                 <Link href={item.url} onClick={() => isMobile && setOpenMobile(false)}>
                                     <item.icon />
-                                    <span className="text-sm font-medium">{item.title}</span>
+                                    <span className="text-sm font-medium group-data-[collapsible=icon]:hidden">{item.title}</span>
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                     ))}
                 </SidebarMenu>
-                <div className="p-2 pb-6 text-[10px] text-center text-muted-foreground opacity-30">
+                <div className="p-2 pb-6 text-[10px] text-center text-muted-foreground opacity-30 group-data-[collapsible=icon]:hidden">
                     version {process.env.NEXT_PUBLIC_APP_VERSION}
                 </div>
             </SidebarFooter>
