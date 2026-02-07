@@ -22,7 +22,9 @@ export default async function middleware(request: NextRequest) {
         pathname.includes("/api/auth") ||
         pathname.includes("_next") ||
         pathname.includes("favicon.ico") ||
-        pathname.includes("manifest.json")
+        pathname.includes("manifest.json") ||
+        pathname.includes("/terms") ||
+        pathname.includes("/privacy")
     ) {
         return NextResponse.next()
     }

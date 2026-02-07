@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Hexagon } from "lucide-react"
+import Link from "next/link"
 
 export default function LoginPage() {
     const [isLoading, setIsLoading] = React.useState<string | null>(null)
@@ -81,9 +82,9 @@ export default function LoginPage() {
                     <div className="pt-6 text-center">
                         <p className="text-sm text-muted-foreground">
                             ログインすることで、
-                            <a href="#" className="underline underline-offset-4 hover:text-foreground transition-colors">利用規約</a>
+                            <Link href="/terms" className="underline underline-offset-4 hover:text-foreground transition-colors">利用規約</Link>
                             と
-                            <a href="#" className="underline underline-offset-4 hover:text-foreground transition-colors">プライバシーポリシー</a>
+                            <Link href="/privacy" className="underline underline-offset-4 hover:text-foreground transition-colors">プライバシーポリシー</Link>
                             に同意したものとみなされます。
                         </p>
                     </div>
