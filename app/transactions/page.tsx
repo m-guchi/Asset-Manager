@@ -220,7 +220,7 @@ export default function TransactionsPage() {
                             <Plus className="mr-2 h-4 w-4" /> 新規取引を追加
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[425px]">
+                    <DialogContent className="sm:max-w-[425px]" onOpenAutoFocus={(e) => e.preventDefault()}>
                         <DialogHeader>
                             <DialogTitle>取引履歴の登録</DialogTitle>
                             <DialogDescription>
