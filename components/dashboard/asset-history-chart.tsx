@@ -65,7 +65,8 @@ export function AssetHistoryChart({
     const activeKeys = React.useMemo(() => {
         if (mode === "tag") {
             const grp = tagGroups.find(g => g.id === selectedTagGroup)
-            return grp?.options?.map(o => o.name) || grp?.tags || []
+            const keys = grp?.options?.map(o => o.name) || grp?.tags || []
+            return Array.from(new Set(keys.map(k => String(k).trim())))
         }
         return []
     }, [mode, selectedTagGroup, tagGroups])
@@ -118,10 +119,10 @@ export function AssetHistoryChart({
             totalCost: { label: "取得原価", color: "#888888" },
         }
         activeKeys.forEach((key) => {
-            config[`tag_${key}`] = { label: key }
+            config[`tag_${selectedTagGroup}_${key}`] = { label: key }
         })
         return config
-    }, [activeKeys])
+    }, [activeKeys, selectedTagGroup])
 
     if (!isMounted) {
         return (
@@ -205,7 +206,8 @@ export function AssetHistoryChart({
                                             </>
                                         ) : (
                                             activeKeys.map((key, i) => {
-                                                const val = activePoint[`tag_${key}`] || 0
+                                                const k = `tag_${selectedTagGroup}_${key}`
+                                                const val = activePoint[k] || 0
                                                 if (val === 0) return null
                                                 const color = `var(--chart-${(i % 5) + 1})`
                                                 return (
@@ -214,7 +216,7 @@ export function AssetHistoryChart({
                                                         <span className="text-[9px] text-muted-foreground font-bold">{key}</span>
                                                         <span className="text-[11px] font-bold">
                                                             {showPercent
-                                                                ? `${((val / (activeKeys.reduce((a, k) => a + (activePoint[`tag_${k}`] || 0), 0) || 1)) * 100).toFixed(1)}%`
+                                                                ? `${((val / (activeKeys.reduce((a, k) => a + (activePoint[`tag_${selectedTagGroup}_${k}`] || 0), 0) || 1)) * 100).toFixed(1)}%`
                                                                 : `¥${Math.round(val).toLocaleString()}`
                                                             }
                                                         </span>
@@ -306,7 +308,7 @@ export function AssetHistoryChart({
                                     {mode === "tag" && activeKeys.map((key, i) => (
                                         <Area
                                             key={key}
-                                            dataKey={`tag_${key}`}
+                                            dataKey={`tag_${selectedTagGroup}_${key}`}
                                             stackId="1"
                                             type={showPercent ? "linear" : "monotone"}
                                             stroke={`var(--chart-${(i % 5) + 1})`}
@@ -362,6 +364,7 @@ export function AssetHistoryChart({
                     </div>
                 </ChartContainer>
             </CardContent>
+
         </Card>
     )
 }

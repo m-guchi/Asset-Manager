@@ -1,5 +1,6 @@
 "use server"
 
+// Updated History Action with GroupID support
 import { prisma } from "@/lib/prisma"
 
 interface HistoryPoint {
@@ -11,7 +12,7 @@ interface HistoryPoint {
 
 export async function getHistoryData() {
     try {
-        console.log("[getHistoryData] Starting fetch...");
+        console.log("[getHistoryData] Starting fetch... (v2-group-aware)");
 
         // 1. Fetch all data at once to minimize DB pressure
         const [historyRecords, categories] = await Promise.all([
@@ -45,12 +46,19 @@ export async function getHistoryData() {
             }
         });
 
-        const effectiveTagCache = new Map<number, string[]>();
-        const getEffectiveTags = (id: number): string[] => {
+        // Cache stores { name, groupId } objects now
+        const effectiveTagCache = new Map<number, { name: string, groupId: number }[]>();
+
+        const getEffectiveTags = (id: number): { name: string, groupId: number }[] => {
             if (effectiveTagCache.has(id)) return effectiveTagCache.get(id)!;
             const cat = categoryMap.get(id);
             if (!cat) return [];
-            let tags = (cat.tags as any[]).map((t: any) => t.tagOption?.name).filter(Boolean);
+
+            let tags = (cat.tags as any[]).map((t: any) => ({
+                name: t.tagOption?.name?.trim(),
+                groupId: t.tagGroupId
+            })).filter(t => t.name);
+
             if (tags.length === 0 && cat.parentId) {
                 tags = getEffectiveTags(cat.parentId);
             }
@@ -116,8 +124,17 @@ export async function getHistoryData() {
                 const val = (latestValues.get(cat.id) || 0) * (cat.isLiability ? -1 : 1);
                 if (val !== 0) {
                     const tags = getEffectiveTags(cat.id);
+
+                    // Deduplicate based on groupId + name to ensure uniqueness within the category context
+                    const uniqueTagsMap = new Map<string, { name: string, groupId: number }>();
                     tags.forEach(t => {
-                        const key = `tag_${t}`;
+                        const compositeKey = `${t.groupId}_${t.name}`;
+                        uniqueTagsMap.set(compositeKey, t);
+                    });
+
+                    uniqueTagsMap.forEach(t => {
+                        // Key includes groupId to distinguish identical names in different groups
+                        const key = `tag_${t.groupId}_${t.name}`;
                         point[key] = (Number(point[key]) || 0) + val;
                     });
                 }
