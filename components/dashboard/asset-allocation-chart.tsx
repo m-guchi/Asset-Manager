@@ -239,8 +239,7 @@ export function AssetAllocationChart({
                                         <text
                                             x={x}
                                             y={y}
-                                            fill="white"
-                                            className="text-[9px] md:text-[10px] font-bold pointer-events-none"
+                                            className="fill-foreground text-[9px] md:text-[10px] font-bold pointer-events-none"
                                             textAnchor="middle"
                                             dominantBaseline="central"
                                         >
