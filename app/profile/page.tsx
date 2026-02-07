@@ -23,10 +23,6 @@ export default function ProfilePage() {
 
     return (
         <div className="flex flex-col gap-6 p-4 md:p-8 max-w-4xl mx-auto">
-            <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold tracking-tight">プロフィール</h1>
-            </div>
-
             <div className="grid gap-6">
                 {/* User Info Card */}
                 <Card className="overflow-hidden border-none shadow-lg bg-gradient-to-br from-zinc-50 to-white dark:from-zinc-900 dark:to-zinc-950">
