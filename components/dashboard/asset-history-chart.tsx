@@ -229,16 +229,28 @@ export function AssetHistoryChart({
                             )}
                         </div>
 
-                        <div className="flex-1 w-full min-h-0 px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex-1 w-full min-h-0 px-2 py-2" onClick={(e) => e.stopPropagation()} style={{ touchAction: "none" }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <ComposedChart
                                     data={filteredData}
-                                    onMouseMove={(e) => {
+                                    onMouseMove={(e: any) => {
                                         if (!isLocked && e && e.activePayload) {
                                             setActivePoint(e.activePayload[0].payload)
                                         }
                                     }}
-                                    onClick={(e) => {
+                                    // @ts-ignore
+                                    onTouchStart={(e: any) => {
+                                        if (!isLocked && e && e.activePayload) {
+                                            setActivePoint(e.activePayload[0].payload)
+                                        }
+                                    }}
+                                    // @ts-ignore
+                                    onTouchMove={(e: any) => {
+                                        if (!isLocked && e && e.activePayload) {
+                                            setActivePoint(e.activePayload[0].payload)
+                                        }
+                                    }}
+                                    onClick={(e: any) => {
                                         if (e && e.activePayload) {
                                             setActivePoint(e.activePayload[0].payload)
                                             setIsLocked(true)
@@ -270,8 +282,11 @@ export function AssetHistoryChart({
                                         domain={showPercent ? [0, 1] : ['auto', 'auto']}
                                     />
                                     <Tooltip
-                                        content={() => null}
-                                        cursor={{ stroke: 'currentColor', strokeDasharray: '3 3', strokeOpacity: 0.4 }}
+                                        content={(props: any) => (
+                                            <TooltipUpdater {...props} onUpdate={setActivePoint} isLocked={isLocked} />
+                                        )}
+                                        cursor={false}
+                                        isAnimationActive={false}
                                     />
                                     {activePoint && (
                                         <ReferenceLine x={activePoint.timestamp} stroke="currentColor" strokeOpacity={0.4} strokeWidth={1} />
@@ -367,4 +382,15 @@ export function AssetHistoryChart({
 
         </Card>
     )
+}
+
+// Helper component to sync Tooltip state with activePoint
+// @ts-ignore
+const TooltipUpdater = ({ active, payload, onUpdate, isLocked }: any) => {
+    React.useEffect(() => {
+        if (active && payload && payload.length > 0 && !isLocked) {
+            onUpdate(payload[0].payload)
+        }
+    }, [active, payload, isLocked, onUpdate])
+    return null
 }
