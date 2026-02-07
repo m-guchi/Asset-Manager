@@ -123,16 +123,19 @@ jobs:
             # PM2で再起動
             echo "Restarting PM2..."
             pm2 delete asset-manager || true
-            PORT=3102 \
-            NEXTAUTH_URL="${{ secrets.NEXTAUTH_URL }}" \
-            NEXTAUTH_SECRET="${{ secrets.NEXTAUTH_SECRET }}" \
-            AUTH_GOOGLE_ID="${{ secrets.AUTH_GOOGLE_ID }}" \
-            AUTH_GOOGLE_SECRET="${{ secrets.AUTH_GOOGLE_SECRET }}" \
-            AUTH_TRUST_HOST="true" \
+            
+            export PORT=3102
+            export NEXTAUTH_URL="${{ secrets.NEXTAUTH_URL }}"
+            export NEXTAUTH_SECRET="${{ secrets.NEXTAUTH_SECRET }}"
+            export AUTH_GOOGLE_ID="${{ secrets.AUTH_GOOGLE_ID }}"
+            export AUTH_GOOGLE_SECRET="${{ secrets.AUTH_GOOGLE_SECRET }}"
+            export AUTH_TRUST_HOST="true"
+            export TRUST_PROXY="1"
+            
             pm2 start npm --name asset-manager -- start
 
             # ヘルスチェック（起動確認）
             echo "Waiting for app to start..."
-            sleep 15
+            sleep 20
             curl -f http://localhost:3102/asset-manager || (echo "Health check failed!" && exit 1)
             echo "Deployment successful and app is running."
