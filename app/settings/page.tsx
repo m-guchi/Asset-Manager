@@ -9,14 +9,25 @@ import { Button } from "@/components/ui/button"
 import { Edit2, Check, X } from "lucide-react"
 import { useTheme } from "next-themes"
 import { toast } from "sonner"
+import { setDefaultTimeRangeAction, getDefaultTimeRange } from "@/app/actions/settings"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
 
 export default function SettingsPage() {
     const { theme, setTheme, resolvedTheme } = useTheme()
     const [mounted, setMounted] = useState(false)
+    const [defaultTimeRange, setDefaultTimeRange] = useState("1Y")
 
     // Avoid hydration mismatch
     useEffect(() => {
         setMounted(true)
+        // Fetch saved setting
+        getDefaultTimeRange().then(range => setDefaultTimeRange(range))
     }, [])
 
     if (!mounted) return null
@@ -32,6 +43,12 @@ export default function SettingsPage() {
     const toggleTheme = (checked: boolean) => {
         setTheme(checked ? "dark" : "light")
         toast.success(checked ? "テーマを固定しました" : "テーマを固定しました")
+    }
+
+    const handleTimeRangeChange = async (value: string) => {
+        setDefaultTimeRange(value)
+        await setDefaultTimeRangeAction(value)
+        toast.success("デフォルトの時間軸を更新しました")
     }
 
     return (
@@ -79,6 +96,28 @@ export default function SettingsPage() {
                                 onCheckedChange={toggleTheme}
                                 disabled={isSystem}
                             />
+                        </div>
+
+                        <div className="flex items-center justify-between space-x-2 border-t pt-4">
+                            <div className="space-y-0.5">
+                                <Label htmlFor="default-range">デフォルトの時間軸</Label>
+                                <div className="text-sm text-muted-foreground">
+                                    ダッシュボードの初期表示範囲を設定します
+                                </div>
+                            </div>
+                            <div className="w-[120px]">
+                                <Select value={defaultTimeRange} onValueChange={handleTimeRangeChange}>
+                                    <SelectTrigger id="default-range">
+                                        <SelectValue placeholder="選択..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="1M">1ヶ月</SelectItem>
+                                        <SelectItem value="3M">3ヶ月</SelectItem>
+                                        <SelectItem value="1Y">1年</SelectItem>
+                                        <SelectItem value="ALL">全範囲</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>

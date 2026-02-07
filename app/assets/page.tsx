@@ -278,9 +278,20 @@ function CategoryManagement({ categories, tagGroups, onRefresh }: { categories: 
     )
 }
 
+const PRESET_COLORS = [
+    // BOLD (1-9)
+    "#2563eb", "#dc2626", "#16a34a", "#ca8a04", "#0891b2", "#7c3aed", "#db2777", "#ea580c", "#4b5563",
+    // VIBRANT (10-18)
+    "#3b82f6", "#ef4444", "#22c55e", "#eab308", "#06b6d4", "#8b5cf6", "#ec4899", "#f97316", "#6b7280",
+    // SOFT (19-27)
+    "#60a5fa", "#f87171", "#4ade80", "#facc15", "#22d3ee", "#a78bfa", "#f472b6", "#fb923c", "#9ca3af",
+    // DARK (28-36)
+    "#1e40af", "#991b1b", "#166534", "#854d0e", "#155e75", "#5b21b6", "#9d174d", "#9a3412", "#1f2937",
+]
+
 function CategoryForm({ initialData, tagGroups, allCategories, onSave, onCancel }: any) {
     const [name, setName] = useState(initialData?.name || "")
-    const [color, setColor] = useState(initialData?.color || "#3b82f6")
+    const [color, setColor] = useState(initialData?.color || PRESET_COLORS[0])
     const [isCash, setIsCash] = useState(initialData?.isCash || false)
     const [isLiability, setIsLiability] = useState(initialData?.isLiability || false)
     const [parentId, setParentId] = useState<number | null>(initialData?.parentId || null)
@@ -309,9 +320,22 @@ function CategoryForm({ initialData, tagGroups, allCategories, onSave, onCancel 
             </div>
             <div className="grid gap-2">
                 <Label>表示色</Label>
-                <div className="flex gap-2">
-                    <Input type="color" className="w-12 p-1 h-10" value={color} onChange={(e) => setColor(e.target.value)} />
-                    <Input value={color} onChange={(e) => setColor(e.target.value)} className="flex-1" />
+                <div className="grid grid-cols-9 gap-2 p-1 border rounded-md bg-muted/5">
+                    {PRESET_COLORS.map((c) => (
+                        <button
+                            key={c}
+                            onClick={() => setColor(c)}
+                            className={`h-6 w-full rounded-sm transition-all hover:scale-110 flex items-center justify-center ${color === c ? "ring-2 ring-primary ring-offset-1 z-10" : "opacity-80 hover:opacity-100"}`}
+                            style={{ backgroundColor: c }}
+                            title={c}
+                        >
+                            {color === c && <Check className="h-3 w-3 text-white mix-blend-difference" />}
+                        </button>
+                    ))}
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                    <div className="h-4 w-4 rounded-full border" style={{ backgroundColor: color }} />
+                    <span className="text-[10px] text-muted-foreground font-mono uppercase">{color}</span>
                 </div>
             </div>
             <div className="grid gap-2">

@@ -128,7 +128,15 @@ export async function saveCategory(data: any) {
         let categoryId = data.id;
 
         if (categoryId) {
-            await prisma.category.update({ where: { id: categoryId }, data: baseData });
+            // Fetch existing to preserve order if not provided
+            const existing = await prisma.category.findUnique({ where: { id: categoryId }, select: { order: true } });
+            await prisma.category.update({
+                where: { id: categoryId },
+                data: {
+                    ...baseData,
+                    order: data.order !== undefined ? data.order : (existing?.order ?? 0)
+                }
+            });
             await (prisma as any).categoryTag.deleteMany({ where: { categoryId } });
         } else {
             const max = await prisma.category.aggregate({ _max: { order: true } });
@@ -324,11 +332,9 @@ export async function getCategoryDetails(id: number) {
 
                 // Process current point
                 // Logic to carry over value if null
-                let actualValue = curr.value;
-                if (actualValue === null) {
-                    // Start of loop `prev` is actually from `processed`, so it has a valid value
-                    actualValue = prev.value;
-                }
+                let valFromPrev = (prev.value || 0) + curr.netFlow;
+                let actualValue: number = curr.value !== null ? curr.value : valFromPrev;
+                if (actualValue < 0) actualValue = 0;
 
                 processed.push({
                     date: curr.date,
@@ -369,10 +375,10 @@ export async function getCategoryDetails(id: number) {
                 items: calculateHistoryForCategory(c)
             }));
 
-            // Collect all unique dates
+            // Collect all unique dates (normalized to YYYY-MM-DD)
             const allDates = new Set<string>();
             childHistories.forEach((ch: any) => {
-                ch.items.forEach((i: any) => allDates.add(i.date.toISOString()));
+                ch.items.forEach((i: any) => allDates.add(i.date.toISOString().split('T')[0]));
             });
 
             const sortedDates = Array.from(allDates).sort();
@@ -387,7 +393,7 @@ export async function getCategoryDetails(id: number) {
 
                 childHistories.forEach((ch: any) => {
                     // Update running value if this child has an entry on this date
-                    const entry = ch.items.find((i: any) => i.date.toISOString() === dateStr);
+                    const entry = ch.items.find((i: any) => i.date.toISOString().split('T')[0] === dateStr);
                     if (entry) {
                         runningValues[ch.id] = entry.value;
                         runningCosts[ch.id] = entry.cost;

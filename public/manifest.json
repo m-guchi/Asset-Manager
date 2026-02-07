@@ -1,0 +1,24 @@
+{
+  "name": "Asset Manager",
+  "short_name": "AssetMgr",
+  "description": "資産の推移と構成を、美しく直感的に管理するポートフォリオ・トラッカー",
+  "start_url": "/asset-manager/",
+  "scope": "/asset-manager/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#10b981",
+  "icons": [
+    {
+      "src": "/asset-manager/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/asset-manager/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
