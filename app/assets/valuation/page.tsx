@@ -143,8 +143,8 @@ export default function BulkValuationPage() {
                         <TableBody>
                             {displayedCategories.map((cat) => (
                                 <TableRow key={cat.id}>
-                                    <TableCell className="font-medium">{cat.name}</TableCell>
-                                    <TableCell className="text-right">
+                                    <TableCell className="font-medium text-xs break-words w-[80px] px-2 py-3">{cat.name}</TableCell>
+                                    <TableCell className="px-2 py-3">
                                         <Input
                                             type="number"
                                             className="text-right w-32 ml-auto h-8"
@@ -153,8 +153,11 @@ export default function BulkValuationPage() {
                                             onChange={(e) => setValuations({ ...valuations, [cat.id]: parseFloat(e.target.value) })}
                                         />
                                     </TableCell>
-                                    <TableCell className="text-right opacity-50 text-xs text-muted-foreground w-32">
-                                        ¥{Number(cat.currentValue).toLocaleString()}
+                                    <TableCell className="text-right px-2 py-3 opacity-50 text-[10px] text-muted-foreground w-16 whitespace-nowrap">
+                                        <div className="flex flex-col items-end">
+                                            <span>前回</span>
+                                            <span>¥{Number(cat.currentValue).toLocaleString()}</span>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))}
