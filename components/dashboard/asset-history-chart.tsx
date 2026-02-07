@@ -34,13 +34,15 @@ const mockTagGroups: TagGroup[] = [
     { id: 2, name: "資産クラス別", tags: ["安全資産", "リスク資産"] },
 ]
 
+interface AssetHistoryChartProps {
+    data?: HistoryPoint[];
+    tagGroups?: TagGroup[];
+}
+
 export function AssetHistoryChart({
     data = [],
     tagGroups = mockTagGroups
-}: {
-    data?: HistoryPoint[],
-    tagGroups?: TagGroup[]
-}) {
+}: AssetHistoryChartProps) {
     const [isMounted, setIsMounted] = React.useState(false);
     const [mode, setMode] = React.useState<"total" | "tag">("total")
     const [selectedTagGroup, setSelectedTagGroup] = React.useState<number>(1)
@@ -52,10 +54,10 @@ export function AssetHistoryChart({
     const [showNetWorth, setShowNetWorth] = React.useState(false)
     const [isAnimating, setIsAnimating] = React.useState(false)
 
-    // Trigger animation when mode or group changes
+    // Trigger animation only when display settings change
     React.useEffect(() => {
         setIsAnimating(true)
-        const timer = setTimeout(() => setIsAnimating(false), 1300)
+        const timer = setTimeout(() => setIsAnimating(false), 1500)
         return () => clearTimeout(timer)
     }, [mode, selectedTagGroup, showNetWorth, showPercent, timeRange])
 
@@ -241,6 +243,7 @@ export function AssetHistoryChart({
                         <div className="flex-1 w-full min-h-0 px-2 py-2" onClick={(e) => e.stopPropagation()} style={{ touchAction: "none" }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <ComposedChart
+                                    key={`${mode}-${selectedTagGroup}-${showPercent}-${showNetWorth}-${timeRange}`}
                                     data={filteredData}
                                     onMouseMove={(e: any) => {
                                         if (e && e.activePayload) {
