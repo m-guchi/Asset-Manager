@@ -21,7 +21,8 @@ export default async function middleware(request: NextRequest) {
     if (
         pathname.includes("/api/auth") ||
         pathname.includes("_next") ||
-        pathname.includes("favicon.ico")
+        pathname.includes("favicon.ico") ||
+        pathname.includes("manifest.json")
     ) {
         return NextResponse.next()
     }
