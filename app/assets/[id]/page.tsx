@@ -414,7 +414,7 @@ export default function AssetDetailPage() {
                             >
                                 <ComposedChart
                                     data={(() => {
-                                        if (!category.history || category.history.length === 0) return []
+                                        if (!category?.history || category.history.length === 0) return []
 
                                         const now = new Date()
                                         const cutoff = new Date()
@@ -427,7 +427,7 @@ export default function AssetDetailPage() {
                                         else if (timeRange === "1Y") cutoff.setFullYear(now.getFullYear() - 1)
                                         else isAll = true
 
-                                        const multiplier = category.isLiability ? -1 : 1;
+                                        const multiplier = category?.isLiability ? -1 : 1;
 
                                         interface HistoryRecord {
                                             date: number;
@@ -436,7 +436,7 @@ export default function AssetDetailPage() {
                                             [key: string]: number;
                                         }
 
-                                        const allData: HistoryRecord[] = category.history.map((h) => {
+                                        const allData: HistoryRecord[] = category?.history?.map((h) => {
                                             const hRecord = h as Record<string, string | number>;
                                             const point: HistoryRecord = {
                                                 date: new Date(hRecord.date).getTime(),
