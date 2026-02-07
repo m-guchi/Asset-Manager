@@ -445,7 +445,8 @@ export async function getCategoryDetails(id: number) {
             pointInTimeValuation: null,
             categoryName: catName,
             categoryColor: catColor,
-            categoryId: catId
+            categoryId: catId,
+            realizedGain: t.realizedGain
         });
 
         const formatAsset = (a: any, catName: string, catColor: string, catId: number) => ({

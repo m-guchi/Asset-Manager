@@ -76,6 +76,7 @@ model Transaction {
   categoryId   Int
   type         TransactionType
   amount       Float
+  realizedGain Float?
   transactedAt DateTime        @default(now())
   memo         String?
   category     Category        @relation(fields: [categoryId], references: [id])

@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Plus, History, RefreshCw, Edit2, Trash2 } from "lucide-react"
+import { ArrowLeft, Plus, History, RefreshCw, Edit2, Trash2, ArrowUpRight, ArrowDownRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -91,7 +91,8 @@ export default function AssetDetailPage() {
         type: "VALUATION",
         amount: "",
         valuation: "",
-        memo: ""
+        memo: "",
+        realizedGain: undefined as number | undefined
     })
     const [isCalculateMode, setIsCalculateMode] = React.useState(false) // New state
     const [saleAmount, setSaleAmount] = React.useState("") // New state
@@ -129,6 +130,7 @@ export default function AssetDetailPage() {
                     type: amt >= 0 ? "DEPOSIT" : "WITHDRAW",
                     amount: Math.abs(amt),
                     valuation: newTrx.valuation ? Number(newTrx.valuation) : undefined,
+                    realizedGain: newTrx.type === "TRANSACTION" && amt < 0 ? newTrx.realizedGain : undefined,
                     date: new Date(newTrx.date),
                     memo: newTrx.memo
                 })
@@ -170,8 +172,11 @@ export default function AssetDetailPage() {
             type: item.type === 'VALUATION' ? 'VALUATION' : 'TRANSACTION',
             amount: signedAmount.toString(),
             valuation: item.pointInTimeValuation?.toString() || "",
-            memo: item.memo || ""
+            memo: item.memo || "",
+            realizedGain: item.realizedGain
         })
+        setSaleAmount("")
+        setIsCalculateMode(item.realizedGain !== undefined && item.realizedGain !== null)
         setIsTrxModalOpen(true)
     }
 
@@ -186,6 +191,12 @@ export default function AssetDetailPage() {
     const profit = category.currentValue - category.costBasis
     const profitPercent = category.costBasis > 0 ? (profit / category.costBasis) * 100 : 0
     const isPositive = profit >= 0
+
+    const totalRealizedGain = category.transactions?.reduce((sum: number, tx: any) => sum + (tx.realizedGain || 0), 0) || 0;
+    const isRealizedPositive = totalRealizedGain >= 0;
+
+    const totalDeposit = category.transactions?.filter((tx: any) => tx.type === 'DEPOSIT').reduce((sum: number, tx: any) => sum + tx.amount, 0) || 0;
+    const totalWithdrawal = category.transactions?.filter((tx: any) => tx.type === 'WITHDRAW').reduce((sum: number, tx: any) => sum + tx.amount, 0) || 0;
 
     const formatXAxis = (tickItem: number) => {
         const date = new Date(tickItem)
@@ -212,19 +223,23 @@ export default function AssetDetailPage() {
             </div>
 
             {/* Main Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className={`grid grid-cols-1 ${category.isCash ? 'md:grid-cols-1' : 'md:grid-cols-3'} gap-4`}>
                 <Card>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground">評価額</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">¥{category.currentValue.toLocaleString()}</div>
-                        <div className={`text-sm mt-1 flex items-center gap-2 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                            {isPositive ? '+' : ''}¥{Math.abs(profit).toLocaleString()}
-                            <span className="text-xs bg-muted/20 px-1.5 py-0.5 rounded text-muted-foreground">
-                                {category.costBasis > 0 ? `${isPositive ? '+' : ''}${profitPercent.toFixed(1)}%` : '-'}
-                            </span>
+                        <div className="text-2xl font-bold">
+                            ¥{((category.isLiability ? -1 : 1) * category.currentValue).toLocaleString()}
                         </div>
+                        {!category.isCash && (
+                            <div className={`text-sm mt-1 flex items-center gap-2 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                                {isPositive ? '+' : ''}¥{Math.abs(profit).toLocaleString()}
+                                <span className="text-xs bg-muted/20 px-1.5 py-0.5 rounded text-muted-foreground">
+                                    {category.costBasis > 0 ? `${isPositive ? '+' : ''}${profitPercent.toFixed(1)}%` : '-'}
+                                </span>
+                            </div>
+                        )}
                         {/* Child Asset Breakdown */}
                         {category.children && category.children.length > 0 && (
                             <div className="mt-4 pt-4 border-t space-y-2">
@@ -235,28 +250,69 @@ export default function AssetDetailPage() {
                                             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: child.color }} />
                                             <span className="group-hover:underline">{child.name}</span>
                                         </div>
-                                        <span className="font-mono">¥{child.currentValue.toLocaleString()}</span>
+                                        <span className="font-mono">¥{((category.isLiability || child.isLiability ? -1 : 1) * child.currentValue).toLocaleString()}</span>
                                     </Link>
                                 ))}
                             </div>
                         )}
                     </CardContent>
                 </Card>
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">取得原価</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-muted-foreground">¥{category.costBasis.toLocaleString()}</div>
-                        <div className="text-sm mt-1 text-muted-foreground">
-                            元本: ¥{category.costBasis.toLocaleString()}
-                        </div>
-                    </CardContent>
-                </Card>
+                {!category.isCash && (
+                    <>
+                        <Card>
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-medium text-muted-foreground">取得原価</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold text-muted-foreground">¥{category.costBasis.toLocaleString()}</div>
+                                <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-dashed">
+                                    <div className="flex justify-between items-center text-xs">
+                                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                                            <div className="bg-green-100 dark:bg-green-900/30 p-1 rounded-full text-green-600 dark:text-green-400">
+                                                <ArrowDownRight className="h-3 w-3" />
+                                            </div>
+                                            <span>総入金額</span>
+                                        </div>
+                                        <span className="font-mono font-medium">¥{totalDeposit.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                                            <div className="bg-red-100 dark:bg-red-900/30 p-1 rounded-full text-red-600 dark:text-red-400">
+                                                <ArrowUpRight className="h-3 w-3" />
+                                            </div>
+                                            <span>総出金額</span>
+                                        </div>
+                                        <span className="font-mono font-medium">¥{totalWithdrawal.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-medium text-muted-foreground">累計実現損益</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className={`text-2xl font-bold ${isRealizedPositive ? 'text-green-600' : 'text-red-500'}`}>
+                                    {isRealizedPositive ? '+' : ''}¥{Math.abs(totalRealizedGain).toLocaleString()}
+                                </div>
+                                <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-dashed">
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-muted-foreground">売却受取額</span>
+                                        <span className="font-mono font-medium">¥{(totalWithdrawal + totalRealizedGain).toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-muted-foreground">元本減少額</span>
+                                        <span className="font-mono font-medium text-muted-foreground">-¥{totalWithdrawal.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </>
+                )}
             </div>
 
             {/* Chart Section */}
-            <Card>
+            < Card >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">資産推移</CardTitle>
                     <div className="flex bg-muted/50 rounded-md p-0.5 border">
@@ -445,7 +501,7 @@ export default function AssetDetailPage() {
                         )}
                     </div>
                 </CardContent>
-            </Card>
+            </Card >
 
             {/* Transaction History */}
             {/* Transaction History */}
@@ -479,8 +535,11 @@ export default function AssetDetailPage() {
                                 type: category.isCash ? "VALUATION" : "TRANSACTION",
                                 amount: "",
                                 valuation: category.currentValue.toString(),
-                                memo: ""
+                                memo: "",
+                                realizedGain: undefined
                             })
+                            setIsCalculateMode(false)
+                            setSaleAmount("")
                             setIsTrxModalOpen(true)
                         }} size="sm" className="h-9">
                             <Plus className="h-4 w-4 mr-2" />
@@ -656,18 +715,28 @@ export default function AssetDetailPage() {
 
                                                     const ratio = Number(val) / baseValuation;
                                                     const reduction = Math.floor(category.costBasis * ratio);
+                                                    const realized = Number(val) - reduction;
 
                                                     setNewTrx({
                                                         ...newTrx,
                                                         amount: (-reduction).toString(),
-                                                        valuation: Math.floor(baseValuation - Number(val)).toString()
+                                                        valuation: Math.floor(baseValuation - Number(val)).toString(),
+                                                        realizedGain: realized
                                                     });
                                                 }}
                                             />
                                             {saleAmount && (
-                                                <div className="mt-1 p-2 bg-muted/30 rounded border text-xs flex justify-between items-center">
-                                                    <span className="text-muted-foreground">計算される元本減少分:</span>
-                                                    <span className="font-mono font-bold text-destructive">-¥{Math.abs(Number(newTrx.amount)).toLocaleString()}</span>
+                                                <div className="mt-1 p-2 bg-muted/30 rounded border text-xs flex flex-col gap-1">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-muted-foreground">計算される元本減少分:</span>
+                                                        <span className="font-mono font-bold text-destructive">-¥{Math.abs(Number(newTrx.amount)).toLocaleString()}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center pt-1 border-t border-dashed">
+                                                        <span className="text-muted-foreground">実現損益:</span>
+                                                        <span className={`font-mono font-bold ${(newTrx.realizedGain || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                            {(newTrx.realizedGain || 0) >= 0 ? '+' : ''}¥{(newTrx.realizedGain || 0).toLocaleString()}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             )}
                                         </>
@@ -719,6 +788,6 @@ export default function AssetDetailPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     )
 }

@@ -27,6 +27,7 @@ export async function updateValuation(categoryId: number, value: number, recorde
 export async function addTransaction(categoryId: number, data: {
     type: "DEPOSIT" | "WITHDRAW" | "VALUATION"
     amount: number
+    realizedGain?: number
     valuation?: number // Optional
     date: Date
     memo?: string
@@ -38,6 +39,7 @@ export async function addTransaction(categoryId: number, data: {
                     categoryId,
                     type: data.type as TransactionType,
                     amount: data.amount,
+                    realizedGain: data.realizedGain,
                     transactedAt: data.date,
                     memo: data.memo
                 }
@@ -154,6 +156,7 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: any
                     data: {
                         type: txType as TransactionType,
                         amount: Math.abs(amt),
+                        realizedGain: data.realizedGain !== undefined ? Number(data.realizedGain) : undefined,
                         transactedAt: new Date(data.date),
                         memo: data.memo
                     }
