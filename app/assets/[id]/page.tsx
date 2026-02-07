@@ -710,7 +710,7 @@ export default function AssetDetailPage() {
                     });
                 }
             }}>
-                <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
+                <DialogContent onOpenAutoFocus={(e) => e.preventDefault()} className="max-h-[90vh] flex flex-col overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>{editingItem ? "履歴を編集" : "履歴を追加"}</DialogTitle>
                         <DialogDescription>{editingItem ? "過去の記録を修正します。" : "入出金または評価額の更新を記録します。"}</DialogDescription>
