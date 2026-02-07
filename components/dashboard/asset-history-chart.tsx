@@ -296,20 +296,19 @@ export function AssetHistoryChart({
                                     {mode === "total" && (
                                         <Area
                                             dataKey={showNetWorth ? "netWorth" : "totalAssets"}
-                                            type="monotone"
+                                            type="linear"
                                             stroke="var(--color-totalAssets)"
                                             strokeWidth={2}
                                             fill="var(--color-totalAssets)"
                                             fillOpacity={0.2}
                                             animationDuration={1200}
                                             animationEasing="ease-in-out"
-                                            connectNulls
                                         />
                                     )}
                                     {mode === "total" && !showNetWorth && (
                                         <Line
                                             dataKey="totalCost"
-                                            type="monotone"
+                                            type="stepAfter"
                                             stroke="#888888"
                                             strokeWidth={1.5}
                                             strokeDasharray="5 5"
@@ -325,13 +324,12 @@ export function AssetHistoryChart({
                                             key={key}
                                             dataKey={`tag_${selectedTagGroup}_${key}`}
                                             stackId="1"
-                                            type={showPercent ? "linear" : "monotone"}
+                                            type="linear"
                                             stroke={`var(--chart-${(i % 5) + 1})`}
                                             fill={`var(--chart-${(i % 5) + 1})`}
                                             fillOpacity={0.4}
                                             animationDuration={1200}
                                             animationEasing="ease-in-out"
-                                            connectNulls
                                         />
                                     ))}
                                 </ComposedChart>

@@ -5,9 +5,9 @@ import { prisma } from "@/lib/prisma"
 
 interface HistoryPoint {
     date: string
-    totalAssets: number
-    totalCost: number
-    [key: string]: string | number
+    totalAssets: number | null
+    totalCost: number | null
+    [key: string]: string | number | null
 }
 
 export async function getHistoryData() {
@@ -32,9 +32,14 @@ export async function getHistoryData() {
         // 2. Normalize and sort dates
         const dateSet = new Set<string>();
         historyRecords.forEach((r: any) => dateSet.add(r.recordedAt.toISOString().slice(0, 10)));
+        categories.forEach((cat: any) => {
+            (cat.transactions || []).forEach((t: any) => {
+                dateSet.add(new Date(t.transactedAt).toISOString().slice(0, 10));
+            });
+        });
         const sortedDates = Array.from(dateSet).sort();
 
-        // 3. Pre-calculate category relationships and effective tags
+        // ... (rest of step 3 same)
         const childrenMap = new Map<number, number[]>();
         const categoryMap = new Map<number, any>();
         categories.forEach((cat: any) => {
@@ -46,19 +51,15 @@ export async function getHistoryData() {
             }
         });
 
-        // Cache stores { name, groupId } objects now
         const effectiveTagCache = new Map<number, { name: string, groupId: number }[]>();
-
         const getEffectiveTags = (id: number): { name: string, groupId: number }[] => {
             if (effectiveTagCache.has(id)) return effectiveTagCache.get(id)!;
             const cat = categoryMap.get(id);
             if (!cat) return [];
-
             let tags = (cat.tags as any[]).map((t: any) => ({
                 name: t.tagOption?.name?.trim(),
                 groupId: t.tagGroupId
             })).filter(t => t.name);
-
             if (tags.length === 0 && cat.parentId) {
                 tags = getEffectiveTags(cat.parentId);
             }
@@ -97,7 +98,22 @@ export async function getHistoryData() {
             const dateObj = new Date(dateStr);
             const dateStrNormalized = dateStr;
 
-            // Update this date's values
+            // Updated logic: First, apply net flow of transactions for this specific date to current values
+            categories.forEach((cat: any) => {
+                const txsToday = (cat.transactions as any[] || [])
+                    .filter((t: any) => new Date(t.transactedAt).toISOString().slice(0, 10) === dateStrNormalized);
+
+                if (txsToday.length > 0) {
+                    const netFlow = txsToday.reduce((sum, t) => {
+                        const amt = Number(t.amount);
+                        return t.type === 'DEPOSIT' ? sum + amt : (t.type === 'WITHDRAW' ? sum - amt : sum);
+                    }, 0);
+                    const prevVal = latestValues.get(cat.id) || 0;
+                    latestValues.set(cat.id, Math.max(0, prevVal + netFlow));
+                }
+            });
+
+            // Second, if there's an EXPLICIT valuation record for today, it takes precedence
             historyRecords
                 .filter((r: any) => r.recordedAt.toISOString().slice(0, 10) === dateStrNormalized)
                 .forEach((r: any) => latestValues.set(r.categoryId, Number(r.currentValue)));
@@ -157,9 +173,16 @@ export async function getHistoryData() {
                 }
             });
 
-            point.totalAssets = grossAssets;
-            point.totalCost = totalCost;
-            point.netWorth = grossAssets - liabilities;
+            point.totalAssets = grossAssets || null;
+            point.totalCost = totalCost || null;
+            point.netWorth = (grossAssets - liabilities) || null;
+
+            // Clean up tag values that are 0 to be null for cleaner charts
+            Object.keys(point).forEach(key => {
+                if (key.startsWith('tag_') && point[key] === 0) {
+                    point[key] = null;
+                }
+            });
 
             return point;
         });

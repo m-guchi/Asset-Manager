@@ -520,13 +520,14 @@ export default function AssetDetailPage() {
                                     )}
                                     {!category.isCash && (
                                         <Line
-                                            type="linear"
+                                            type="stepAfter"
                                             dataKey="cost"
                                             name="取得原価"
                                             stroke="#888888"
                                             strokeWidth={2}
                                             strokeDasharray="4 4"
                                             dot={false}
+                                            connectNulls
                                         />
                                     )}
                                 </ComposedChart>

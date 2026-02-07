@@ -324,11 +324,9 @@ export async function getCategoryDetails(id: number) {
 
                 // Process current point
                 // Logic to carry over value if null
-                let actualValue = curr.value;
-                if (actualValue === null) {
-                    // Start of loop `prev` is actually from `processed`, so it has a valid value
-                    actualValue = prev.value;
-                }
+                let valFromPrev = (prev.value || 0) + curr.netFlow;
+                let actualValue: number | null = curr.value !== null ? curr.value : valFromPrev;
+                if (actualValue !== null && actualValue <= 0) actualValue = null;
 
                 processed.push({
                     date: curr.date,
