@@ -21,19 +21,24 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-zinc-950 p-4">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(120,119,198,0.1),rgba(0,0,0,0))]" />
+        <div className="flex min-h-screen items-center justify-center bg-background p-4 relative overflow-hidden transition-colors duration-500">
+            {/* Ambient Background Blur */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(120,119,198,0.1),rgba(0,0,0,0))] dark:bg-[radial-gradient(circle_at_50%_50%,rgba(120,119,198,0.15),rgba(0,0,0,0))]" />
 
-            <Card className="z-10 w-full max-w-md border-zinc-800/50 bg-zinc-900/50 backdrop-blur-xl shadow-2xl">
+            {/* Animated Gradient Orbs */}
+            <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] animate-pulse" />
+            <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }} />
+
+            <Card className="z-10 w-full max-w-md border-border/50 bg-card/50 backdrop-blur-xl shadow-2xl transition-all duration-300">
                 <CardHeader className="space-y-4 pb-8 text-center pt-8">
-                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-800/50 border border-zinc-700/50 shadow-inner">
-                        <Hexagon className="h-8 w-8 text-white fill-white/10" strokeWidth={1.5} />
+                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-muted border border-border shadow-inner group transition-transform duration-500 hover:scale-110">
+                        <Hexagon className="h-8 w-8 text-foreground fill-foreground/5 transition-all duration-500 group-hover:fill-primary/20 group-hover:text-primary" strokeWidth={1.5} />
                     </div>
                     <div className="space-y-2">
-                        <CardTitle className="text-3xl font-bold tracking-tight text-white">
+                        <CardTitle className="text-3xl font-bold tracking-tight text-foreground">
                             Asset Manager
                         </CardTitle>
-                        <CardDescription className="text-zinc-400 text-base">
+                        <CardDescription className="text-muted-foreground text-base">
                             あなたの資産を、より美しく管理しましょう。
                         </CardDescription>
                     </div>
@@ -42,15 +47,15 @@ export default function LoginPage() {
                     <Button
                         variant="outline"
                         size="lg"
-                        className="w-full h-14 border-zinc-700/50 bg-white/5 hover:bg-white/10 hover:border-zinc-500 text-white transition-all duration-300 group shadow-lg"
+                        className="w-full h-14 border-border bg-background/50 hover:bg-accent hover:text-accent-foreground transition-all duration-300 group shadow-md hover:shadow-lg relative overflow-hidden"
                         onClick={() => handleLogin("google")}
                         disabled={!!isLoading}
                     >
                         {isLoading === "google" ? (
-                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-foreground/20 border-t-foreground" />
                         ) : (
                             <>
-                                <svg className="mr-3 h-5 w-5" viewBox="0 0 24 24">
+                                <svg className="mr-3 h-5 w-5 transform transition-transform duration-300 group-hover:scale-110" viewBox="0 0 24 24">
                                     <path
                                         fill="#4285F4"
                                         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -74,11 +79,11 @@ export default function LoginPage() {
                     </Button>
 
                     <div className="pt-6 text-center">
-                        <p className="text-sm text-zinc-500">
+                        <p className="text-sm text-muted-foreground">
                             ログインすることで、
-                            <a href="#" className="underline underline-offset-4 hover:text-white transition-colors">利用規約</a>
+                            <a href="#" className="underline underline-offset-4 hover:text-foreground transition-colors">利用規約</a>
                             と
-                            <a href="#" className="underline underline-offset-4 hover:text-white transition-colors">プライバシーポリシー</a>
+                            <a href="#" className="underline underline-offset-4 hover:text-foreground transition-colors">プライバシーポリシー</a>
                             に同意したものとみなされます。
                         </p>
                     </div>
@@ -86,7 +91,7 @@ export default function LoginPage() {
             </Card>
 
             <div className="fixed bottom-8 text-center w-full">
-                <p className="text-zinc-600 text-xs tracking-widest uppercase">
+                <p className="text-muted-foreground text-xs tracking-widest uppercase opacity-50">
                     Designed for visual excellence
                 </p>
             </div>
