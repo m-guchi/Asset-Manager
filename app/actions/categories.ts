@@ -34,7 +34,7 @@ export async function getCategories() {
             console.warn("[getCategories] No user ID found, returning empty list");
             return [];
         }
-        const allCategories = await prisma.category.findMany({
+        let allCategories = await prisma.category.findMany({
             where: { userId },
             include: {
                 tags: {
@@ -51,7 +51,21 @@ export async function getCategories() {
             }
         }) as unknown as CategoryWithRelations[];
 
-        if (!allCategories || allCategories.length === 0) return [];
+        if (!allCategories || allCategories.length === 0) {
+            console.log("[getCategories] No categories found, seeding dummy data...");
+            await seedDummyData(userId);
+            // Re-fetch after seeding
+            allCategories = await prisma.category.findMany({
+                where: { userId },
+                include: {
+                    tags: { include: { tagGroup: true, tagOption: true } },
+                    assets: { orderBy: { recordedAt: 'desc' }, take: 1 },
+                    transactions: true
+                }
+            }) as unknown as CategoryWithRelations[];
+
+            if (!allCategories || allCategories.length === 0) return [];
+        }
 
         // Sort hierarchically
         const roots = allCategories
@@ -653,6 +667,89 @@ export async function getCategoryDetails(id: number) {
     } catch (error) {
         console.error("Fetch detail error", error);
         return null;
+    }
+}
+
+/**
+ * Seeds initial dummy data for a new user.
+ */
+async function seedDummyData(userId: string) {
+    try {
+        console.log(`[seedDummyData] Seeding for user: ${userId}`);
+
+        const thirtyDaysAgo = new Date(new Date().setDate(new Date().getDate() - 30));
+        const twentyFiveDaysAgo = new Date(new Date().setDate(new Date().getDate() - 25));
+        const twentyDaysAgo = new Date(new Date().setDate(new Date().getDate() - 20));
+        const twelveDaysAgo = new Date(new Date().setDate(new Date().getDate() - 12));
+        const elevenDaysAgo = new Date(new Date().setDate(new Date().getDate() - 11));
+        const tenDaysAgo = new Date(new Date().setDate(new Date().getDate() - 10));
+        const yesterday = new Date(new Date().setDate(new Date().getDate() - 1));
+
+        // 1. Root Categories
+        const cashRoot = await prisma.category.create({
+            data: { name: "現金", color: "#71717a", isCash: true, order: 0, userId }
+        });
+        const fundRoot = await prisma.category.create({
+            data: { name: "投資信託", color: "#3b82f6", isCash: false, order: 1, userId }
+        });
+        const stockRoot = await prisma.category.create({
+            data: { name: "個別株", color: "#10b981", isCash: false, order: 2, userId }
+        });
+
+        // 2. 銀行預金 (現金)
+        const bank = await prisma.category.create({
+            data: { name: "銀行預金", color: "#94a3b8", isCash: true, parentId: cashRoot.id, order: 0, userId }
+        });
+        await prisma.transaction.create({
+            data: { categoryId: bank.id, amount: 1000000, type: 'DEPOSIT', transactedAt: thirtyDaysAgo, userId }
+        });
+        await prisma.asset.create({
+            data: { categoryId: bank.id, currentValue: 1000000, recordedAt: thirtyDaysAgo, userId }
+        });
+
+        // 3. S&P500 (投資信託)
+        const sp500 = await prisma.category.create({
+            data: { name: "S&P500", color: "#60a5fa", isCash: false, parentId: fundRoot.id, order: 0, userId }
+        });
+        await prisma.transaction.create({
+            data: { categoryId: sp500.id, amount: 500000, type: 'DEPOSIT', transactedAt: thirtyDaysAgo, userId }
+        });
+        await prisma.asset.create({ data: { categoryId: sp500.id, currentValue: 500000, recordedAt: thirtyDaysAgo, userId } });
+        await prisma.asset.create({ data: { categoryId: sp500.id, currentValue: 450000, recordedAt: twentyDaysAgo, userId } });
+        await prisma.asset.create({ data: { categoryId: sp500.id, currentValue: 500000, recordedAt: tenDaysAgo, userId } });
+        await prisma.asset.create({ data: { categoryId: sp500.id, currentValue: 550000, recordedAt: yesterday, userId } });
+
+        // 4. A社株式 (個別株)
+        const stockA = await prisma.category.create({
+            data: { name: "A社株式", color: "#34d399", isCash: false, parentId: stockRoot.id, order: 0, userId }
+        });
+        await prisma.transaction.create({
+            data: { categoryId: stockA.id, amount: 300000, type: 'DEPOSIT', transactedAt: twentyDaysAgo, userId }
+        });
+        await prisma.asset.create({ data: { categoryId: stockA.id, currentValue: 300000, recordedAt: twentyDaysAgo, userId } });
+        await prisma.asset.create({ data: { categoryId: stockA.id, currentValue: 400000, recordedAt: twelveDaysAgo, userId } });
+        // Sell 50% of cost (150k) for 200k proceeds -> 50k realized gain
+        await prisma.transaction.create({
+            data: { categoryId: stockA.id, amount: 150000, type: 'WITHDRAW', realizedGain: 50000, transactedAt: elevenDaysAgo, userId }
+        });
+        await prisma.asset.create({ data: { categoryId: stockA.id, currentValue: 200000, recordedAt: elevenDaysAgo, userId } });
+
+        // 5. B社株式 (個別株)
+        const stockB = await prisma.category.create({
+            data: { name: "B社株式", color: "#fbbf24", isCash: false, parentId: stockRoot.id, order: 1, userId }
+        });
+        await prisma.transaction.create({
+            data: { categoryId: stockB.id, amount: 200000, type: 'DEPOSIT', transactedAt: twentyFiveDaysAgo, userId }
+        });
+        await prisma.asset.create({ data: { categoryId: stockB.id, currentValue: 200000, recordedAt: twentyFiveDaysAgo, userId } });
+        await prisma.transaction.create({
+            data: { categoryId: stockB.id, amount: 100000, type: 'DEPOSIT', transactedAt: tenDaysAgo, userId }
+        });
+        await prisma.asset.create({ data: { categoryId: stockB.id, currentValue: 350000, recordedAt: tenDaysAgo, userId } });
+
+        console.log("[seedDummyData] Successfully seeded detailed dummy data with hierarchy.");
+    } catch (error) {
+        console.error("[seedDummyData] Failed to seed data", error);
     }
 }
 
