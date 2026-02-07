@@ -10,6 +10,7 @@ import {
     ArrowRightLeft,
     Database,
     LogOut,
+    User,
 } from "lucide-react"
 import { signOut } from "next-auth/react"
 import {
@@ -49,6 +50,11 @@ const data = {
         },
     ],
     navSecondary: [
+        {
+            title: "プロフィール",
+            url: "/profile",
+            icon: User,
+        },
         {
             title: "データ管理",
             url: "/data-management",

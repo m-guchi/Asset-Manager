@@ -2,8 +2,7 @@
 
 import * as React from "react"
 import { useTheme } from "next-themes"
-import { Monitor, Moon, Sun, Clock, Info, Check, User, LogOut } from "lucide-react"
-import { useSession, signOut } from "next-auth/react"
+import { Monitor, Moon, Sun, Clock, Info, Check } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -25,7 +24,6 @@ import { Switch } from "@/components/ui/switch"
 
 export default function SettingsPage() {
     const { setTheme, theme, systemTheme } = useTheme()
-    const { data: session } = useSession()
 
     // In a real app, this would be persisted in local storage or user preferences in DB
     const [defaultTimeRange, setDefaultTimeRange] = React.useState("1Y")
@@ -44,10 +42,6 @@ export default function SettingsPage() {
         localStorage.setItem("defaultTimeRange", value)
     }
 
-    const handleLogout = () => {
-        signOut({ callbackUrl: "/asset-manager/login" })
-    }
-
     // Prevent rendering theme-dependent UI until mounted
     if (!mounted) {
         return <div className="p-8">Loading settings...</div>
@@ -60,47 +54,6 @@ export default function SettingsPage() {
             </div>
 
             <div className="grid gap-6">
-                {/* User Settings */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <User className="h-5 w-5" />
-                            ユーザー設定
-                        </CardTitle>
-                        <CardDescription>
-                            ログイン中のアカウント情報です。
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div className="flex items-center gap-4">
-                            {session?.user?.image ? (
-                                <div className="h-12 w-12 rounded-full overflow-hidden border">
-                                    <img src={session.user.image} alt={session.user.name || "User"} />
-                                </div>
-                            ) : (
-                                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center border">
-                                    <User className="h-6 w-6 text-primary" />
-                                </div>
-                            )}
-                            <div className="grid gap-1">
-                                <p className="font-medium text-lg">{session?.user?.name || "ユーザー"}</p>
-                                <p className="text-sm text-muted-foreground">{session?.user?.email}</p>
-                            </div>
-                        </div>
-                        <div className="border-t pt-4">
-                            <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={handleLogout}
-                                className="gap-2"
-                            >
-                                <LogOut className="h-4 w-4" />
-                                ログアウト
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
-
                 {/* Visual Settings */}
                 <Card>
                     <CardHeader>
