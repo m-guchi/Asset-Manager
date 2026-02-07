@@ -1,4 +1,3 @@
-// This is your Prisma schema file
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-1.1.x", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
@@ -10,39 +9,97 @@ datasource db {
   relationMode = "prisma"
 }
 
+model User {
+  id            String        @id @default(cuid())
+  name          String?
+  email         String?       @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  categories    Category[]
+  tagGroups     TagGroup[]
+  assets        Asset[]
+  transactions  Transaction[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
 model Category {
-  id           Int           @id @default(autoincrement())
-  name         String
-  color        String
-  order        Int           @default(0)
-  valuationOrder Int           @default(0)
-  isValuationTarget Boolean    @default(true)
-  isCash       Boolean       @default(false)
-  isLiability  Boolean       @default(false)
-  parentId     Int?
-  parent       Category?     @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  children     Category[]    @relation("CategoryHierarchy")
-  tags         CategoryTag[]
-  assets       Asset[]
-  transactions Transaction[]
+  id                Int           @id @default(autoincrement())
+  name              String
+  color             String
+  order             Int           @default(0)
+  isCash            Boolean       @default(false)
+  isLiability       Boolean       @default(false)
+  parentId          Int?
+  isValuationTarget Boolean       @default(true)
+  valuationOrder    Int           @default(0)
+  userId            String
+  parent            Category?     @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children          Category[]    @relation("CategoryHierarchy")
+  tags              CategoryTag[]
+  assets            Asset[]
+  transactions      Transaction[]
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([parentId])
+  @@index([userId])
 }
 
 model TagGroup {
-  id     Int           @id @default(autoincrement())
-  name   String
-  order  Int           @default(0)
-  options TagOption[]
+  id        Int           @id @default(autoincrement())
+  name      String
+  order     Int           @default(0)
+  userId    String
+  options   TagOption[]
   assetTags CategoryTag[]
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model TagOption {
-  id         Int        @id @default(autoincrement())
-  name       String
-  order      Int        @default(0)
-  tagGroupId Int
-  tagGroup   TagGroup   @relation(fields: [tagGroupId], references: [id], onDelete: Cascade)
+  id           Int           @id @default(autoincrement())
+  name         String
+  order        Int           @default(0)
+  tagGroupId   Int
+  tagGroup     TagGroup      @relation(fields: [tagGroupId], references: [id], onDelete: Cascade)
   categoryTags CategoryTag[]
 
   @@index([tagGroupId])
@@ -52,10 +109,9 @@ model CategoryTag {
   categoryId  Int
   tagGroupId  Int
   tagOptionId Int
-
-  category   Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  tagGroup   TagGroup  @relation(fields: [tagGroupId], references: [id], onDelete: Cascade)
-  tagOption  TagOption @relation(fields: [tagOptionId], references: [id], onDelete: Cascade)
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  tagGroup    TagGroup  @relation(fields: [tagGroupId], references: [id], onDelete: Cascade)
+  tagOption   TagOption @relation(fields: [tagOptionId], references: [id], onDelete: Cascade)
 
   @@id([categoryId, tagGroupId])
   @@index([tagGroupId])
@@ -68,7 +124,11 @@ model Asset {
   categoryId   Int
   currentValue Float
   recordedAt   DateTime @default(now())
+  userId       String
   category     Category @relation(fields: [categoryId], references: [id])
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Transaction {
@@ -76,10 +136,14 @@ model Transaction {
   categoryId   Int
   type         TransactionType
   amount       Float
-  realizedGain Float?
   transactedAt DateTime        @default(now())
   memo         String?
+  realizedGain Float?
+  userId       String
   category     Category        @relation(fields: [categoryId], references: [id])
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 enum TransactionType {

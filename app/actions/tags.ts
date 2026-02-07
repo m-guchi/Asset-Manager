@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { getCurrentUserId } from "@/lib/auth"
 
 // --- Tags Legacy (Deprecated) ---
 // These are kept empty or simple to prevent build errors until fully removed
@@ -22,7 +23,9 @@ export async function deleteTag() {
 
 export async function getTagGroups() {
     try {
+        const userId = await getCurrentUserId()
         const groups = await prisma.tagGroup.findMany({
+            where: { userId },
             include: {
                 options: {
                     orderBy: { order: 'asc' }
@@ -101,8 +104,9 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
             })
         } else {
             // Create New Group
-            // Fetch max order to place at the end
+            const userId = await getCurrentUserId()
             const maxOrderVal = await prisma.tagGroup.aggregate({
+                where: { userId },
                 _max: { order: true }
             })
             const nextOrder = (maxOrderVal._max?.order ?? -1) + 1
@@ -110,6 +114,7 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
             savedGroup = await prisma.tagGroup.create({
                 data: {
                     name: data.name,
+                    userId,
                     order: nextOrder,
                     options: {
                         create: (data.options || []).map((opt, idx) => ({
@@ -182,8 +187,10 @@ export async function renameTagGroup(id: number, name: string) {
 
 export async function getAssetsForTagGroup(groupId: number) {
     try {
+        const userId = await getCurrentUserId()
         // 1. Fetch all raw
         const categories = await prisma.category.findMany({
+            where: { userId },
             select: { id: true, name: true, parentId: true, color: true, order: true }
         })
 

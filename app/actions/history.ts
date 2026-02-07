@@ -2,6 +2,7 @@
 
 // Updated History Action with GroupID support
 import { prisma } from "@/lib/prisma"
+import { getCurrentUserId } from "@/lib/auth"
 
 interface HistoryPoint {
     date: string
@@ -22,12 +23,14 @@ interface CategoryWithRelations {
 
 export async function getHistoryData() {
     try {
+        const userId = await getCurrentUserId()
         console.log("[getHistoryData] Starting fetch... (v2-group-aware)");
 
         // 1. Fetch all data at once to minimize DB pressure
         const [historyRecords, categories] = await Promise.all([
-            prisma.asset.findMany({ orderBy: { recordedAt: 'asc' } }),
+            prisma.asset.findMany({ where: { userId }, orderBy: { recordedAt: 'asc' } }),
             prisma.category.findMany({
+                where: { userId },
                 include: {
                     tags: { include: { tagOption: true } },
                     transactions: true
