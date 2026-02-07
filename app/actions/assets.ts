@@ -33,7 +33,7 @@ export async function addTransaction(categoryId: number, data: {
     memo?: string
 }) {
     try {
-        const operations: any[] = [
+        const operations = [
             prisma.transaction.create({
                 data: {
                     categoryId,
@@ -48,7 +48,7 @@ export async function addTransaction(categoryId: number, data: {
 
         // Create Asset valuation record only if valuation is provided
         if (data.valuation !== undefined && data.valuation !== null && !isNaN(data.valuation)) {
-            operations.push(
+            (operations as any[]).push(
                 prisma.asset.create({
                     data: {
                         categoryId,
@@ -86,9 +86,9 @@ export async function getTransactions() {
                 }
             }
         })
-        return transactions.map((tx: any) => {
+        return transactions.map((tx) => {
             // Find the asset valuation recorded at or just before this transaction
-            const nearestAsset = tx.category.assets.find((a: any) => a.recordedAt <= tx.transactedAt) || tx.category.assets[0]
+            const nearestAsset = (tx.category as any).assets.find((a: { recordedAt: Date }) => a.recordedAt <= tx.transactedAt) || (tx.category as any).assets[0]
 
             return {
                 id: tx.id,
@@ -141,7 +141,7 @@ export async function deleteHistoryItem(type: 'tx' | 'as', id: number) {
     }
 }
 
-export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: any) {
+export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: { amount?: any, type?: any, realizedGain?: any, date: any, memo?: any, valuation?: any }) {
     try {
         if (type === 'tx') {
             const oldTx = await prisma.transaction.findUnique({ where: { id } })
@@ -152,7 +152,7 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: any
                 ? data.type
                 : (data.type === 'VALUATION' ? 'VALUATION' : (amt >= 0 ? 'DEPOSIT' : 'WITHDRAW'))
 
-            const operations: any[] = [
+            const operations = [
                 prisma.transaction.update({
                     where: { id },
                     data: {
@@ -176,7 +176,7 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: any
 
             if (otherTxCount === 0) {
                 // Only delete asset record if no other transactions exist on that day
-                operations.push(
+                (operations as any[]).push(
                     prisma.asset.deleteMany({
                         where: {
                             categoryId: oldTx.categoryId,
@@ -190,7 +190,7 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: any
             if (data.valuation !== undefined && data.valuation !== null && data.valuation !== "") {
                 const numVal = Number(data.valuation);
                 if (!isNaN(numVal)) {
-                    operations.push(
+                    (operations as any[]).push(
                         prisma.asset.create({
                             data: {
                                 categoryId: oldTx.categoryId,

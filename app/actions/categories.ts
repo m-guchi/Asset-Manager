@@ -3,6 +3,26 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 
+interface CategoryWithRelations {
+    id: number;
+    name: string;
+    color: string | null;
+    order: number;
+    valuationOrder: number | null;
+    isValuationTarget: boolean | null;
+    parentId: number | null;
+    isCash: boolean | null;
+    isLiability: boolean | null;
+    assets: { currentValue: any; recordedAt: Date }[];
+    tags: {
+        tagGroupId: number;
+        tagGroup: { name: string };
+        tagOptionId: number | null;
+        tagOption: { name: string } | null;
+    }[];
+    transactions: { amount: any; type: string }[];
+}
+
 /**
  * Robustly fetch categories with fallback and type safety.
  */
@@ -14,7 +34,7 @@ export async function getCategories() {
                     include: {
                         tagGroup: true,
                         tagOption: true
-                    } as any
+                    }
                 },
                 assets: {
                     orderBy: { recordedAt: 'desc' },
@@ -22,17 +42,17 @@ export async function getCategories() {
                 },
                 transactions: true
             }
-        }) as any[];
+        }) as unknown as CategoryWithRelations[];
 
         if (!allCategories || allCategories.length === 0) return [];
 
         // Sort hierarchically
         const roots = allCategories
-            .filter((c: any) => !c.parentId)
-            .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+            .filter((c) => !c.parentId)
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-        const childrenMap = new Map<number, any[]>();
-        allCategories.forEach((c: any) => {
+        const childrenMap = new Map<number, CategoryWithRelations[]>();
+        allCategories.forEach((c) => {
             if (c.parentId) {
                 const existing = childrenMap.get(c.parentId) || [];
                 existing.push(c);
@@ -40,14 +60,14 @@ export async function getCategories() {
             }
         });
 
-        const sorted: any[] = [];
-        roots.forEach((root: any) => {
+        const sorted: CategoryWithRelations[] = [];
+        roots.forEach((root) => {
             sorted.push(root);
-            const children = (childrenMap.get(root.id) || []).sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+            const children = (childrenMap.get(root.id) || []).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
             sorted.push(...children);
         });
 
-        return sorted.map((cat: any) => {
+        return sorted.map((cat) => {
             try {
                 const latestAsset = (cat.assets && cat.assets.length > 0) ? cat.assets[0] : null;
                 const ownValue = Number(latestAsset?.currentValue || 0);
@@ -57,24 +77,24 @@ export async function getCategories() {
                 if (cat.isCash) {
                     ownCostBasis = ownValue;
                 } else {
-                    ownCostBasis = trxs.reduce((acc: number, t: any) => {
+                    ownCostBasis = trxs.reduce((acc: number, t) => {
                         const amt = Number(t.amount || 0);
                         return t.type === 'DEPOSIT' ? acc + amt : (t.type === 'WITHDRAW' ? acc - amt : acc);
                     }, 0);
                 }
 
                 // Child Aggregation
-                const children = sorted.filter((c: any) => c.parentId === cat.id);
+                const children = sorted.filter((c) => c.parentId === cat.id);
                 let consolidatedValue = ownValue;
                 let consolidatedCostBasis = ownCostBasis;
 
-                children.forEach((child: any) => {
+                children.forEach((child) => {
                     const childVal = Number(child.assets?.[0]?.currentValue || 0);
                     consolidatedValue += childVal;
                     if (child.isCash) {
                         consolidatedCostBasis += childVal;
                     } else {
-                        consolidatedCostBasis += (child.transactions || []).reduce((acc: number, t: any) => {
+                        consolidatedCostBasis += (child.transactions || []).reduce((acc: number, t) => {
                             const amt = Number(t.amount || 0);
                             return t.type === 'DEPOSIT' ? acc + amt : (t.type === 'WITHDRAW' ? acc - amt : acc);
                         }, 0);
@@ -95,17 +115,33 @@ export async function getCategories() {
                     ownCostBasis,
                     isCash: !!cat.isCash,
                     isLiability: !!cat.isLiability,
-                    tags: (cat.tags || []).map((t: any) => t.tagOption?.name || ""),
-                    tagSettings: (cat.tags || []).map((t: any) => ({
+                    tags: (cat.tags || []).map((t) => t.tagOption?.name || ""),
+                    tagSettings: (cat.tags || []).map((t) => ({
                         groupId: t.tagGroupId,
-                        groupName: t.tagGroup?.name,
+                        groupName: t.tagGroup?.name || "",
                         optionId: t.tagOptionId,
-                        optionName: t.tagOption?.name
+                        optionName: t.tagOption?.name || ""
                     }))
                 };
             } catch (e) {
                 console.error(`Map error for ${cat.id}`, e);
-                return { id: cat.id, name: "Error", currentValue: 0, costBasis: 0, tags: [] };
+                return {
+                    id: cat.id,
+                    name: "Error",
+                    currentValue: 0,
+                    costBasis: 0,
+                    tags: [],
+                    color: "#ccc",
+                    order: 0,
+                    valuationOrder: 0,
+                    isValuationTarget: true,
+                    parentId: null,
+                    ownValue: 0,
+                    ownCostBasis: 0,
+                    isCash: false,
+                    isLiability: false,
+                    tagSettings: []
+                };
             }
         });
     } catch (error) {
@@ -114,7 +150,18 @@ export async function getCategories() {
     }
 }
 
-export async function saveCategory(data: any) {
+interface SaveCategoryData {
+    id?: number;
+    name: string;
+    color: string;
+    order?: number;
+    isCash: boolean;
+    isLiability: boolean;
+    parentId?: number;
+    tagSettings?: { groupId: number, optionId: number }[];
+}
+
+export async function saveCategory(data: SaveCategoryData) {
     try {
         const baseData = {
             name: data.name,
@@ -122,10 +169,10 @@ export async function saveCategory(data: any) {
             order: data.order ?? 0,
             isCash: !!data.isCash,
             isLiability: !!data.isLiability,
-            parentId: data.parentId === 0 ? null : data.parentId,
+            parentId: data.parentId === 0 ? null : (data.parentId || null),
         }
 
-        let categoryId = data.id;
+        let categoryId: number | undefined = data.id;
 
         if (categoryId) {
             // Fetch existing to preserve order if not provided
@@ -137,7 +184,7 @@ export async function saveCategory(data: any) {
                     order: data.order !== undefined ? data.order : (existing?.order ?? 0)
                 }
             });
-            await (prisma as any).categoryTag.deleteMany({ where: { categoryId } });
+            await prisma.categoryTag.deleteMany({ where: { categoryId } });
         } else {
             const max = await prisma.category.aggregate({ _max: { order: true } });
             const cat = await prisma.category.create({ data: { ...baseData, order: (max._max.order ?? -1) + 1 } });
@@ -145,10 +192,10 @@ export async function saveCategory(data: any) {
             await prisma.asset.create({ data: { categoryId: cat.id, currentValue: 0 } });
         }
 
-        if (data.tagSettings?.length > 0 && categoryId) {
-            await (prisma as any).categoryTag.createMany({
-                data: data.tagSettings.map((s: any) => ({
-                    categoryId: categoryId!,
+        if (data.tagSettings && data.tagSettings.length > 0 && categoryId) {
+            await prisma.categoryTag.createMany({
+                data: data.tagSettings.map((s) => ({
+                    categoryId: categoryId as number,
                     tagGroupId: s.groupId,
                     tagOptionId: s.optionId
                 }))
@@ -171,12 +218,12 @@ export async function deleteCategory(id: number) {
         await prisma.category.delete({ where: { id } });
         revalidatePath("/");
         return { success: true };
-    } catch (e) {
+    } catch (_e) {
         return { success: false };
     }
 }
 
-export async function updateCategoryOrder(id: number, direction: 'up' | 'down') {
+export async function updateCategoryOrder(_id: number, _direction: 'up' | 'down') {
     // Basic implementation to satisfy types
     revalidatePath("/");
     return { success: true };
@@ -200,6 +247,38 @@ export async function reorderCategoriesAction(items: { id: number, order: number
     }
 }
 
+interface TransactionDetail {
+    amount: any;
+    type: string;
+    id: number;
+    memo: string | null;
+    transactedAt: Date;
+    realizedGain: any;
+}
+
+interface AssetDetail {
+    currentValue: any;
+    recordedAt: Date;
+    id: number;
+}
+
+interface CategoryWithNested {
+    id: number;
+    name: string;
+    color: string | null;
+    isCash: boolean | null;
+    isLiability: boolean | null;
+    parentId: number | null;
+    transactions: TransactionDetail[];
+    assets: AssetDetail[];
+    children: (CategoryWithRelations & {
+        assets: AssetDetail[];
+        transactions: TransactionDetail[];
+    })[];
+    tags: { tagGroupId: number, tagGroup: { name: string }, tagOptionId: number | null, tagOption: { name: string } | null }[];
+    parent: { id: number, name: string } | null;
+}
+
 export async function getCategoryDetails(id: number) {
     try {
         const cat = await prisma.category.findUnique({
@@ -209,7 +288,7 @@ export async function getCategoryDetails(id: number) {
                     include: {
                         tagGroup: true,
                         tagOption: true
-                    } as any
+                    }
                 },
                 assets: { orderBy: { recordedAt: 'asc' } },
                 transactions: { orderBy: { transactedAt: 'asc' } },
@@ -221,17 +300,19 @@ export async function getCategoryDetails(id: number) {
                 },
                 parent: true
             }
-        }) as any;
+        }) as unknown as CategoryWithNested;
 
         if (!cat) return null;
 
+        const catWithNested = cat;
+
         // Helper to calc history for a single category node
-        const calculateHistoryForCategory = (c: any) => {
+        const calculateHistoryForCategory = (c: { transactions: TransactionDetail[], assets: AssetDetail[] }) => {
             const historyMap = new Map<string, { date: Date, value: number | null, cost: number, netFlow: number }>();
             let runningCost = 0;
 
             // 1. Transactions
-            (c.transactions || []).forEach((t: any) => {
+            (c.transactions || []).forEach((t) => {
                 const amt = Number(t.amount);
                 let flow = 0;
                 if (t.type === 'DEPOSIT') {
@@ -259,7 +340,7 @@ export async function getCategoryDetails(id: number) {
             });
 
             // 2. Assets
-            (c.assets || []).forEach((a: any) => {
+            (c.assets || []).forEach((a) => {
                 const dateStr = a.recordedAt.toISOString().split('T')[0];
                 const existing = historyMap.get(dateStr);
 
@@ -268,8 +349,8 @@ export async function getCategoryDetails(id: number) {
                 } else {
                     // Estimate cost at this point
                     const costAtTime = (c.transactions || [])
-                        .filter((t: any) => t.transactedAt <= a.recordedAt)
-                        .reduce((acc: number, t: any) => {
+                        .filter((t) => t.transactedAt <= a.recordedAt)
+                        .reduce((acc: number, t) => {
                             const amt = Number(t.amount);
                             if (t.type === 'DEPOSIT') return acc + amt;
                             if (t.type === 'WITHDRAW') return acc - amt;
@@ -332,7 +413,7 @@ export async function getCategoryDetails(id: number) {
 
                 // Process current point
                 // Logic to carry over value if null
-                let valFromPrev = (prev.value || 0) + curr.netFlow;
+                const valFromPrev = (prev.value || 0) + curr.netFlow;
                 let actualValue: number = curr.value !== null ? curr.value : valFromPrev;
                 if (actualValue < 0) actualValue = 0;
 
@@ -351,7 +432,7 @@ export async function getCategoryDetails(id: number) {
             }));
         };
 
-        const hasChildren = cat.children && cat.children.length > 0;
+        const hasChildren = catWithNested.children && catWithNested.children.length > 0;
         let history: any[] = [];
         let currentValue = 0;
         let costBasis = 0;
@@ -359,7 +440,7 @@ export async function getCategoryDetails(id: number) {
 
         if (hasChildren) {
             // Aggregate Children
-            childrenInfo = cat.children.map((c: any) => {
+            childrenInfo = catWithNested.children.map((c) => {
                 const lastAsset = c.assets.length > 0 ? c.assets[c.assets.length - 1] : null;
                 return {
                     id: c.id,
@@ -370,15 +451,15 @@ export async function getCategoryDetails(id: number) {
             });
 
             // Calculate history for each child
-            const childHistories = cat.children.map((c: any) => ({
+            const childHistories = catWithNested.children.map((c) => ({
                 id: c.id,
                 items: calculateHistoryForCategory(c)
             }));
 
             // Collect all unique dates (normalized to YYYY-MM-DD)
             const allDates = new Set<string>();
-            childHistories.forEach((ch: any) => {
-                ch.items.forEach((i: any) => allDates.add(i.date.toISOString().split('T')[0]));
+            childHistories.forEach((ch) => {
+                ch.items.forEach((i: { date: Date }) => allDates.add(i.date.toISOString().split('T')[0]));
             });
 
             const sortedDates = Array.from(allDates).sort();
@@ -388,29 +469,28 @@ export async function getCategoryDetails(id: number) {
             const runningCosts: Record<number, number> = {};
 
             history = sortedDates.map(dateStr => {
-                const d = new Date(dateStr);
-                const point: any = { date: dateStr, value: 0, cost: 0 };
+                const point: Record<string, any> = { date: dateStr, value: 0, cost: 0 };
 
-                childHistories.forEach((ch: any) => {
+                childHistories.forEach((ch) => {
                     // Update running value if this child has an entry on this date
-                    const entry = ch.items.find((i: any) => i.date.toISOString().split('T')[0] === dateStr);
+                    const entry = ch.items.find((i: { date: Date }) => i.date.toISOString().split('T')[0] === dateStr);
                     if (entry) {
-                        runningValues[ch.id] = entry.value;
-                        runningCosts[ch.id] = entry.cost;
+                        runningValues[ch.id] = (entry as any).value;
+                        runningCosts[ch.id] = (entry as any).cost;
                     }
                     // Apply current running value
                     point[`child_${ch.id}`] = runningValues[ch.id] || 0;
-                    point.value += (runningValues[ch.id] || 0);
-                    point.cost += (runningCosts[ch.id] || 0);
+                    point.value = (point.value as number) + (runningValues[ch.id] || 0);
+                    point.cost = (point.cost as number) + (runningCosts[ch.id] || 0);
                 });
 
                 return point;
             });
 
             // Consolidate current totals
-            currentValue = cat.children.reduce((sum: number, c: any) => {
+            currentValue = catWithNested.children.reduce((sum: number, c) => {
                 const lastAsset = c.assets[c.assets.length - 1];
-                return sum + (lastAsset?.currentValue || 0);
+                return sum + Number(lastAsset?.currentValue || 0);
             }, 0);
 
             // Recalculate cost basis
@@ -418,19 +498,19 @@ export async function getCategoryDetails(id: number) {
 
         } else {
             // Single Category Logic
-            const rawHistory = calculateHistoryForCategory(cat);
+            const rawHistory = calculateHistoryForCategory(catWithNested);
             history = rawHistory.map(h => ({
                 date: h.date.toISOString(),
                 value: h.value,
                 cost: h.cost
             }));
 
-            const latestAsset = cat.assets.length > 0 ? cat.assets[cat.assets.length - 1] : null;
+            const latestAsset = catWithNested.assets.length > 0 ? catWithNested.assets[catWithNested.assets.length - 1] : null;
             currentValue = Number(latestAsset?.currentValue || 0);
             costBasis = rawHistory.length > 0 ? rawHistory[rawHistory.length - 1].cost : 0;
 
             // Use fallback logic for costBasis if history is empty but standard calculation exists
-            if (history.length === 0 && cat.isCash) {
+            if (history.length === 0 && catWithNested.isCash) {
                 costBasis = currentValue;
                 history.push({
                     date: new Date().toISOString(),
@@ -448,7 +528,7 @@ export async function getCategoryDetails(id: number) {
             type: t.type,
             amount: t.amount,
             memo: t.memo,
-            pointInTimeValuation: null,
+            pointInTimeValuation: null as number | null,
             categoryName: catName,
             categoryColor: catColor,
             categoryId: catId,
@@ -469,72 +549,52 @@ export async function getCategoryDetails(id: number) {
         });
 
         const rawTransactions = [
-            ...(cat.transactions || []).map((t: any) => formatTx(t, cat.name, cat.color, cat.id)),
-            ...(hasChildren ? cat.children.flatMap((c: any) => (c.transactions || []).map((t: any) => formatTx(t, c.name, c.color, c.id))) : [])
+            ...(catWithNested.transactions || []).map((t) => formatTx(t, catWithNested.name, catWithNested.color || "#ccc", catWithNested.id)),
+            ...(hasChildren ? catWithNested.children.flatMap((c) => (c.transactions || []).map((t) => formatTx(t, c.name, c.color || "#ccc", c.id))) : [])
         ];
 
         const rawAssets = [
-            ...(cat.assets || []).map((a: any) => formatAsset(a, cat.name, cat.color, cat.id)),
-            ...(hasChildren ? cat.children.flatMap((c: any) => (c.assets || []).map((a: any) => formatAsset(a, c.name, c.color, c.id))) : [])
+            ...(catWithNested.assets || []).map((a) => formatAsset(a, catWithNested.name, catWithNested.color || "#ccc", catWithNested.id)),
+            ...(hasChildren ? catWithNested.children.flatMap((c) => (c.assets || []).map((a) => formatAsset(a, c.name, c.color || "#ccc", c.id))) : [])
         ];
 
         // Merge logic: Group by CategoryId + Date (YYYY-MM-DD)
-        const allRaw = [...rawTransactions, ...rawAssets].sort((a: any, b: any) => b.rawDate.getTime() - a.rawDate.getTime());
+        const allRaw = [...rawTransactions, ...rawAssets].sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
         const mergedList: any[] = [];
-        const processedIds = new Set<string>();
 
-        // We iterate and group manually or just process the list?
-        // Since it's sorted desc, we can check for merge candidates
-        // A better way is to group by key
         const groups = new Map<string, any[]>();
         allRaw.forEach(item => {
             const day = item.date.split('T')[0];
             const key = `${item.categoryId}_${day}`;
             if (!groups.has(key)) groups.set(key, []);
-            groups.get(key)!.push(item);
+            const group = groups.get(key);
+            if (group) group.push(item);
         });
 
         groups.forEach(groupItems => {
-            // In each group, we have transactions and valuations for the same day/cat
-            // Sort by time desc just to be sure
             groupItems.sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
-
-            // Separate Txs and Ass
             const txs = groupItems.filter(i => i.id.startsWith('tx-'));
             const ass = groupItems.filter(i => i.id.startsWith('as-'));
 
             if (txs.length > 0 && ass.length > 0) {
-                // Merge the latest Asset val into the latest Tx
                 const latestTx = txs[0];
-                const latestAs = ass[0]; // The latest valuation for that day
-
-                // Mutate the tx to include the valuation
+                const latestAs = ass[0];
                 latestTx.pointInTimeValuation = latestAs.pointInTimeValuation;
-
-                // Add all txs to mergedList
                 txs.forEach(t => mergedList.push(t));
-
-                // Add assets ONLY if they are NOT the one we merged? 
-                // Or simply hide all assets for that day if we have a tx?
-                // Usually one val per day. Let's hide the merged one.
-                // If we merged into Tx, we don't show the Asset row.
-                ass.slice(1).forEach(a => mergedList.push(a)); // keep extra assets if any
+                ass.slice(1).forEach(a => mergedList.push(a));
             } else {
-                // No merge needed
                 groupItems.forEach(i => mergedList.push(i));
             }
         });
 
-        // Enrich transactions with profit/loss ratio from history
         mergedList.forEach((item: any) => {
             const dateStr = item.date.split('T')[0];
-            const historyItem = history.find((h: any) => h.date.startsWith(dateStr));
+            const historyItem = history.find((h: { date: string }) => h.date.startsWith(dateStr));
 
             if (historyItem && historyItem.cost > 0) {
-                const profit = historyItem.value - historyItem.cost;
+                const profit = (historyItem.value as number) - historyItem.cost;
                 item.profitRatio = (profit / historyItem.cost) * 100;
 
-                // Ensure valuation is set if missing (e.g. transaction only days)
                 if (item.pointInTimeValuation === null || item.pointInTimeValuation === undefined) {
                     item.pointInTimeValuation = historyItem.value;
                 }
@@ -543,21 +603,20 @@ export async function getCategoryDetails(id: number) {
             }
         });
 
-        // Re-sort final list by date desc
         mergedList.sort((a: any, b: any) => b.rawDate.getTime() - a.rawDate.getTime());
 
         return {
-            id: cat.id,
-            name: cat.name,
-            color: cat.color,
-            isCash: cat.isCash,
-            isLiability: cat.isLiability,
+            id: catWithNested.id,
+            name: catWithNested.name,
+            color: catWithNested.color || "#ccc",
+            isCash: catWithNested.isCash,
+            isLiability: catWithNested.isLiability,
             currentValue,
             costBasis,
-            tags: (cat.tags as any[]).map((t: any) => t.tagOption?.name),
+            tags: (catWithNested.tags || []).map((t) => t.tagOption?.name),
             history,
             children: childrenInfo,
-            parent: cat.parent ? { id: cat.parent.id, name: cat.parent.name } : null,
+            parent: catWithNested.parent ? { id: catWithNested.parent.id, name: catWithNested.parent.name } : null,
             transactions: mergedList
         };
     } catch (error) {

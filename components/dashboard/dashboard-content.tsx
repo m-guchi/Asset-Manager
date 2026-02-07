@@ -11,12 +11,12 @@ import { Pencil, RefreshCw } from "lucide-react"
 import { getCategories } from "@/app/actions/categories"
 import { getTagGroups } from "@/app/actions/tags"
 import { getHistoryData } from "@/app/actions/history"
-import { Category } from "@/types/asset"
+import { Category, HistoryPoint, TagGroup } from "@/types/asset"
 
 interface DashboardContentProps {
     initialCategories: Category[];
-    initialHistory: any[];
-    initialTagGroups: any[];
+    initialHistory: HistoryPoint[];
+    initialTagGroups: TagGroup[];
     defaultTimeRange: string;
 }
 
@@ -27,8 +27,8 @@ export function DashboardContent({
     defaultTimeRange
 }: DashboardContentProps) {
     const [categories, setCategories] = React.useState<Category[]>(initialCategories)
-    const [historyData, setHistoryData] = React.useState<any[]>(initialHistory)
-    const [tagGroups, setTagGroups] = React.useState<any[]>(initialTagGroups)
+    const [historyData, setHistoryData] = React.useState<HistoryPoint[]>(initialHistory)
+    const [tagGroups, setTagGroups] = React.useState<TagGroup[]>(initialTagGroups)
     const [isLoading, setIsLoading] = React.useState(false)
 
     const fetchData = React.useCallback(async () => {

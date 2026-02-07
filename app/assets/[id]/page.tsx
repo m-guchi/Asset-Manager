@@ -54,17 +54,44 @@ import {
 import { getCategoryDetails } from "../../actions/categories"
 import { updateValuation, addTransaction, deleteHistoryItem, updateHistoryItem } from "../../actions/assets"
 
+interface TransactionItem {
+    id: string;
+    date: string | Date;
+    type: string;
+    amount: number;
+    pointInTimeValuation: number;
+    memo: string | null;
+    realizedGain?: number;
+    categoryName?: string;
+    categoryColor?: string;
+    profitRatio?: number;
+}
+
+interface CategoryDetail {
+    id: number;
+    name: string;
+    color: string;
+    currentValue: number;
+    costBasis: number;
+    isCash: boolean | null;
+    isLiability: boolean | null;
+    parent: { id: number; name: string } | null;
+    children: { id: number; name: string; color: string; currentValue: number; isLiability: boolean | null }[];
+    transactions: TransactionItem[];
+    history: { date: string; value: number; cost: number }[];
+}
+
 export default function AssetDetailPage() {
     const params = useParams()
     const router = useRouter()
-    const id = Number(params.id)
+    const id = Number((params as { id: string }).id)
 
-    const [category, setCategory] = React.useState<any>(null)
+    const [category, setCategory] = React.useState<CategoryDetail | null>(null)
     const [isLoading, setIsLoading] = React.useState(true)
     const [timeRange, setTimeRange] = React.useState("1Y")
     const [historyFilter, setHistoryFilter] = React.useState<string>("ALL")
     const [isTrxModalOpen, setIsTrxModalOpen] = React.useState(false)
-    const [editingItem, setEditingItem] = React.useState<any>(null)
+    const [editingItem, setEditingItem] = React.useState<TransactionItem | null>(null)
 
     const fetchData = React.useCallback(async () => {
         setIsLoading(true)
@@ -160,7 +187,7 @@ export default function AssetDetailPage() {
         }
     }
 
-    const openEdit = (item: any) => {
+    const openEdit = (item: TransactionItem) => {
         setEditingItem(item)
         // Calculate base valuation (valuation BEFORE this transaction)
         const signedAmount = item.type === 'WITHDRAW' ? -Math.abs(item.amount || 0) : Math.abs(item.amount || 0);
@@ -221,15 +248,15 @@ export default function AssetDetailPage() {
         return <div className="p-8 text-center text-muted-foreground">資産が見つかりません</div>
     }
 
-    const profit = category.currentValue - category.costBasis
-    const profitPercent = category.costBasis > 0 ? (profit / category.costBasis) * 100 : 0
+    const profit = (category?.currentValue ?? 0) - (category?.costBasis ?? 0)
+    const profitPercent = (category?.costBasis ?? 0) > 0 ? (profit / (category?.costBasis ?? 1)) * 100 : 0
     const isPositive = profit >= 0
 
-    const totalRealizedGain = category.transactions?.reduce((sum: number, tx: any) => sum + Number(tx.realizedGain || 0), 0) || 0;
+    const totalRealizedGain = (category?.transactions || []).reduce((sum: number, tx) => sum + Number(tx.realizedGain || 0), 0);
     const isRealizedPositive = totalRealizedGain >= 0;
 
-    const totalDeposit = category.transactions?.filter((tx: any) => tx.type === 'DEPOSIT').reduce((sum: number, tx: any) => sum + Math.abs(Number(tx.amount)), 0) || 0;
-    const totalWithdrawal = category.transactions?.filter((tx: any) => tx.type === 'WITHDRAW').reduce((sum: number, tx: any) => sum + Math.abs(Number(tx.amount)), 0) || 0;
+    const totalDeposit = (category?.transactions || []).filter((tx) => tx.type === 'DEPOSIT').reduce((sum: number, tx) => sum + Math.abs(Number(tx.amount)), 0);
+    const totalWithdrawal = (category?.transactions || []).filter((tx) => tx.type === 'WITHDRAW').reduce((sum: number, tx) => sum + Math.abs(Number(tx.amount)), 0);
 
     const formatXAxis = (tickItem: number) => {
         const date = new Date(tickItem)
@@ -240,17 +267,17 @@ export default function AssetDetailPage() {
         <div className="flex flex-col gap-6 pb-20">
             {/* Header */}
             <div className="flex items-center gap-4">
-                <Link href={category.parent ? `/assets/${category.parent.id}` : "/"} className="p-2 -ml-2 hover:bg-muted/50 rounded-full transition-colors">
+                <Link href={category?.parent ? `/assets/${category.parent.id}` : "/"} className="p-2 -ml-2 hover:bg-muted/50 rounded-full transition-colors">
                     <ArrowLeft className="h-5 w-5" />
                 </Link>
                 <div className="flex flex-col">
                     <div className="flex items-center gap-2">
-                        {category.parent && (
+                        {category?.parent && (
                             <Link href={`/assets/${category.parent.id}`} className="text-xs text-muted-foreground hover:underline">
                                 {category.parent.name} /
                             </Link>
                         )}
-                        <h1 className="text-xl font-bold">{category.name}</h1>
+                        <h1 className="text-xl font-bold">{category?.name}</h1>
                     </div>
                 </div>
             </div>
@@ -263,18 +290,18 @@ export default function AssetDetailPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">
-                            ¥{((category.isLiability ? -1 : 1) * category.currentValue).toLocaleString()}
+                            ¥{((category?.isLiability ? -1 : 1) * (category?.currentValue || 0)).toLocaleString()}
                         </div>
-                        {!category.isCash && (
+                        {!category?.isCash && (
                             <div className={`text-sm mt-1 flex items-center gap-2 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
                                 {isPositive ? '+' : '-'}¥{Math.abs(profit).toLocaleString()}
                                 <span className="text-xs bg-muted/20 px-1.5 py-0.5 rounded text-muted-foreground">
-                                    {category.costBasis > 0 ? `${isPositive ? '+' : ''}${profitPercent.toFixed(1)}%` : '-'}
+                                    {(category?.costBasis || 0) > 0 ? `${isPositive ? '+' : ''}${profitPercent.toFixed(1)}%` : '-'}
                                 </span>
                             </div>
                         )}
                         {/* Child Asset Breakdown */}
-                        {category.children && category.children.length > 0 && (
+                        {category?.children && category.children.length > 0 && (
                             <div className="mt-4 pt-4 border-t space-y-2">
                                 <div className="text-xs text-muted-foreground mb-2">内訳</div>
                                 {category.children.map((child: any) => (
@@ -283,7 +310,7 @@ export default function AssetDetailPage() {
                                             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: child.color }} />
                                             <span className="group-hover:underline">{child.name}</span>
                                         </div>
-                                        <span className="font-mono">¥{((category.isLiability || child.isLiability ? -1 : 1) * child.currentValue).toLocaleString()}</span>
+                                        <span className="font-mono">¥{((category?.isLiability || child.isLiability ? -1 : 1) * child.currentValue).toLocaleString()}</span>
                                     </Link>
                                 ))}
                             </div>
@@ -297,7 +324,7 @@ export default function AssetDetailPage() {
                                 <CardTitle className="text-sm font-medium text-muted-foreground">取得原価</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold text-muted-foreground">¥{category.costBasis.toLocaleString()}</div>
+                                <div className="text-2xl font-bold text-muted-foreground">¥{(category?.costBasis || 0).toLocaleString()}</div>
                                 <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-dashed">
                                     <div className="flex justify-between items-center text-xs">
                                         <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -493,7 +520,7 @@ export default function AssetDetailPage() {
                                         }
                                     />
                                     {category.children && category.children.length > 0 ? (
-                                        category.children.map((child: any) => (
+                                        category.children.map((child) => (
                                             <Area
                                                 key={child.id}
                                                 type="linear"
@@ -549,14 +576,14 @@ export default function AssetDetailPage() {
                         取引・評価履歴
                     </h2>
                     <div className="flex items-center gap-2 self-end sm:self-auto">
-                        {category.children && category.children.length > 0 && (
+                        {category?.children && category.children.length > 0 && (
                             <Select value={historyFilter} onValueChange={setHistoryFilter}>
                                 <SelectTrigger className="h-9 w-[140px] text-xs">
                                     <SelectValue placeholder="すべて表示" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="ALL">すべて表示</SelectItem>
-                                    {category.children.map((child: any) => (
+                                    {category.children.map((child) => (
                                         <SelectItem key={child.id} value={child.id.toString()}>
                                             {child.name}
                                         </SelectItem>
@@ -604,7 +631,7 @@ export default function AssetDetailPage() {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                filteredTransactions.map((item: any) => (
+                                filteredTransactions.map((item) => (
                                     <TableRow key={item.id}>
                                         <TableCell className="text-xs font-medium text-muted-foreground">
                                             <div>{new Date(item.date).toISOString().slice(0, 10)}</div>
@@ -626,7 +653,7 @@ export default function AssetDetailPage() {
                                         <TableCell className="text-right">
                                             <div className="flex flex-col items-end">
                                                 <span>{(item.pointInTimeValuation !== null && item.pointInTimeValuation !== undefined) ? `¥${item.pointInTimeValuation.toLocaleString()}` : "-"}</span>
-                                                {item.profitRatio !== undefined && item.profitRatio !== null && !category.isCash && (
+                                                {item.profitRatio !== undefined && item.profitRatio !== null && !category?.isCash && (
                                                     <span className={`text-xs ${item.profitRatio >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                                                         {item.profitRatio >= 0 ? '+' : ''}{item.profitRatio.toFixed(1)}%
                                                     </span>

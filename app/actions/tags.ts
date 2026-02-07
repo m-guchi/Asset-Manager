@@ -10,7 +10,7 @@ export async function getTags() {
     return []
 }
 
-export async function saveTag(data: any) {
+export async function saveTag(_data: any) {
     return { success: false, error: "Deprecated" }
 }
 
@@ -22,28 +22,28 @@ export async function deleteTag(id: number) {
 
 export async function getTagGroups() {
     try {
-        const groups = await (prisma as any).tagGroup.findMany({
+        const groups = await prisma.tagGroup.findMany({
             include: {
                 options: {
                     orderBy: { order: 'asc' }
                 }
             },
             orderBy: { order: 'asc' }
-        }) as any[]
+        });
 
-        return groups.map((g: any) => ({
+        return groups.map((g) => ({
             id: g.id,
             name: g.name,
             order: g.order,
-            options: g.options.map((o: any) => ({
+            options: g.options.map((o) => ({
                 id: o.id,
                 name: o.name,
                 order: o.order
             }))
-        }))
+        }));
     } catch (error) {
-        console.error("Failed to fetch tag groups:", error)
-        return []
+        console.error("Failed to fetch tag groups:", error);
+        return [];
     }
 }
 
@@ -52,9 +52,8 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
         let savedGroup;
         if (data.id) {
             savedGroup = await prisma.$transaction(async (tx) => {
-                // 1. Update Group Name
                 await tx.tagGroup.update({
-                    where: { id: data.id },
+                    where: { id: data.id! },
                     data: { name: data.name }
                 })
 
@@ -63,9 +62,15 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
                 const incomingIds = incomingOptions.filter(o => o.id).map(o => o.id)
 
                 // Delete removed options
-                await (tx as any).tagOption.deleteMany({
+                await tx.categoryTag.deleteMany({
                     where: {
-                        tagGroupId: data.id,
+                        tagGroupId: data.id!,
+                        tagOptionId: { notIn: incomingIds as number[] }
+                    }
+                })
+                await tx.tagOption.deleteMany({
+                    where: {
+                        tagGroupId: data.id!,
                         id: { notIn: incomingIds as number[] }
                     }
                 })
@@ -74,12 +79,12 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
                 for (let i = 0; i < incomingOptions.length; i++) {
                     const opt = incomingOptions[i];
                     if (opt.id) {
-                        await (tx as any).tagOption.update({
+                        await tx.tagOption.update({
                             where: { id: opt.id },
                             data: { name: opt.name, order: i }
                         })
                     } else {
-                        await (tx as any).tagOption.create({
+                        await tx.tagOption.create({
                             data: {
                                 tagGroupId: data.id!,
                                 name: opt.name,
@@ -97,12 +102,12 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
         } else {
             // Create New Group
             // Fetch max order to place at the end
-            const maxOrderVal = await (prisma as any).tagGroup.aggregate({
+            const maxOrderVal = await prisma.tagGroup.aggregate({
                 _max: { order: true }
             })
             const nextOrder = (maxOrderVal._max?.order ?? -1) + 1
 
-            savedGroup = await (prisma as any).tagGroup.create({
+            savedGroup = await prisma.tagGroup.create({
                 data: {
                     name: data.name,
                     order: nextOrder,
@@ -184,11 +189,11 @@ export async function getAssetsForTagGroup(groupId: number) {
 
         // 2. Sort Hierarchically to match Main List
         const roots = categories
-            .filter((c: any) => !c.parentId)
-            .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+            .filter((c) => !c.parentId)
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
         const childrenMap = new Map<number, any[]>();
-        categories.forEach((c: any) => {
+        categories.forEach((c) => {
             if (c.parentId) {
                 const existing = childrenMap.get(c.parentId) || [];
                 existing.push(c);
@@ -197,18 +202,18 @@ export async function getAssetsForTagGroup(groupId: number) {
         });
 
         const sorted: any[] = [];
-        roots.forEach((root: any) => {
+        roots.forEach((root) => {
             sorted.push(root);
-            const children = (childrenMap.get(root.id) || []).sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+            const children = (childrenMap.get(root.id) || []).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
             sorted.push(...children);
         });
 
-        const existingTags = await (prisma as any).categoryTag.findMany({
+        const existingTags = await prisma.categoryTag.findMany({
             where: { tagGroupId: groupId }
         })
 
-        return sorted.map((cat: any) => {
-            const tag = existingTags.find((t: any) => t.categoryId === cat.id)
+        return sorted.map((cat) => {
+            const tag = existingTags.find((t) => t.categoryId === cat.id)
             return {
                 id: cat.id,
                 name: cat.name,
