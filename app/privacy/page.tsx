@@ -66,7 +66,14 @@ export default function PrivacyPage() {
                             </section>
 
                             <section>
-                                <h2 className="text-xl font-semibold text-foreground mb-3">6. 改定と連絡先</h2>
+                                <h2 className="text-xl font-semibold text-foreground mb-3">6. Google Analyticsの利用</h2>
+                                <p>
+                                    当アプリでは、利用状況の分析とサービス向上のため、Googleによるアクセス解析ツール「Googleアナリティクス」を利用しています。このGoogleアナリティクスはデータの収集のためにCookieを使用しています。このデータは匿名で収集されており、個人を特定するものではありません。
+                                </p>
+                            </section>
+
+                            <section>
+                                <h2 className="text-xl font-semibold text-foreground mb-3">7. 改定と連絡先</h2>
                                 <p>
                                     本ポリシーは、必要に応じて更新されることがあります。重要な変更がある場合はアプリ内でお知らせします。ご質問は設定メニューの「フィードバック」または公式サポートまでお問い合わせください。
                                 </p>

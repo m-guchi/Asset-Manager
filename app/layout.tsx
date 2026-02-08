@@ -31,6 +31,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/auth";
 import { TutorialDialog } from "@/components/TutorialDialog";
+import { GoogleAnalytics } from "@next/third-parties/google";
 
 export default async function RootLayout({
     children,
@@ -38,10 +39,12 @@ export default async function RootLayout({
     children: React.ReactNode;
 }>) {
     const session = await getServerSession(authOptions);
+    const gaId = process.env.NEXT_PUBLIC_GA_ID;
 
     return (
         <html lang="ja" suppressHydrationWarning>
             <body className={`${inter.className} antialiased bg-background text-foreground`}>
+                {gaId && <GoogleAnalytics gaId={gaId} />}
                 <AuthProvider>
                     <ThemeProvider
                         attribute="class"
