@@ -11,12 +11,16 @@ export default async function middleware(request: NextRequest) {
 
     console.log(`[Middleware Debug] pathname: ${pathname}, hasToken: ${!!token}`);
 
-    // Auth 関連の API や静的ファイルはスキップ
+    // Auth 関連、静的ファイル、PWA/SEO 関連のファイルは認証をスキップ
     if (
         pathname.includes("/api/auth") ||
         pathname.includes("_next") ||
-        pathname.includes("favicon.ico") ||
-        pathname.includes("manifest.json") ||
+        pathname.startsWith("/icon.svg") ||
+        pathname.startsWith("/favicon.ico") ||
+        pathname.startsWith("/manifest.json") ||
+        pathname.startsWith("/robots.txt") ||
+        pathname.startsWith("/sitemap.xml") ||
+        pathname.match(/\.(svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|eot)$/) ||
         pathname.includes("/terms") ||
         pathname.includes("/privacy")
     ) {
