@@ -18,7 +18,33 @@ export default function LoginPage() {
     const [activeTab, setActiveTab] = React.useState("login")
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
     const [showPassword, setShowPassword] = React.useState(false)
+    const [validationErrors, setValidationErrors] = React.useState({
+        name: "",
+        email: "",
+        password: "",
+        confirmPassword: ""
+    })
     const router = useRouter()
+
+    const MAX_LENGTHS = {
+        name: 50,
+        email: 255,
+        password: 72
+    }
+
+    const validateField = (name: string, value: string) => {
+        let error = ""
+        if (name === "name" && value.length > MAX_LENGTHS.name) {
+            error = `名前は${MAX_LENGTHS.name}文字以内で入力してください`
+        } else if (name === "email" && value.length > MAX_LENGTHS.email) {
+            error = `メールアドレスは${MAX_LENGTHS.email}文字以内で入力してください`
+        } else if (name === "password" && value.length > MAX_LENGTHS.password) {
+            error = `パスワードは${MAX_LENGTHS.password}文字以内で入力してください`
+        }
+        setValidationErrors(prev => ({ ...prev, [name]: error }))
+    }
+
+    const hasValidationErrors = Object.values(validationErrors).some(error => error !== "")
 
     const handleGoogleLogin = async () => {
         setIsLoading("google")
@@ -206,15 +232,33 @@ export default function LoginPage() {
                                     <Label htmlFor="reg-name">お名前</Label>
                                     <div className="relative">
                                         <UserIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                        <Input id="reg-name" name="name" type="text" placeholder="名前 (任意)" className="pl-10 bg-background/50" />
+                                        <Input
+                                            id="reg-name"
+                                            name="name"
+                                            type="text"
+                                            placeholder="名前 (任意)"
+                                            className={`pl-10 bg-background/50 ${validationErrors.name ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                                            maxLength={MAX_LENGTHS.name + 1}
+                                            onChange={(e) => validateField("name", e.target.value)}
+                                        />
                                     </div>
+                                    {validationErrors.name && <p className="text-[10px] text-destructive animate-in fade-in slide-in-from-top-1">{validationErrors.name}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="reg-email">メールアドレス</Label>
                                     <div className="relative">
                                         <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                        <Input id="reg-email" name="email" type="email" placeholder="example@minagu.work" className="pl-10 bg-background/50" />
+                                        <Input
+                                            id="reg-email"
+                                            name="email"
+                                            type="email"
+                                            placeholder="example@minagu.work"
+                                            className={`pl-10 bg-background/50 ${validationErrors.email ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                                            maxLength={MAX_LENGTHS.email + 1}
+                                            onChange={(e) => validateField("email", e.target.value)}
+                                        />
                                     </div>
+                                    {validationErrors.email && <p className="text-[10px] text-destructive animate-in fade-in slide-in-from-top-1">{validationErrors.email}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="reg-password">パスワード</Label>
@@ -225,7 +269,9 @@ export default function LoginPage() {
                                             name="password"
                                             type={showPassword ? "text" : "password"}
                                             placeholder="••••••••"
-                                            className="pl-10 pr-10 bg-background/50"
+                                            className={`pl-10 pr-10 bg-background/50 ${validationErrors.password ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                                            maxLength={MAX_LENGTHS.password + 1}
+                                            onChange={(e) => validateField("password", e.target.value)}
                                         />
                                         <button
                                             type="button"
@@ -235,6 +281,8 @@ export default function LoginPage() {
                                             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                         </button>
                                     </div>
+                                    {!validationErrors.password && <p className="text-[10px] text-muted-foreground opacity-70">※最大{MAX_LENGTHS.password}文字まで指定可能です</p>}
+                                    {validationErrors.password && <p className="text-[10px] text-destructive animate-in fade-in slide-in-from-top-1">{validationErrors.password}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="reg-confirm-password">パスワード（確認）</Label>
@@ -256,7 +304,7 @@ export default function LoginPage() {
                                         </button>
                                     </div>
                                 </div>
-                                <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 transition-all duration-300 mt-2" disabled={!!isLoading}>
+                                <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 transition-all duration-300 mt-2" disabled={!!isLoading || hasValidationErrors}>
                                     {isLoading === "register" ? (
                                         <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-white" />
                                     ) : "アカウント作成"}
