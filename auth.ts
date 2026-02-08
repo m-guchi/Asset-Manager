@@ -15,8 +15,38 @@ export const authOptions: NextAuthOptions = {
     session: {
         strategy: "jwt"
     },
+    secret: process.env.NEXTAUTH_SECRET,
+    useSecureCookies: process.env.NODE_ENV === "production",
+    cookies: {
+        sessionToken: {
+            name: process.env.NODE_ENV === "production" ? `__Secure-next-auth.session-token` : `next-auth.session-token`,
+            options: {
+                httpOnly: true,
+                sameSite: "lax",
+                path: "/asset-manager",
+                secure: process.env.NODE_ENV === "production",
+            },
+        },
+        callbackUrl: {
+            name: process.env.NODE_ENV === "production" ? `__Secure-next-auth.callback-url` : `next-auth.callback-url`,
+            options: {
+                sameSite: "lax",
+                path: "/asset-manager",
+                secure: process.env.NODE_ENV === "production",
+            },
+        },
+        csrfToken: {
+            name: process.env.NODE_ENV === "production" ? `__Host-next-auth.csrf-token` : `next-auth.csrf-token`,
+            options: {
+                httpOnly: true,
+                sameSite: "lax",
+                path: "/asset-manager",
+                secure: process.env.NODE_ENV === "production",
+            },
+        },
+    },
     callbacks: {
-        session({ session, token }) {
+        session({ session, token }: { session: any, token: any }) {
             if (session.user && token.sub) {
                 session.user.id = token.sub
             }
@@ -24,7 +54,7 @@ export const authOptions: NextAuthOptions = {
         },
     },
     events: {
-        async createUser({ user }) {
+        async createUser({ user }: { user: any }) {
             if (user.id) {
                 await seedDummyData(user.id);
             }
@@ -34,6 +64,5 @@ export const authOptions: NextAuthOptions = {
         signIn: "/login",
         error: "/login",
     },
-    secret: process.env.NEXTAUTH_SECRET,
     debug: process.env.NODE_ENV === "development",
 }

@@ -98,12 +98,13 @@ jobs:
             # .envを強制的に再作成
             echo "Updating .env file..."
             rm -f .env
-            echo "DATABASE_URL=\"${{ secrets.DATABASE_URL }}\"" > .env
-            echo "NEXTAUTH_URL=\"${{ secrets.NEXTAUTH_URL }}\"" >> .env
-            echo "NEXTAUTH_SECRET=\"${{ secrets.NEXTAUTH_SECRET }}\"" >> .env
-            echo "AUTH_GOOGLE_ID=\"${{ secrets.AUTH_GOOGLE_ID }}\"" >> .env
-            echo "AUTH_GOOGLE_SECRET=\"${{ secrets.AUTH_GOOGLE_SECRET }}\"" >> .env
-            echo "AUTH_TRUST_HOST=\"true\"" >> .env
+            echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
+            echo "NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}" >> .env
+            echo "NEXT_PUBLIC_NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}" >> .env
+            echo "NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}" >> .env
+            echo "AUTH_GOOGLE_ID=${{ secrets.AUTH_GOOGLE_ID }}" >> .env
+            echo "AUTH_GOOGLE_SECRET=${{ secrets.AUTH_GOOGLE_SECRET }}" >> .env
+            echo "AUTH_TRUST_HOST=true" >> .env
             echo "PORT=3102" >> .env
 
             # 依存関係のインストール
@@ -126,13 +127,16 @@ jobs:
             
             export PORT=3102
             export NEXTAUTH_URL="${{ secrets.NEXTAUTH_URL }}"
+            export NEXT_PUBLIC_NEXTAUTH_URL="${{ secrets.NEXTAUTH_URL }}"
+            export AUTH_URL="${{ secrets.NEXTAUTH_URL }}"
             export NEXTAUTH_SECRET="${{ secrets.NEXTAUTH_SECRET }}"
             export AUTH_GOOGLE_ID="${{ secrets.AUTH_GOOGLE_ID }}"
             export AUTH_GOOGLE_SECRET="${{ secrets.AUTH_GOOGLE_SECRET }}"
             export AUTH_TRUST_HOST="true"
             export TRUST_PROXY="1"
             
-            pm2 start npm --name asset-manager -- start
+            echo "Starting PM2 with NEXTAUTH_URL: $NEXTAUTH_URL"
+            pm2 start npm --name asset-manager -- start -- --port 3102 --hostname 0.0.0.0
 
             # ヘルスチェック（起動確認）
             echo "Waiting for app to start..."
