@@ -176,7 +176,7 @@ export async function resetPassword(token: string, password: string) {
         })
 
         return { success: "パスワードを更新しました。新しいパスワードでログインしてください。" }
-    } catch (_error) {
+    } catch {
         return { error: "エラーが発生しました" }
     }
 }

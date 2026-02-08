@@ -41,7 +41,7 @@ export function TutorialDialog() {
     const [open, setOpen] = React.useState(false)
 
     React.useEffect(() => {
-        if (session?.user && !(session.user as any).hasCompletedTutorial) {
+        if (session?.user && !session.user.hasCompletedTutorial) {
             setOpen(true)
         }
     }, [session])
