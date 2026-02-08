@@ -310,10 +310,6 @@ export default function LoginPage() {
                                     ) : "アカウント作成"}
                                 </Button>
                             </form>
-                            <p className="text-xs text-center text-muted-foreground px-4">
-                                登録後、ログインタブからログインしてください。
-                                初期データとしてデモ用のアセットが投入されます。
-                            </p>
                         </TabsContent>
                     </Tabs>
 
