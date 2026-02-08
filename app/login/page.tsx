@@ -4,7 +4,7 @@ import * as React from "react"
 import { signIn } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Hexagon, Mail, Lock, User as UserIcon } from "lucide-react"
+import { Hexagon, Mail, Lock, User as UserIcon, Eye, EyeOff } from "lucide-react"
 import Link from "next/link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,7 @@ export default function LoginPage() {
     const [isLoading, setIsLoading] = React.useState<string | null>(null)
     const [activeTab, setActiveTab] = React.useState("login")
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
+    const [showPassword, setShowPassword] = React.useState(false)
     const router = useRouter()
 
     const handleGoogleLogin = async () => {
@@ -72,6 +73,15 @@ export default function LoginPage() {
         setErrorMessage(null)
         const form = e.currentTarget
         const formData = new FormData(form)
+        const password = formData.get("password") as string
+        const confirmPassword = formData.get("confirmPassword") as string
+
+        if (password !== confirmPassword) {
+            setErrorMessage("パスワードが一致しません")
+            toast.error("パスワードが一致しません")
+            setIsLoading(null)
+            return
+        }
 
         try {
             const result = await signUp(formData)
@@ -136,7 +146,20 @@ export default function LoginPage() {
                                     <Label htmlFor="password">パスワード</Label>
                                     <div className="relative">
                                         <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                        <Input id="password" name="password" type="password" placeholder="••••••••" className="pl-10 bg-background/50" />
+                                        <Input
+                                            id="password"
+                                            name="password"
+                                            type={showPassword ? "text" : "password"}
+                                            placeholder="••••••••"
+                                            className="pl-10 pr-10 bg-background/50"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground transition-colors"
+                                        >
+                                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        </button>
                                     </div>
                                 </div>
                                 <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 transition-all duration-300" disabled={!!isLoading}>
@@ -197,7 +220,40 @@ export default function LoginPage() {
                                     <Label htmlFor="reg-password">パスワード</Label>
                                     <div className="relative">
                                         <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                        <Input id="reg-password" name="password" type="password" placeholder="••••••••" className="pl-10 bg-background/50" />
+                                        <Input
+                                            id="reg-password"
+                                            name="password"
+                                            type={showPassword ? "text" : "password"}
+                                            placeholder="••••••••"
+                                            className="pl-10 pr-10 bg-background/50"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground transition-colors"
+                                        >
+                                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="reg-confirm-password">パスワード（確認）</Label>
+                                    <div className="relative">
+                                        <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            id="reg-confirm-password"
+                                            name="confirmPassword"
+                                            type={showPassword ? "text" : "password"}
+                                            placeholder="••••••••"
+                                            className="pl-10 pr-10 bg-background/50"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground transition-colors"
+                                        >
+                                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        </button>
                                     </div>
                                 </div>
                                 <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 transition-all duration-300 mt-2" disabled={!!isLoading}>
