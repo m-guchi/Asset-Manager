@@ -13,7 +13,7 @@ export default function LoginPage() {
     const handleLogin = async (provider: string) => {
         setIsLoading(provider)
         try {
-            await signIn(provider, { callbackUrl: "/asset-manager" })
+            await signIn(provider, { callbackUrl: "/" })
         } catch (error) {
             console.error("Login failed:", error)
         } finally {

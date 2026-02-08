@@ -10,9 +10,10 @@ const version = packageJson.version || '0.0.0';
 
 
 const nextConfig: NextConfig = {
-    basePath: "/asset-manager",
     env: {
         NEXT_PUBLIC_APP_VERSION: version,
+        NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+        NEXT_PUBLIC_NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     },
     images: {
         remotePatterns: [

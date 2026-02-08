@@ -34,6 +34,7 @@ jobs:
             # 本番用接続情報をSecretsから注入
             DATABASE_URL: ${{ secrets.DATABASE_URL }} 
             NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+            NEXT_PUBLIC_NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
             NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
             AUTH_GOOGLE_ID: ${{ secrets.AUTH_GOOGLE_ID }}
             AUTH_GOOGLE_SECRET: ${{ secrets.AUTH_GOOGLE_SECRET }}
@@ -136,10 +137,10 @@ jobs:
             export TRUST_PROXY="1"
             
             echo "Starting PM2 with NEXTAUTH_URL: $NEXTAUTH_URL"
-            pm2 start npm --name asset-manager -- start -- --port 3102 --hostname 0.0.0.0
+            pm2 start npm --name asset-manager -- start -- -p 3102 -H 0.0.0.0
 
             # ヘルスチェック（起動確認）
             echo "Waiting for app to start..."
             sleep 20
-            curl -f http://localhost:3102/asset-manager || (echo "Health check failed!" && exit 1)
+            curl -f http://localhost:3102 || (echo "Health check failed!" && exit 1)
             echo "Deployment successful and app is running."
