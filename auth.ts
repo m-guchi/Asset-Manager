@@ -21,7 +21,6 @@ export const authOptions: NextAuthOptions = {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         session({ session, token }: { session: any; token: any }) {
             if (session.user && token.sub) {
-                // @ts-ignore
                 session.user.id = token.sub
             }
             return session
@@ -39,6 +38,5 @@ export const authOptions: NextAuthOptions = {
         signIn: "/login",
         error: "/login",
     },
-    trustHost: true,
     debug: process.env.NODE_ENV === "development",
 }
