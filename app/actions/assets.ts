@@ -38,6 +38,11 @@ export async function addTransaction(categoryId: number, data: {
     date: Date
     memo?: string
 }) {
+    // Input Validation
+    if (data.memo && data.memo.length > 200) {
+        return { success: false, error: "メモは200文字以内で入力してください" }
+    }
+
     try {
         const userId = await getCurrentUserId()
         if (!userId) {
@@ -170,6 +175,11 @@ interface UpdateHistoryItemData {
 }
 
 export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: UpdateHistoryItemData) {
+    // Input Validation
+    if (data.memo && data.memo.length > 200) {
+        return { success: false, error: "メモは200文字以内で入力してください" }
+    }
+
     try {
         const userId = await getCurrentUserId()
         if (!userId) {

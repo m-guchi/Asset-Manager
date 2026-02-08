@@ -52,6 +52,14 @@ export async function getTagGroups() {
 }
 
 export async function saveTagGroup(data: { id?: number, name: string, options: { id?: number, name: string }[] }) {
+    // Input Validation
+    if (data.name && data.name.length > 50) {
+        return { success: false, error: "タググループ名は50文字以内で入力してください" }
+    }
+    if (data.options && data.options.some(o => o.name && o.name.length > 50)) {
+        return { success: false, error: "タグ名称は50文字以内で入力してください" }
+    }
+
     try {
         let savedGroup;
         if (data.id) {
@@ -175,6 +183,11 @@ export async function reorderTagGroupsAction(items: { id: number, order: number 
 }
 
 export async function renameTagGroup(id: number, name: string) {
+    // Input Validation
+    if (name && name.length > 50) {
+        return { success: false, error: "タググループ名は50文字以内で入力してください" }
+    }
+
     try {
         await prisma.tagGroup.update({
             where: { id },
