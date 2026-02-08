@@ -75,9 +75,17 @@ export default function PrivacyPage() {
                             <section>
                                 <h2 className="text-xl font-semibold text-foreground mb-3">7. 改定と連絡先</h2>
                                 <p>
-                                    本ポリシーは、必要に応じて更新されることがあります。重要な変更がある場合はアプリ内でお知らせします。ご質問は設定メニューの「フィードバック」または公式サポートまでお問い合わせください。
+                                    本ポリシーは、必要に応じて更新されることがあります。重要な変更がある場合はアプリ内でお知らせします。ご質問は以下の連絡先までお問い合わせください。
+                                </p>
+                                <p className="mt-2 text-foreground font-medium underline">
+                                    app@asset.minagu.work
                                 </p>
                             </section>
+
+                            <div className="pt-8 border-t border-border/50 text-sm opacity-60">
+                                <p>制定日: 2026年1月24日</p>
+                                <p>最終改定日: 2026年2月8日</p>
+                            </div>
                         </div>
                     </ScrollArea>
                 </CardContent>
