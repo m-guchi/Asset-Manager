@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { getToken } from "next-auth/jwt"
 
 export default async function middleware(request: NextRequest) {
+    const isProd = process.env.NODE_ENV === "production"
     const token = await getToken({
         req: request,
         secret: process.env.NEXTAUTH_SECRET,
+        secureCookie: isProd,
+        cookieName: isProd ? "__Secure-next-auth.session-token" : "next-auth.session-token"
     })
 
     const { pathname } = request.nextUrl

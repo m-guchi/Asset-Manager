@@ -46,6 +46,13 @@ export const authOptions: NextAuthOptions = {
         },
     },
     callbacks: {
+        async redirect({ url, baseUrl }: { url: string, baseUrl: string }) {
+            // baseUrl is usually process.env.NEXTAUTH_URL
+            // If the redirect URL doesn't start with the expected subpath, prepend it.
+            if (url.startsWith("/")) return `${baseUrl}${url}`
+            else if (new URL(url).origin === new URL(baseUrl).origin) return url
+            return baseUrl
+        },
         session({ session, token }: { session: any, token: any }) {
             if (session.user && token.sub) {
                 session.user.id = token.sub
