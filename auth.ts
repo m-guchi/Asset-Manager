@@ -53,14 +53,17 @@ export const authOptions: NextAuthOptions = {
             else if (new URL(url).origin === new URL(baseUrl).origin) return url
             return baseUrl
         },
-        session({ session, token }: { session: any, token: any }) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        session({ session, token }: { session: any; token: any }) {
             if (session.user && token.sub) {
+                // @ts-ignore
                 session.user.id = token.sub
             }
             return session
         },
     },
     events: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         async createUser({ user }: { user: any }) {
             if (user.id) {
                 await seedDummyData(user.id);
