@@ -27,8 +27,11 @@ export const metadata: Metadata = {
     },
 };
 
+import { Toaster } from "@/components/ui/sonner";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/auth";
+import { TutorialDialog } from "@/components/TutorialDialog";
+import { GoogleAnalytics } from "@next/third-parties/google";
 
 export default async function RootLayout({
     children,
@@ -36,10 +39,12 @@ export default async function RootLayout({
     children: React.ReactNode;
 }>) {
     const session = await getServerSession(authOptions);
+    const gaId = process.env.NEXT_PUBLIC_GA_ID;
 
     return (
         <html lang="ja" suppressHydrationWarning>
             <body className={`${inter.className} antialiased bg-background text-foreground`}>
+                {gaId && <GoogleAnalytics gaId={gaId} />}
                 <AuthProvider>
                     <ThemeProvider
                         attribute="class"
@@ -61,6 +66,7 @@ export default async function RootLayout({
                                     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
                                         {children}
                                     </div>
+                                    <TutorialDialog />
                                 </SidebarInset>
                             </SidebarProvider>
                         ) : (
@@ -68,6 +74,7 @@ export default async function RootLayout({
                                 {children}
                             </div>
                         )}
+                        <Toaster />
                     </ThemeProvider>
                 </AuthProvider>
             </body>

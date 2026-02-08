@@ -169,6 +169,11 @@ interface SaveCategoryData {
 }
 
 export async function saveCategory(data: SaveCategoryData) {
+    // Input Validation
+    if (data.name && data.name.length > 50) {
+        return { success: false, error: "名称は50文字以内で入力してください" }
+    }
+
     try {
         const userId = await getCurrentUserId()
         const baseData = {

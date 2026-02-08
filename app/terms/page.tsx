@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 
 export default function TermsPage() {
     return (
-        <div className="container max-w-4xl py-10">
+        <div className="container mx-auto max-w-4xl py-10 px-4">
             <Card className="border-border/50 bg-card/50 backdrop-blur-xl">
                 <CardHeader className="text-center pb-8">
                     <CardTitle className="text-3xl font-bold tracking-tight">利用規約</CardTitle>
@@ -15,51 +15,53 @@ export default function TermsPage() {
                     <ScrollArea className="h-[600px] pr-4">
                         <div className="space-y-6 text-muted-foreground leading-relaxed">
                             <section>
-                                <h2 className="text-xl font-semibold text-foreground mb-3">第1条（適用）</h2>
+                                <h2 className="text-xl font-semibold text-foreground mb-3">第1条（本サービスの目的と性質）</h2>
                                 <p>
-                                    この利用規約（以下，「本規約」といいます。）は，本サービスの提供条件及び本サービスの利用に関する当事者間の権利義務関係を定めるものです。ユーザーは，本サービスを利用することにより，本規約の全ての記載内容に同意したものとみなされます。
+                                    1. 本サービスは、ユーザーの個人資産状況を可視化し、管理を補助することを目的としたツールです。<br />
+                                    2. 本サービスが提供するデータ、グラフ、分析結果は、情報の正確性を期していますが、<strong>投資勧誘や特定の金融商品の売買を推奨するものではありません。</strong>最終的な投資判断は、ユーザー自身の責任において行ってください。
                                 </p>
                             </section>
 
                             <section>
-                                <h2 className="text-xl font-semibold text-foreground mb-3">第2条（利用登録）</h2>
+                                <h2 className="text-xl font-semibold text-foreground mb-3">第2条（利用登録とセキュリティ）</h2>
                                 <p>
-                                    本サービスにおいては，登録希望者が本規約に同意の上，当社の定める方法によって利用登録を申請し，当社がこれを承認することによって，利用登録が完了するものとします。
+                                    1. ユーザーは、Google認証等の当アプリ指定の方法により、適正に利用登録を行うものとします。<br />
+                                    2. 自身のログイン情報の管理はユーザーの自己責任であり、第三者による不正利用によって生じた損害について、当アプリは一切の責任を負いません。
                                 </p>
                             </section>
 
                             <section>
                                 <h2 className="text-xl font-semibold text-foreground mb-3">第3条（禁止事項）</h2>
                                 <p>
-                                    ユーザーは，本サービスの利用にあたり，以下の行為をしてはなりません。
+                                    ユーザーは、本サービスの利用にあたり、以下の行為をしてはなりません。
                                 </p>
                                 <ul className="list-disc pl-6 mt-2 space-y-1">
-                                    <li>法令または公序良俗に違反する行為</li>
-                                    <li>犯罪行為に関連する行為</li>
-                                    <li>本サービスの内容等，本サービスに含まれる著作権，商標権ほか知的財産権を侵害する行為</li>
-                                    <li>当社のサーバーまたはネットワークの機能を破壊したり，妨害したりする行為</li>
-                                    <li>本サービスによって得られた情報を商業的に利用する行為</li>
-                                    <li>不正アクセスをし，またはこれを試みる行為</li>
+                                    <li>虚偽の情報を登録、または他者になりすまして利用する行為</li>
+                                    <li>逆コンパイルやスクレイピング等、本システムの解析や妨害を目的とした行為</li>
+                                    <li>本サービスを反社会的勢力の活動に関連して利用する行為</li>
+                                    <li>その他、運営が不適切と判断する行為</li>
                                 </ul>
                             </section>
 
                             <section>
-                                <h2 className="text-xl font-semibold text-foreground mb-3">第4条（本サービスの提供の停止等）</h2>
+                                <h2 className="text-xl font-semibold text-foreground mb-3">第4条（サービスの中断・変更）</h2>
                                 <p>
-                                    当社は，以下のいずれかの事由があると判断した場合，ユーザーに事前に通知することなく本サービスの全部または一部の提供を停止または中断することができるものとします。
+                                    保守点検、サーバー障害、天災、その他やむを得ない事由により、予告なくサービスの一部または全部を中断・変更することがあります。これによってユーザーに生じた不利益について、当アプリは責任を負いかねます。
                                 </p>
-                                <ul className="list-disc pl-6 mt-2 space-y-1">
-                                    <li>本サービスに係るコンピュータシステムの保守点検または更新を行う場合</li>
-                                    <li>地震，落雷，火災，停電または天災などの不可抗力により，本サービスの提供が困難となった場合</li>
-                                    <li>コンピュータまたは通信回線等が事故により停止した場合</li>
-                                    <li>その他，当社が本サービスの提供が困難と判断した場合</li>
-                                </ul>
                             </section>
 
                             <section>
-                                <h2 className="text-xl font-semibold text-foreground mb-3">第5条（免責事項）</h2>
+                                <h2 className="text-xl font-semibold text-foreground mb-3">第5条（非保証・免責事項）</h2>
                                 <p>
-                                    当社は，本サービスに事実上または法律上の瑕疵（安全性，信頼性，正確性，完全性，有効性，特定の目的への適合性，セキュリティなどに関する欠陥，エラーやバグ，権利侵害などを含みます。）がないことを明示的にも黙示的にも保証しておりません。
+                                    1. 当アプリは、本サービスにバグ等の欠陥がないことや、特定の環境での動作を保証するものではありません。<br />
+                                    2. 本サービスを利用したこと、または利用できなかったことにより生じた直接的、間接的な損害について、当アプリに故意または重大な過失がある場合を除き、一切の責任を負いません。
+                                </p>
+                            </section>
+
+                            <section>
+                                <h2 className="text-xl font-semibold text-foreground mb-3">第6条（データの管理と削除）</h2>
+                                <p>
+                                    当アプリは、ユーザーが削除したデータの復旧には応じられません。重要な資産記録については、適宜ご自身でバックアップ等を行うことを推奨します。
                                 </p>
                             </section>
                         </div>

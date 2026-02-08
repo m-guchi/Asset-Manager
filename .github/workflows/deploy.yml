@@ -38,6 +38,7 @@ jobs:
             NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
             AUTH_GOOGLE_ID: ${{ secrets.AUTH_GOOGLE_ID }}
             AUTH_GOOGLE_SECRET: ${{ secrets.AUTH_GOOGLE_SECRET }}
+            NEXT_PUBLIC_GA_ID: ${{ secrets.NEXT_PUBLIC_GA_ID }}
 
       - name: Create archive
         run: |
@@ -107,15 +108,25 @@ jobs:
             echo "AUTH_GOOGLE_SECRET=${{ secrets.AUTH_GOOGLE_SECRET }}" >> .env
             echo "AUTH_TRUST_HOST=true" >> .env
             echo "PORT=3102" >> .env
+            
+            # SMTP
+            echo "SMTP_HOST=${{ secrets.SMTP_HOST }}" >> .env
+            echo "SMTP_PORT=${{ secrets.SMTP_PORT }}" >> .env
+            echo "SMTP_USER=${{ secrets.SMTP_USER }}" >> .env
+            echo "SMTP_PASS=${{ secrets.SMTP_PASS }}" >> .env
+            echo "SMTP_FROM=${{ secrets.SMTP_FROM }}" >> .env
+
+            # Google Analytics
+            echo "NEXT_PUBLIC_GA_ID=${{ secrets.NEXT_PUBLIC_GA_ID }}" >> .env
 
             # 依存関係のインストール
             echo "Installing production dependencies..."
             npm install --omit=dev --no-audit --prefer-offline
 
             # DBマイグレーション実行
-            echo "Running migrations..."
+            echo "Updating database schema..."
             npx prisma generate
-            npx prisma migrate deploy
+            npx prisma db push --accept-data-loss
 
             # DB接続・データ取得テスト
             echo "Testing production DB data retrieval..."

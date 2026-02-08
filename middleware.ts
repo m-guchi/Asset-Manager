@@ -14,6 +14,10 @@ export default async function middleware(request: NextRequest) {
     // Auth 関連、静的ファイル、PWA/SEO 関連のファイルは認証をスキップ
     if (
         pathname.includes("/api/auth") ||
+        pathname.startsWith("/auth/verify") ||
+        pathname.startsWith("/auth/reset-password") ||
+        pathname.startsWith("/auth/confirm-email-change") ||
+        pathname.startsWith("/auth/confirm-password-change") ||
         pathname.includes("_next") ||
         pathname.startsWith("/icon.svg") ||
         pathname.startsWith("/favicon.ico") ||
