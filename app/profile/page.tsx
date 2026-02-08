@@ -227,139 +227,154 @@ export default function ProfilePage() {
                                 )}
                             </div>
 
-                            {/* Email Edit */}
-                            <div className="rounded-xl border border-border bg-background/50 p-6 space-y-4 transition-all hover:bg-muted/10">
-                                <div className="flex items-center justify-between">
-                                    <div className="space-y-1">
-                                        <h4 className="font-semibold text-sm">メールアドレス</h4>
-                                        <p className="text-xs text-muted-foreground">ログインに使用するメールアドレスです。変更には認証が必要です。</p>
-                                    </div>
-                                    {!isEditingEmail && (
-                                        <Button variant="ghost" size="sm" onClick={() => setIsEditingEmail(true)} className="text-primary hover:text-primary hover:bg-primary/10">
-                                            <Edit2 className="h-4 w-4 mr-2" /> 変更
-                                        </Button>
-                                    )}
-                                </div>
+                            {!session?.user?.image ? (
+                                <>
+                                    {/* Email Edit */}
+                                    <div className="rounded-xl border border-border bg-background/50 p-6 space-y-4 transition-all hover:bg-muted/10">
+                                        <div className="flex items-center justify-between">
+                                            <div className="space-y-1">
+                                                <h4 className="font-semibold text-sm">メールアドレス</h4>
+                                                <p className="text-xs text-muted-foreground">ログインに使用するメールアドレスです。変更には認証が必要です。</p>
+                                            </div>
+                                            {!isEditingEmail && (
+                                                <Button variant="ghost" size="sm" onClick={() => setIsEditingEmail(true)} className="text-primary hover:text-primary hover:bg-primary/10">
+                                                    <Edit2 className="h-4 w-4 mr-2" /> 変更
+                                                </Button>
+                                            )}
+                                        </div>
 
-                                {isEditingEmail ? (
-                                    <div className="space-y-3 animate-in slide-in-from-top-2 duration-300">
-                                        <div className="flex gap-2">
-                                            <Input
-                                                type="email"
-                                                value={newEmail}
-                                                onChange={(e) => setNewEmail(e.target.value)}
-                                                className="max-w-md h-10"
-                                                autoFocus
-                                            />
-                                            <Button size="sm" onClick={handleRequestEmailChange} disabled={isLoading === "email"} className="h-10">
-                                                {isLoading === "email" ? "送信中..." : "確認メールを送信"}
-                                            </Button>
-                                            <Button variant="ghost" size="sm" onClick={() => {
-                                                setIsEditingEmail(false)
-                                                setNewEmail(session?.user?.email || "")
-                                            }} className="h-10">
-                                                キャンセル
-                                            </Button>
-                                        </div>
-                                        <div className="flex items-center gap-2 text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-md border border-amber-500/20">
-                                            <AlertCircle className="h-3 w-3" />
-                                            <span>新しいメールアドレスで承認されるまで、現在のメールアドレスが維持されます。</span>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        <p className="text-sm font-medium pl-1">{session?.user?.email}</p>
-                                        {pendingEmail && (
-                                            <div className="flex flex-col gap-2 p-3 rounded-lg bg-primary/5 border border-primary/10 animate-in zoom-in-95 duration-300">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-2 text-xs font-semibold text-primary">
-                                                        <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                                                        変更保留中
-                                                    </div>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={handleCancelEmailChange}
-                                                        disabled={isLoading === "cancel-email"}
-                                                        className="h-7 text-[10px] px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                                    >
-                                                        {isLoading === "cancel-email" ? "キャンセル中..." : "リクエストを取り消す"}
+                                        {isEditingEmail ? (
+                                            <div className="space-y-3 animate-in slide-in-from-top-2 duration-300">
+                                                <div className="flex gap-2">
+                                                    <Input
+                                                        type="email"
+                                                        value={newEmail}
+                                                        onChange={(e) => setNewEmail(e.target.value)}
+                                                        className="max-w-md h-10"
+                                                        autoFocus
+                                                    />
+                                                    <Button size="sm" onClick={handleRequestEmailChange} disabled={isLoading === "email"} className="h-10">
+                                                        {isLoading === "email" ? "送信中..." : "確認メールを送信"}
+                                                    </Button>
+                                                    <Button variant="ghost" size="sm" onClick={() => {
+                                                        setIsEditingEmail(false)
+                                                        setNewEmail(session?.user?.email || "")
+                                                    }} className="h-10">
+                                                        キャンセル
                                                     </Button>
                                                 </div>
-                                                <div className="flex items-center gap-2">
-                                                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                                                    <span className="text-xs font-medium">{pendingEmail}</span>
+                                                <div className="flex items-center gap-2 text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-md border border-amber-500/20">
+                                                    <AlertCircle className="h-3 w-3" />
+                                                    <span>新しいメールアドレスで承認されるまで、現在のメールアドレスが維持されます。</span>
                                                 </div>
-                                                <div className="space-y-1">
-                                                    <p className="text-[10px] text-muted-foreground">新しいメールアドレスに届いたリンクをクリックして、変更を完了してください。</p>
-                                                    <p className="text-[9px] text-muted-foreground/70 bg-muted/50 p-1.5 rounded border border-border/50">
-                                                        ※メールが届かない場合は、入力したメールアドレスが既に他のアカウントで登録されている可能性があります。その場合、セキュリティ保護のため確認メールは送信されません。
-                                                    </p>
-                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                <p className="text-sm font-medium pl-1">{session?.user?.email}</p>
+                                                {pendingEmail && (
+                                                    <div className="flex flex-col gap-2 p-3 rounded-lg bg-primary/5 border border-primary/10 animate-in zoom-in-95 duration-300">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                                                                <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                                                                変更保留中
+                                                            </div>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={handleCancelEmailChange}
+                                                                disabled={isLoading === "cancel-email"}
+                                                                className="h-7 text-[10px] px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                                            >
+                                                                {isLoading === "cancel-email" ? "キャンセル中..." : "リクエストを取り消す"}
+                                                            </Button>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                                                            <span className="text-xs font-medium">{pendingEmail}</span>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <p className="text-[10px] text-muted-foreground">新しいメールアドレスに届いたリンクをクリックして、変更を完了してください。</p>
+                                                            <p className="text-[9px] text-muted-foreground/70 bg-muted/50 p-1.5 rounded border border-border/50">
+                                                                ※メールが届かない場合は、入力したメールアドレスが既に他のアカウントで登録されている可能性があります。その場合、セキュリティ保護のため確認メールは送信されません。
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
-                                )}
-                            </div>
 
-                            {/* Password Edit */}
-                            <div className="rounded-xl border border-border bg-background/50 p-6 space-y-4 transition-all hover:bg-muted/10">
-                                <div className="flex items-center justify-between">
+                                    {/* Password Edit */}
+                                    <div className="rounded-xl border border-border bg-background/50 p-6 space-y-4 transition-all hover:bg-muted/10">
+                                        <div className="flex items-center justify-between">
+                                            <div className="space-y-1">
+                                                <h4 className="font-semibold text-sm">パスワード</h4>
+                                                <p className="text-xs text-muted-foreground">アカウントのセキュリティを強化します。変更にはメール認証が必要です。</p>
+                                            </div>
+                                            {!isEditingPassword && (
+                                                <Button variant="ghost" size="sm" onClick={() => setIsEditingPassword(true)} className="text-primary hover:text-primary hover:bg-primary/10">
+                                                    <Lock className="h-4 w-4 mr-2" /> 変更
+                                                </Button>
+                                            )}
+                                        </div>
+
+                                        {isEditingPassword ? (
+                                            <div className="space-y-4 animate-in slide-in-from-top-2 duration-300 max-w-md">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="new-password">新しいパスワード</Label>
+                                                    <Input
+                                                        id="new-password"
+                                                        type="password"
+                                                        value={newPassword}
+                                                        onChange={(e) => setNewPassword(e.target.value)}
+                                                        placeholder="••••••••"
+                                                    />
+                                                    <p className="text-[10px] text-muted-foreground opacity-70">※最大72文字まで指定可能です</p>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="confirm-password">確認用パスワード</Label>
+                                                    <Input
+                                                        id="confirm-password"
+                                                        type="password"
+                                                        value={confirmPassword}
+                                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                                        placeholder="••••••••"
+                                                    />
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <Button size="sm" onClick={handleRequestPasswordChange} disabled={isLoading === "password"} className="h-10">
+                                                        {isLoading === "password" ? "送信中..." : "変更をリクエスト"}
+                                                    </Button>
+                                                    <Button variant="ghost" size="sm" onClick={() => {
+                                                        setIsEditingPassword(false)
+                                                        setNewPassword("")
+                                                        setConfirmPassword("")
+                                                    }} className="h-10">
+                                                        キャンセル
+                                                    </Button>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-md border border-amber-500/20">
+                                                    <AlertCircle className="h-3 w-3" />
+                                                    <span>メールで届くリンクをクリックして承認するまで、パスワードは変更されません。</span>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm font-medium pl-1 text-muted-foreground">••••••••••••</p>
+                                        )}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 flex items-start gap-3">
+                                    <AlertCircle className="h-5 w-5 text-primary mt-0.5" />
                                     <div className="space-y-1">
-                                        <h4 className="font-semibold text-sm">パスワード</h4>
-                                        <p className="text-xs text-muted-foreground">アカウントのセキュリティを強化します。変更にはメール認証が必要です。</p>
+                                        <p className="text-sm font-medium text-primary">ソーシャルログイン</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            このアカウントはGoogleなどの外部サービスで認証されています。
+                                            メールアドレスやパスワードの変更は、各サービスの管理画面から行ってください。
+                                        </p>
                                     </div>
-                                    {!isEditingPassword && (
-                                        <Button variant="ghost" size="sm" onClick={() => setIsEditingPassword(true)} className="text-primary hover:text-primary hover:bg-primary/10">
-                                            <Lock className="h-4 w-4 mr-2" /> 変更
-                                        </Button>
-                                    )}
                                 </div>
-
-                                {isEditingPassword ? (
-                                    <div className="space-y-4 animate-in slide-in-from-top-2 duration-300 max-w-md">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="new-password">新しいパスワード</Label>
-                                            <Input
-                                                id="new-password"
-                                                type="password"
-                                                value={newPassword}
-                                                onChange={(e) => setNewPassword(e.target.value)}
-                                                placeholder="••••••••"
-                                            />
-                                            <p className="text-[10px] text-muted-foreground opacity-70">※最大72文字まで指定可能です</p>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="confirm-password">確認用パスワード</Label>
-                                            <Input
-                                                id="confirm-password"
-                                                type="password"
-                                                value={confirmPassword}
-                                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                                placeholder="••••••••"
-                                            />
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <Button size="sm" onClick={handleRequestPasswordChange} disabled={isLoading === "password"} className="h-10">
-                                                {isLoading === "password" ? "送信中..." : "変更をリクエスト"}
-                                            </Button>
-                                            <Button variant="ghost" size="sm" onClick={() => {
-                                                setIsEditingPassword(false)
-                                                setNewPassword("")
-                                                setConfirmPassword("")
-                                            }} className="h-10">
-                                                キャンセル
-                                            </Button>
-                                        </div>
-                                        <div className="flex items-center gap-2 text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-md border border-amber-500/20">
-                                            <AlertCircle className="h-3 w-3" />
-                                            <span>メールで届くリンクをクリックして承認するまで、パスワードは変更されません。</span>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <p className="text-sm font-medium pl-1 text-muted-foreground">••••••••••••</p>
-                                )}
-                            </div>
+                            )}
                         </div>
                     </CardContent>
                     <CardFooter className="bg-muted/20 border-t border-border p-4 flex justify-center">
