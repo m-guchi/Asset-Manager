@@ -46,6 +46,7 @@ export const authOptions: NextAuthOptions = {
                     id: user.id,
                     email: user.email,
                     name: user.name,
+                    hasCompletedTutorial: user.hasCompletedTutorial,
                 }
             }
         })
@@ -61,19 +62,22 @@ export const authOptions: NextAuthOptions = {
                 token.id = user.id;
                 token.name = user.name;
                 token.email = user.email;
+                token.hasCompletedTutorial = (user as any).hasCompletedTutorial;
             }
             if (trigger === "update") {
                 if (session?.name) token.name = session.name;
                 if (session?.email) token.email = session.email;
+                if (session?.hasCompletedTutorial !== undefined) token.hasCompletedTutorial = session.hasCompletedTutorial;
             } else if (token.id) {
                 // 定期的にDBから最新情報を取得してトークンを更新
                 const dbUser = await prisma.user.findUnique({
                     where: { id: token.id as string },
-                    select: { name: true, email: true }
+                    select: { name: true, email: true, hasCompletedTutorial: true }
                 });
                 if (dbUser) {
                     token.name = dbUser.name;
                     token.email = dbUser.email;
+                    token.hasCompletedTutorial = dbUser.hasCompletedTutorial;
                 }
             }
             return token;
@@ -84,6 +88,7 @@ export const authOptions: NextAuthOptions = {
                 session.user.id = token.id || token.sub;
                 session.user.name = token.name;
                 session.user.email = token.email;
+                session.user.hasCompletedTutorial = token.hasCompletedTutorial;
             }
             return session;
         },

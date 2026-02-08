@@ -30,6 +30,7 @@ export const metadata: Metadata = {
 import { Toaster } from "@/components/ui/sonner";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/auth";
+import { TutorialDialog } from "@/components/TutorialDialog";
 
 export default async function RootLayout({
     children,
@@ -62,6 +63,7 @@ export default async function RootLayout({
                                     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
                                         {children}
                                     </div>
+                                    <TutorialDialog />
                                 </SidebarInset>
                             </SidebarProvider>
                         ) : (
