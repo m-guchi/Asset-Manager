@@ -15,6 +15,7 @@ export default async function middleware(request: NextRequest) {
     if (
         pathname.includes("/api/auth") ||
         pathname.startsWith("/auth/verify") ||
+        pathname.startsWith("/auth/reset-password") ||
         pathname.includes("_next") ||
         pathname.startsWith("/icon.svg") ||
         pathname.startsWith("/favicon.ico") ||

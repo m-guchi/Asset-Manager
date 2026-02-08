@@ -9,7 +9,7 @@ import Link from "next/link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { signUp } from "@/app/actions/auth-actions"
+import { signUp, resetPasswordRequest } from "@/app/actions/auth-actions"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 
@@ -142,6 +142,31 @@ export default function LoginPage() {
         }
     }
 
+    const handleResetRequest = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault()
+        setIsLoading("reset")
+        setErrorMessage(null)
+        const formData = new FormData(e.currentTarget)
+        const email = formData.get("email") as string
+
+        try {
+            const result = await resetPasswordRequest(email)
+            if (result.error) {
+                setErrorMessage(result.error)
+                toast.error(result.error)
+            } else {
+                toast.success(result.success)
+                setActiveTab("login")
+            }
+        } catch (error) {
+            console.error("Reset request failed:", error)
+            setErrorMessage("エラーが発生しました")
+            toast.error("エラーが発生しました")
+        } finally {
+            setIsLoading(null)
+        }
+    }
+
     return (
         <div className="flex min-h-screen items-center justify-center bg-background p-4 relative overflow-hidden transition-colors duration-500">
             {/* Ambient Background Blur */}
@@ -201,6 +226,15 @@ export default function LoginPage() {
                                             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                         </button>
                                     </div>
+                                </div>
+                                <div className="flex justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTab("forgot")}
+                                        className="text-xs text-primary hover:underline transition-all opacity-80 hover:opacity-100"
+                                    >
+                                        パスワードを忘れましたか？
+                                    </button>
                                 </div>
                                 <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 transition-all duration-300" disabled={!!isLoading}>
                                     {isLoading === "email" ? (
@@ -335,6 +369,34 @@ export default function LoginPage() {
                                     {isLoading === "register" ? (
                                         <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-white" />
                                     ) : "アカウント作成"}
+                                </Button>
+                            </form>
+                        </TabsContent>
+                        <TabsContent value="forgot" className="space-y-6 focus-visible:outline-none">
+                            <div className="space-y-2 text-center">
+                                <h3 className="text-lg font-medium">パスワードの再設定</h3>
+                                <p className="text-xs text-muted-foreground">登録済みのメールアドレスを入力してください。再設定用のリンクをお送りします。</p>
+                            </div>
+                            <form onSubmit={handleResetRequest} className="space-y-4" noValidate>
+                                <div className="space-y-2">
+                                    <Label htmlFor="forgot-email">メールアドレス</Label>
+                                    <div className="relative">
+                                        <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                        <Input id="forgot-email" name="email" type="email" placeholder="example@minagu.work" className="pl-10 bg-background/50" required />
+                                    </div>
+                                </div>
+                                <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 transition-all duration-300" disabled={!!isLoading}>
+                                    {isLoading === "reset" ? (
+                                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                                    ) : "再設定メールを送信"}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    className="w-full text-xs"
+                                    onClick={() => setActiveTab("login")}
+                                >
+                                    ログイン画面に戻る
                                 </Button>
                             </form>
                         </TabsContent>

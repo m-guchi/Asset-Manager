@@ -28,3 +28,29 @@ export const generateVerificationToken = async (email: string) => {
 
     return verificationToken;
 };
+
+export const generatePasswordResetToken = async (email: string) => {
+    const token = uuidv4();
+    // トークンの有効期限を15分に設定
+    const expires = new Date(new Date().getTime() + 15 * 60 * 1000);
+
+    const existingToken = await prisma.passwordResetToken.findFirst({
+        where: { identifier: email }
+    });
+
+    if (existingToken) {
+        await prisma.passwordResetToken.deleteMany({
+            where: { identifier: email }
+        });
+    }
+
+    const passwordResetToken = await prisma.passwordResetToken.create({
+        data: {
+            identifier: email,
+            token,
+            expires,
+        }
+    });
+
+    return passwordResetToken;
+};

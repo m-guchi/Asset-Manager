@@ -3,8 +3,8 @@
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { seedDummyData } from "@/lib/db/seed"
-import { generateVerificationToken } from "@/lib/tokens"
-import { sendVerificationEmail } from "@/lib/mail"
+import { generateVerificationToken, generatePasswordResetToken } from "@/lib/tokens"
+import { sendVerificationEmail, sendPasswordResetEmail } from "@/lib/mail"
 
 export async function signUp(formData: FormData) {
     const email = formData.get("email") as string
@@ -109,4 +109,74 @@ export async function verifyEmail(token: string) {
     })
 
     return { success: "メールアドレスが確認されました！ログインしてください。" }
+}
+
+export async function resetPasswordRequest(email: string) {
+    if (!email) {
+        return { error: "メールアドレスを入力してください" }
+    }
+
+    const existingUser = await prisma.user.findUnique({
+        where: { email }
+    })
+
+    if (!existingUser) {
+        // セキュリティのため、ユーザーが存在しない場合も「メールを送信しました」と返すのが一般的ですが、
+        // 開発のしやすさを考慮してエラーを返します（必要に応じて変更可能）
+        return { error: "ユーザーが見つかりません" }
+    }
+
+    try {
+        const passwordResetToken = await generatePasswordResetToken(email)
+        await sendPasswordResetEmail(passwordResetToken.identifier, passwordResetToken.token)
+
+        return { success: "再設定メールを送信しました。メールをチェックしてください。" }
+    } catch (error) {
+        console.error("Password reset request error:", error)
+        return { error: "エラーが発生しました" }
+    }
+}
+
+export async function resetPassword(token: string, password: string) {
+    if (!token || !password) {
+        return { error: "不正なリクエストです" }
+    }
+
+    const existingToken = await prisma.passwordResetToken.findFirst({
+        where: { token }
+    })
+
+    if (!existingToken) {
+        return { error: "トークンが無効または期限切れです" }
+    }
+
+    const hasExpired = new Date(existingToken.expires) < new Date()
+    if (hasExpired) {
+        return { error: "トークンの有効期限が切れています" }
+    }
+
+    const existingUser = await prisma.user.findUnique({
+        where: { email: existingToken.identifier }
+    })
+
+    if (!existingUser) {
+        return { error: "ユーザーが見つかりません" }
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10)
+
+    try {
+        await prisma.user.update({
+            where: { id: existingUser.id },
+            data: { password: hashedPassword }
+        })
+
+        await prisma.passwordResetToken.delete({
+            where: { identifier_token: { identifier: existingToken.identifier, token } }
+        })
+
+        return { success: "パスワードを更新しました。新しいパスワードでログインしてください。" }
+    } catch (error) {
+        return { error: "エラーが発生しました" }
+    }
 }
