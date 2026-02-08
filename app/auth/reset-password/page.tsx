@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Lock, Eye, EyeOff, Hexagon } from "lucide-react"
+import { Lock, Eye, EyeOff } from "lucide-react"
 import { resetPassword } from "@/app/actions/auth-actions"
 import { toast } from "sonner"
 import { Suspense } from "react"
+import { Logo } from "@/components/Logo"
 
 function ResetPasswordForm() {
     const searchParams = useSearchParams()
@@ -163,9 +164,9 @@ export default function ResetPasswordPage() {
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(120,119,198,0.1),rgba(0,0,0,0))]" />
 
             <Card className="z-10 w-full max-w-md border-border/50 bg-card/50 backdrop-blur-xl shadow-2xl">
-                <CardHeader className="text-center pt-8">
-                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-muted border border-border mb-4">
-                        <Hexagon className="h-8 w-8 text-primary" />
+                <CardHeader className="space-y-4 pb-4 text-center pt-8">
+                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-muted border border-border shadow-inner group transition-transform duration-500 hover:scale-110">
+                        <Logo className="h-9 w-9 text-foreground transition-all duration-500 group-hover:text-primary" />
                     </div>
                     <CardTitle className="text-2xl font-bold tracking-tight">パスワードの再設定</CardTitle>
                     <CardDescription>新しいパスワードを入力してください</CardDescription>

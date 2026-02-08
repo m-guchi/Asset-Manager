@@ -4,7 +4,7 @@ import * as React from "react"
 import { signIn } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Hexagon, Mail, Lock, User as UserIcon, Eye, EyeOff } from "lucide-react"
+import { Mail, Lock, User as UserIcon, Eye, EyeOff } from "lucide-react"
 import Link from "next/link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { signUp, resetPasswordRequest } from "@/app/actions/auth-actions"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { Logo } from "@/components/Logo"
 
 export default function LoginPage() {
     const [isLoading, setIsLoading] = React.useState<string | null>(null)
@@ -179,7 +180,7 @@ export default function LoginPage() {
             <Card className="z-10 w-full max-w-md border-border/50 bg-card/50 backdrop-blur-xl shadow-2xl transition-all duration-300 overflow-hidden">
                 <CardHeader className="space-y-4 pb-4 text-center pt-8">
                     <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-muted border border-border shadow-inner group transition-transform duration-500 hover:scale-110">
-                        <Hexagon className="h-8 w-8 text-foreground fill-foreground/5 transition-all duration-500 group-hover:fill-primary/20 group-hover:text-primary" strokeWidth={1.5} />
+                        <Logo className="h-9 w-9 text-foreground transition-all duration-500 group-hover:text-primary" />
                     </div>
                 </CardHeader>
 
