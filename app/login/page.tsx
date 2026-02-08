@@ -32,14 +32,28 @@ export default function LoginPage() {
         password: 72
     }
 
-    const validateField = (name: string, value: string) => {
+    const validateField = (name: string, value: string, allValues?: { password?: string, confirmPassword?: string }) => {
         let error = ""
         if (name === "name" && value.length > MAX_LENGTHS.name) {
             error = `名前は${MAX_LENGTHS.name}文字以内で入力してください`
         } else if (name === "email" && value.length > MAX_LENGTHS.email) {
             error = `メールアドレスは${MAX_LENGTHS.email}文字以内で入力してください`
-        } else if (name === "password" && value.length > MAX_LENGTHS.password) {
-            error = `パスワードは${MAX_LENGTHS.password}文字以内で入力してください`
+        } else if (name === "password") {
+            if (value.length > MAX_LENGTHS.password) {
+                error = `パスワードは${MAX_LENGTHS.password}文字以内で入力してください`
+            }
+            // パスワード変更時に確認用パスワードとの一致をチェック
+            const confirmVal = allValues?.confirmPassword
+            if (confirmVal && value !== confirmVal) {
+                setValidationErrors(prev => ({ ...prev, confirmPassword: "パスワードが一致しません" }))
+            } else if (confirmVal && value === confirmVal) {
+                setValidationErrors(prev => ({ ...prev, confirmPassword: "" }))
+            }
+        } else if (name === "confirmPassword") {
+            const passwordVal = allValues?.password
+            if (passwordVal && value !== passwordVal) {
+                error = "パスワードが一致しません"
+            }
         }
         setValidationErrors(prev => ({ ...prev, [name]: error }))
     }
@@ -270,8 +284,11 @@ export default function LoginPage() {
                                             type={showPassword ? "text" : "password"}
                                             placeholder="••••••••"
                                             className={`pl-10 pr-10 bg-background/50 ${validationErrors.password ? "border-destructive focus-visible:ring-destructive" : ""}`}
-                                            maxLength={MAX_LENGTHS.password + 1}
-                                            onChange={(e) => validateField("password", e.target.value)}
+                                            onChange={(e) => {
+                                                const form = e.target.form;
+                                                const confirmVal = form ? (new FormData(form).get("confirmPassword") as string) : "";
+                                                validateField("password", e.target.value, { confirmPassword: confirmVal });
+                                            }}
                                         />
                                         <button
                                             type="button"
@@ -293,7 +310,12 @@ export default function LoginPage() {
                                             name="confirmPassword"
                                             type={showPassword ? "text" : "password"}
                                             placeholder="••••••••"
-                                            className="pl-10 pr-10 bg-background/50"
+                                            className={`pl-10 pr-10 bg-background/50 ${validationErrors.confirmPassword ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                                            onChange={(e) => {
+                                                const form = e.target.form;
+                                                const passwordVal = form ? (new FormData(form).get("password") as string) : "";
+                                                validateField("confirmPassword", e.target.value, { password: passwordVal });
+                                            }}
                                         />
                                         <button
                                             type="button"
@@ -303,6 +325,11 @@ export default function LoginPage() {
                                             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                         </button>
                                     </div>
+                                    {validationErrors.confirmPassword && (
+                                        <p className="text-[10px] text-destructive animate-in fade-in slide-in-from-top-1">
+                                            {validationErrors.confirmPassword}
+                                        </p>
+                                    )}
                                 </div>
                                 <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 transition-all duration-300 mt-2" disabled={!!isLoading || hasValidationErrors}>
                                     {isLoading === "register" ? (
