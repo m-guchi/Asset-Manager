@@ -69,6 +69,24 @@ model PasswordResetToken {
   @@unique([identifier, token])
 }
 
+model EmailChangeToken {
+  identifier String
+  newEmail   String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model PasswordChangeToken {
+  identifier  String
+  newPassword String
+  token       String   @unique
+  expires     DateTime
+
+  @@unique([identifier, token])
+}
+
 model Category {
   id                Int           @id @default(autoincrement())
   name              String

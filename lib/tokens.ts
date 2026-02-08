@@ -54,3 +54,55 @@ export const generatePasswordResetToken = async (email: string) => {
 
     return passwordResetToken;
 };
+
+export const generateEmailChangeToken = async (email: string, newEmail: string) => {
+    const token = uuidv4();
+    const expires = new Date(new Date().getTime() + 15 * 60 * 1000);
+
+    const existingToken = await prisma.emailChangeToken.findFirst({
+        where: { identifier: email }
+    });
+
+    if (existingToken) {
+        await prisma.emailChangeToken.deleteMany({
+            where: { identifier: email }
+        });
+    }
+
+    const emailChangeToken = await prisma.emailChangeToken.create({
+        data: {
+            identifier: email,
+            newEmail,
+            token,
+            expires,
+        }
+    });
+
+    return emailChangeToken;
+};
+
+export const generatePasswordChangeToken = async (email: string, hashedNewPassword: string) => {
+    const token = uuidv4();
+    const expires = new Date(new Date().getTime() + 15 * 60 * 1000);
+
+    const existingToken = await prisma.passwordChangeToken.findFirst({
+        where: { identifier: email }
+    });
+
+    if (existingToken) {
+        await prisma.passwordChangeToken.deleteMany({
+            where: { identifier: email }
+        });
+    }
+
+    const passwordChangeToken = await prisma.passwordChangeToken.create({
+        data: {
+            identifier: email,
+            newPassword: hashedNewPassword,
+            token,
+            expires,
+        }
+    });
+
+    return passwordChangeToken;
+};

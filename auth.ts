@@ -56,12 +56,36 @@ export const authOptions: NextAuthOptions = {
     secret: process.env.NEXTAUTH_SECRET,
     useSecureCookies: process.env.NODE_ENV === "production",
     callbacks: {
+        async jwt({ token, user, trigger, session }) {
+            if (user) {
+                token.id = user.id;
+                token.name = user.name;
+                token.email = user.email;
+            }
+            if (trigger === "update") {
+                if (session?.name) token.name = session.name;
+                if (session?.email) token.email = session.email;
+            } else if (token.id) {
+                // 定期的にDBから最新情報を取得してトークンを更新
+                const dbUser = await prisma.user.findUnique({
+                    where: { id: token.id as string },
+                    select: { name: true, email: true }
+                });
+                if (dbUser) {
+                    token.name = dbUser.name;
+                    token.email = dbUser.email;
+                }
+            }
+            return token;
+        },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         session({ session, token }: { session: any; token: any }) {
-            if (session.user && token.sub) {
-                session.user.id = token.sub
+            if (session.user) {
+                session.user.id = token.id || token.sub;
+                session.user.name = token.name;
+                session.user.email = token.email;
             }
-            return session
+            return session;
         },
     },
     events: {
