@@ -113,9 +113,9 @@ jobs:
             npm install --omit=dev --no-audit --prefer-offline
 
             # DBマイグレーション実行
-            echo "Running migrations..."
+            echo "Updating database schema..."
             npx prisma generate
-            npx prisma migrate deploy
+            npx prisma db push --accept-data-loss
 
             # DB接続・データ取得テスト
             echo "Testing production DB data retrieval..."

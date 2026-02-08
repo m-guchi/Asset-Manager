@@ -1,0 +1,30 @@
+
+import { v4 as uuidv4 } from "uuid";
+import { prisma } from "@/lib/prisma";
+
+export const generateVerificationToken = async (email: string) => {
+    const token = uuidv4();
+    // トークンの有効期限を1時間に設定
+    const expires = new Date(new Date().getTime() + 3600 * 1000);
+
+    // 既存のトークンがあれば全て削除（常に最新のものだけ有効にする）
+    const existingToken = await prisma.verificationToken.findFirst({
+        where: { identifier: email }
+    });
+
+    if (existingToken) {
+        await prisma.verificationToken.deleteMany({
+            where: { identifier: email }
+        });
+    }
+
+    const verificationToken = await prisma.verificationToken.create({
+        data: {
+            identifier: email,
+            token,
+            expires,
+        }
+    });
+
+    return verificationToken;
+};

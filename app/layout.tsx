@@ -27,6 +27,7 @@ export const metadata: Metadata = {
     },
 };
 
+import { Toaster } from "@/components/ui/sonner";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/auth";
 
@@ -68,6 +69,7 @@ export default async function RootLayout({
                                 {children}
                             </div>
                         )}
+                        <Toaster />
                     </ThemeProvider>
                 </AuthProvider>
             </body>
