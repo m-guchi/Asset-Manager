@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { User, LogOut, Mail, ShieldCheck, Edit2, Lock, ChevronRight, AlertCircle } from "lucide-react"
+import { User, LogOut, Mail, ShieldCheck, Edit2, Lock, ChevronRight, AlertCircle, Trash2, Eye, EyeOff } from "lucide-react"
 import { useSession, signOut } from "next-auth/react"
 import Image from "next/image"
 
@@ -14,13 +14,35 @@ import {
     CardTitle,
     CardFooter,
 } from "@/components/ui/card"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { updateName, requestEmailChange, requestPasswordChange, getPendingEmailChange, cancelEmailChange } from "@/app/actions/user-actions"
+import { updateName, requestEmailChange, requestPasswordChange, getPendingEmailChange, cancelEmailChange, deleteAccount } from "@/app/actions/user-actions"
 import { toast } from "sonner"
 
 export default function ProfilePage() {
+    const handleDeleteAccount = async () => {
+        setIsLoading("delete")
+        const res = await deleteAccount(confirmDeletionPassword)
+        if (res.success) {
+            toast.success(res.success)
+            signOut({ callbackUrl: "/login" })
+        } else {
+            toast.error(res.error)
+            setIsLoading(null)
+            setConfirmDeletionPassword("")
+            setIsDialogOpen(false)
+        }
+    }
+
     const { data: session, update } = useSession()
     const [isLoading, setIsLoading] = React.useState<string | null>(null)
     const [isEditingName, setIsEditingName] = React.useState(false)
@@ -33,6 +55,10 @@ export default function ProfilePage() {
     const [newEmail, setNewEmail] = React.useState("")
     const [newPassword, setNewPassword] = React.useState("")
     const [confirmPassword, setConfirmPassword] = React.useState("")
+    const [confirmDeletionPassword, setConfirmDeletionPassword] = React.useState("")
+    const [showDeletePassword, setShowDeletePassword] = React.useState(false)
+    const [isConfirmingDelete, setIsConfirmingDelete] = React.useState(false)
+    const [isDialogOpen, setIsDialogOpen] = React.useState(false)
 
     const fetchPendingEmail = React.useCallback(async () => {
         const pending = await getPendingEmailChange()
@@ -339,6 +365,86 @@ export default function ProfilePage() {
                     <CardFooter className="bg-muted/20 border-t border-border p-4 flex justify-center">
                         <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em]">Security Protocol Active</p>
                     </CardFooter>
+                </Card>
+
+                {/* Danger Zone */}
+                <Card className="border-destructive/20 bg-destructive/5 backdrop-blur-xl">
+                    <CardHeader>
+                        <CardTitle className="text-destructive flex items-center gap-2">
+                            <AlertCircle className="h-5 w-5" />
+                            危険な操作
+                        </CardTitle>
+                        <CardDescription>
+                            アカウントの削除を行うと、すべてのデータが完全に失われ、復元することはできません。
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pb-6">
+                        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                            <Button
+                                variant="destructive"
+                                className="w-full md:w-auto font-semibold"
+                                onClick={() => setIsDialogOpen(true)}
+                                disabled={isLoading === "delete"}
+                            >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                アカウントを削除する
+                            </Button>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>退会の確認</DialogTitle>
+                                    <DialogDescription>
+                                        本当にアカウントを削除しますか？<br />
+                                        この操作は取り消せません。資産データ、トランザクション、設定など、すべてのデータが完全に失われます。
+                                    </DialogDescription>
+                                </DialogHeader>
+
+                                {/* パスワード設定済みユーザー向けの入力欄（サーバー側で判定されるため、常に表示するか、ソーシャルログインなら隠す） */}
+                                {/* ここでは、セッション情報から画像があればソーシャルログインと推測し、画像がなければパスワード入力を表示する例 */}
+                                {!session?.user?.image && (
+                                    <div className="space-y-2 py-4">
+                                        <Label htmlFor="delete-password">確認のためパスワードを入力してください</Label>
+                                        <div className="relative">
+                                            <Input
+                                                id="delete-password"
+                                                type={showDeletePassword ? "text" : "password"}
+                                                value={confirmDeletionPassword}
+                                                onChange={(e) => setConfirmDeletionPassword(e.target.value)}
+                                                placeholder="パスワード"
+                                                className="pr-10"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowDeletePassword(!showDeletePassword)}
+                                                className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground transition-colors"
+                                            >
+                                                {showDeletePassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <DialogFooter className="gap-2 sm:gap-0">
+                                    <Button
+                                        variant="destructive"
+                                        onClick={handleDeleteAccount}
+                                        disabled={isLoading === "delete" || (!session?.user?.image && !confirmDeletionPassword)}
+                                    >
+                                        {isLoading === "delete" ? "削除中..." : "すべてを削除して退会する"}
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        onClick={() => {
+                                            setIsDialogOpen(false)
+                                            setConfirmDeletionPassword("")
+                                        }}
+                                        disabled={isLoading === "delete"}
+                                    >
+                                        キャンセル
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    </CardContent>
                 </Card>
             </div>
         </div>

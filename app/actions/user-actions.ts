@@ -183,16 +183,63 @@ export async function getPendingEmailChange() {
 
 export async function cancelEmailChange() {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.email) return { error: "認証が必要です" }
+    if (!session?.user?.email) {
+        return { error: "認証が必要です" }
+    }
 
     try {
         await prisma.emailChangeToken.deleteMany({
             where: { identifier: session.user.email }
         })
-        revalidatePath("/profile")
-        return { success: "メールアドレスの変更リクエストをキャンセルしました" }
+        return { success: "リクエストを取り消しました" }
     } catch (error) {
         console.error("Cancel email change error:", error)
-        return { error: "キャンセルの処理に失敗しました" }
+        return { error: "取り消しに失敗しました" }
+    }
+}
+
+export async function deleteAccount(password?: string) {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+        return { error: "認証が必要です" }
+    }
+
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: session.user.id }
+        })
+
+        if (!user) {
+            return { error: "ユーザーが見つかりません" }
+        }
+
+        // パスワードが設定されているユーザーの場合、パスワード検証を必須にする
+        if (user.password) {
+            if (!password) {
+                return { error: "確認のためパスワードを入力してください" }
+            }
+            const isPasswordValid = await bcrypt.compare(password, user.password)
+            if (!isPasswordValid) {
+                return { error: "パスワードが正しくありません" }
+            }
+        }
+
+        // 子関係のあるデータを先に削除して制約エラーを回避
+        await prisma.transaction.deleteMany({ where: { userId: session.user.id } })
+        await prisma.asset.deleteMany({ where: { userId: session.user.id } })
+
+        // カテゴリの親子関係を解消して自己参照制約によるエラー(P2014)を回避
+        await prisma.category.updateMany({
+            where: { userId: session.user.id },
+            data: { parentId: null }
+        })
+
+        await prisma.user.delete({
+            where: { id: session.user.id }
+        })
+        return { success: "アカウントを削除しました" }
+    } catch (error) {
+        console.error("Delete account error:", error)
+        return { error: "アカウントの削除に失敗しました" }
     }
 }
