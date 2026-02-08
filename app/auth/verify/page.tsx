@@ -13,19 +13,19 @@ import { Button } from "@/components/ui/button"
 function VerifyContent() {
     const searchParams = useSearchParams()
     const token = searchParams.get("token")
-    const router = useRouter()
     const [status, setStatus] = useState<"loading" | "success" | "error">("loading")
     const [message, setMessage] = useState("認証中...")
 
     useEffect(() => {
-        if (!token) {
-            setStatus("error")
-            setMessage("トークンが見つかりません")
-            return
-        }
+        const handleVerify = async () => {
+            if (!token) {
+                setStatus("error")
+                setMessage("トークンが見つかりません")
+                return
+            }
 
-        verifyEmail(token)
-            .then((result) => {
+            try {
+                const result = await verifyEmail(token)
                 if (result.error) {
                     setStatus("error")
                     setMessage(result.error)
@@ -35,12 +35,14 @@ function VerifyContent() {
                     setMessage(result.success || "認証成功")
                     toast.success(result.success)
                 }
-            })
-            .catch(() => {
+            } catch (_error) {
                 setStatus("error")
                 setMessage("エラーが発生しました")
                 toast.error("エラーが発生しました")
-            })
+            }
+        }
+
+        handleVerify()
     }, [token])
 
     return (

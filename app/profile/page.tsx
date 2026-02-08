@@ -22,7 +22,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
-import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { updateName, requestEmailChange, requestPasswordChange, getPendingEmailChange, cancelEmailChange, deleteAccount } from "@/app/actions/user-actions"
@@ -57,13 +56,12 @@ export default function ProfilePage() {
     const [confirmPassword, setConfirmPassword] = React.useState("")
     const [confirmDeletionPassword, setConfirmDeletionPassword] = React.useState("")
     const [showDeletePassword, setShowDeletePassword] = React.useState(false)
-    const [isConfirmingDelete, setIsConfirmingDelete] = React.useState(false)
     const [isDialogOpen, setIsDialogOpen] = React.useState(false)
 
     const fetchPendingEmail = React.useCallback(async () => {
         const pending = await getPendingEmailChange()
         setPendingEmail(pending?.newEmail || null)
-    }, [])
+    }, [setPendingEmail])
 
     React.useEffect(() => {
         if (session?.user?.name) setNewName(session.user.name)

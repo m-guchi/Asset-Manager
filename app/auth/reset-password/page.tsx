@@ -74,11 +74,11 @@ function ResetPasswordForm() {
                 toast.success(result.success)
                 router.push("/login")
             }
-        } catch (err) {
+        } catch (_err) {
             setError("エラーが発生しました")
             toast.error("エラーが発生しました")
         } finally {
-            setIsLoading(null)
+            setIsLoading(false)
         }
     }
 
@@ -109,7 +109,7 @@ function ResetPasswordForm() {
                         placeholder="••••••••"
                         className={`pl-10 pr-10 ${validationErrors.password ? "border-destructive focus-visible:ring-destructive" : ""}`}
                         required
-                        onChange={(e) => {
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                             const form = e.target.form;
                             const confirmVal = form ? (new FormData(form).get("confirmPassword") as string) : "";
                             validateField("password", e.target.value, { confirmPassword: confirmVal });
@@ -137,7 +137,7 @@ function ResetPasswordForm() {
                         placeholder="••••••••"
                         className={`pl-10 pr-10 ${validationErrors.confirmPassword ? "border-destructive focus-visible:ring-destructive" : ""}`}
                         required
-                        onChange={(e) => {
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                             const form = e.target.form;
                             const passwordVal = form ? (new FormData(form).get("password") as string) : "";
                             validateField("confirmPassword", e.target.value, { password: passwordVal });

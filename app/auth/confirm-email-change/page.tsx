@@ -4,7 +4,7 @@ import * as React from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Mail, ShieldCheck, Hexagon } from "lucide-react"
+import { Mail, ShieldCheck } from "lucide-react"
 import { confirmEmailChange } from "@/app/actions/user-actions"
 import { toast } from "sonner"
 import { Suspense } from "react"
@@ -39,7 +39,7 @@ function ConfirmEmailChangeContent() {
                 } else if (response.error) {
                     toast.error(response.error)
                 }
-            } catch (error) {
+            } catch (_error) {
                 setResult({ error: "確認中にエラーが発生しました" })
             } finally {
                 setIsLoading(false)
@@ -47,7 +47,7 @@ function ConfirmEmailChangeContent() {
         }
 
         handleVerify()
-    }, [token])
+    }, [token, update])
 
     if (isLoading) {
         return (
