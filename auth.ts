@@ -17,42 +17,7 @@ export const authOptions: NextAuthOptions = {
     },
     secret: process.env.NEXTAUTH_SECRET,
     useSecureCookies: process.env.NODE_ENV === "production",
-    cookies: {
-        sessionToken: {
-            name: process.env.NODE_ENV === "production" ? `__Secure-next-auth.session-token` : `next-auth.session-token`,
-            options: {
-                httpOnly: true,
-                sameSite: "lax",
-                path: "/asset-manager",
-                secure: process.env.NODE_ENV === "production",
-            },
-        },
-        callbackUrl: {
-            name: process.env.NODE_ENV === "production" ? `__Secure-next-auth.callback-url` : `next-auth.callback-url`,
-            options: {
-                sameSite: "lax",
-                path: "/asset-manager",
-                secure: process.env.NODE_ENV === "production",
-            },
-        },
-        csrfToken: {
-            name: process.env.NODE_ENV === "production" ? `__Host-next-auth.csrf-token` : `next-auth.csrf-token`,
-            options: {
-                httpOnly: true,
-                sameSite: "lax",
-                path: "/asset-manager",
-                secure: process.env.NODE_ENV === "production",
-            },
-        },
-    },
     callbacks: {
-        async redirect({ url, baseUrl }: { url: string, baseUrl: string }) {
-            // baseUrl is usually process.env.NEXTAUTH_URL
-            // If the redirect URL doesn't start with the expected subpath, prepend it.
-            if (url.startsWith("/")) return `${baseUrl}${url}`
-            else if (new URL(url).origin === new URL(baseUrl).origin) return url
-            return baseUrl
-        },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         session({ session, token }: { session: any; token: any }) {
             if (session.user && token.sub) {
@@ -74,5 +39,6 @@ export const authOptions: NextAuthOptions = {
         signIn: "/login",
         error: "/login",
     },
+    trustHost: true,
     debug: process.env.NODE_ENV === "development",
 }

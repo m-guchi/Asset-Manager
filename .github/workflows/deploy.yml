@@ -141,5 +141,5 @@ jobs:
             # ヘルスチェック（起動確認）
             echo "Waiting for app to start..."
             sleep 20
-            curl -f http://localhost:3102/asset-manager || (echo "Health check failed!" && exit 1)
+            curl -f http://localhost:3102 || (echo "Health check failed!" && exit 1)
             echo "Deployment successful and app is running."

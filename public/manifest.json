@@ -2,21 +2,21 @@
   "name": "Asset Manager",
   "short_name": "資産管理",
   "description": "資産の推移と構成を、美しく直感的に管理するポートフォリオ・トラッカー",
-  "id": "/asset-manager/",
-  "start_url": "/asset-manager/",
-  "scope": "/asset-manager/",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#10b981",
   "icons": [
     {
-      "src": "/asset-manager/icon.svg",
+      "src": "/icon.svg",
       "sizes": "192x192 512x512",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/asset-manager/icon.svg",
+      "src": "/icon.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "maskable"
@@ -24,14 +24,14 @@
   ],
   "screenshots": [
     {
-      "src": "/asset-manager/icon.svg",
+      "src": "/icon.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "form_factor": "wide",
       "label": "Home Screen"
     },
     {
-      "src": "/asset-manager/icon.svg",
+      "src": "/icon.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "form_factor": "narrow",

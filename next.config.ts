@@ -10,7 +10,6 @@ const version = packageJson.version || '0.0.0';
 
 
 const nextConfig: NextConfig = {
-    basePath: "/asset-manager",
     env: {
         NEXT_PUBLIC_APP_VERSION: version,
     },

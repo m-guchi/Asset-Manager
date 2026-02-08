@@ -2,23 +2,14 @@ import { NextRequest, NextResponse } from "next/server"
 import { getToken } from "next-auth/jwt"
 
 export default async function middleware(request: NextRequest) {
-    const isProd = process.env.NODE_ENV === "production"
     const token = await getToken({
         req: request,
         secret: process.env.NEXTAUTH_SECRET,
-        secureCookie: isProd,
-        cookieName: isProd ? "__Secure-next-auth.session-token" : "next-auth.session-token"
     })
 
     const { pathname } = request.nextUrl
 
-    // basePath (/asset-manager) を考慮した相対パスの計算
-    // pathname は通常 "/asset-manager" や "/asset-manager/dashboard" になる
-    const relativePath = pathname === "/asset-manager"
-        ? "/"
-        : pathname.replace("/asset-manager/", "/")
-
-    console.log(`[Middleware Debug] pathname: ${pathname}, relativePath: ${relativePath}, hasToken: ${!!token}`);
+    console.log(`[Middleware Debug] pathname: ${pathname}, hasToken: ${!!token}`);
 
     // Auth 関連の API や静的ファイルはスキップ
     if (
@@ -33,9 +24,9 @@ export default async function middleware(request: NextRequest) {
     }
 
     // ログインページへのアクセス
-    if (relativePath === "/login" || relativePath === "/login/") {
+    if (pathname === "/login" || pathname === "/login/") {
         if (token) {
-            return NextResponse.redirect(new URL("/asset-manager", request.url))
+            return NextResponse.redirect(new URL("/", request.url))
         }
         return NextResponse.next()
     }
@@ -43,9 +34,9 @@ export default async function middleware(request: NextRequest) {
     // 未ログイン時の保護
     if (!token) {
         console.log(`[Middleware] Redirecting to login from: ${pathname}`);
-        const loginUrl = new URL("/asset-manager/login", request.url)
+        const loginUrl = new URL("/login", request.url)
         // 無限ループ防止のため、現在のパスがすでに /login でないことを確認
-        if (relativePath !== "/login") {
+        if (pathname !== "/login") {
             loginUrl.searchParams.set("callbackUrl", request.url)
             return NextResponse.redirect(loginUrl)
         }
