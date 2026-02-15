@@ -76,7 +76,7 @@ jobs:
       - name: Deploy archive
         run: |
             # deploy.tar.gz をサーバーに転送
-            scp -P ${{ secrets.VPS_PORT }} deploy.tar.gz ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/asset.gucchii.com/deploy.tar.gz
+            scp -P ${{ secrets.VPS_PORT }} deploy.tar.gz ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/home/github-user/asset.gucchii.com/deploy.tar.gz
 
       - name: Post-deployment tasks
         uses: appleboy/ssh-action@v1.0.3
@@ -86,7 +86,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
           script: |
-            cd ~/asset.gucchii.com
+            cd /home/github-user/asset.gucchii.com
             
             # 古いファイルをクリーンアップ（設定ファイルやnode_modulesは残す）
             echo "Cleaning up old files..."
