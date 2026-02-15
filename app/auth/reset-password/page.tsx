@@ -74,7 +74,7 @@ function ResetPasswordForm() {
                 toast.success(result.success)
                 router.push("/login")
             }
-        } catch (_err) {
+        } catch {
             setError("エラーが発生しました")
             toast.error("エラーが発生しました")
         } finally {

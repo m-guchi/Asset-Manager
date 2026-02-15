@@ -62,7 +62,7 @@ export const authOptions: NextAuthOptions = {
                 token.id = user.id;
                 token.name = user.name;
                 token.email = user.email;
-                token.hasCompletedTutorial = (user as any).hasCompletedTutorial;
+                token.hasCompletedTutorial = user.hasCompletedTutorial;
             }
             if (trigger === "update") {
                 if (session?.name) token.name = session.name;

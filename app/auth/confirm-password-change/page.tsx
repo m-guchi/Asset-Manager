@@ -33,7 +33,7 @@ function ConfirmPasswordChangeContent() {
                 } else if (response.error) {
                     toast.error(response.error)
                 }
-            } catch (_error) {
+            } catch {
                 setResult({ error: "確認中にエラーが発生しました" })
             } finally {
                 setIsLoading(false)

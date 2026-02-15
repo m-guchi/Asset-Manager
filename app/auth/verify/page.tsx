@@ -2,7 +2,7 @@
 "use client"
 
 import { verifyEmail } from "@/app/actions/auth-actions"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { useEffect, useState, Suspense } from "react"
 import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -35,7 +35,7 @@ function VerifyContent() {
                     setMessage(result.success || "認証成功")
                     toast.success(result.success)
                 }
-            } catch (_error) {
+            } catch {
                 setStatus("error")
                 setMessage("エラーが発生しました")
                 toast.error("エラーが発生しました")
