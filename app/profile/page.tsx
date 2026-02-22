@@ -138,7 +138,7 @@ export default function ProfilePage() {
     }
 
     return (
-        <div className="flex flex-col gap-6 p-4 md:p-8 max-w-4xl mx-auto animate-in fade-in duration-500">
+        <div className="flex flex-col gap-6 px-2 py-4 md:px-4 md:py-8 max-w-4xl mx-auto animate-in fade-in duration-500">
             <div className="grid gap-8">
                 {/* User Info Card */}
                 <Card className="overflow-hidden border-none shadow-xl bg-card/50 backdrop-blur-xl transition-all duration-300">

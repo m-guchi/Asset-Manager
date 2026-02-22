@@ -103,7 +103,7 @@ export default function BulkValuationPage() {
     }
 
     return (
-        <div className="flex flex-col gap-6 p-4 md:p-8">
+        <div className="flex flex-col gap-6 px-2 py-4 md:px-4 md:py-8">
             <div className="flex items-center justify-between">
                 <div />
 

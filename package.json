@@ -3,7 +3,7 @@
   "version": "1.1.1",
   "private": true,
   "scripts": {
-    "tunnel:start": "ssh -L 3307:localhost:3306 -p 19622 -f -N guchi@18.178.75.179",
+    "tunnel:start": "ssh -i ~/.ssh/shinvps-20260215 -L 3307:localhost:3306 -p 19622 -f -N guchi@162.43.74.7",
     "tunnel:kill": "fuser -k 3307/tcp || true",
     "tunnel:check": "lsof -i :3307 || echo 'No tunnel running'",
     "dev": "next dev",
