@@ -140,7 +140,7 @@ export default function AssetDetailPage() {
         if (category && !editingItem) {
             setNewTrx(prev => ({
                 ...prev,
-                type: category.isCash ? "VALUATION" : "DEPOSIT",
+                type: "VALUATION",
                 valuation: category.currentValue.toString(),
                 realizedGain: undefined
             }))
@@ -613,7 +613,7 @@ export default function AssetDetailPage() {
                             setBaseValuation(category.currentValue)
                             setNewTrx({
                                 date: new Date().toISOString().split('T')[0],
-                                type: category.isCash ? "VALUATION" : "DEPOSIT",
+                                type: "VALUATION",
                                 amount: "",
                                 valuation: category.currentValue.toString(),
                                 memo: "",
@@ -707,7 +707,7 @@ export default function AssetDetailPage() {
                     setBaseValuation(category.currentValue);
                     setNewTrx({
                         date: new Date().toISOString().split('T')[0],
-                        type: category.isCash ? "VALUATION" : "DEPOSIT",
+                        type: "VALUATION",
                         amount: "",
                         valuation: category.currentValue.toString(),
                         memo: "",
