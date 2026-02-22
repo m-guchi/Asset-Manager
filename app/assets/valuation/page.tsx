@@ -143,13 +143,17 @@ export default function BulkValuationPage() {
                                     <TableCell className="px-1 py-1">
                                         <Input
                                             type="number"
-                                            className="text-right w-full h-10 text-base"
+                                            className={`text-right w-full h-10 text-base ${!valuations[cat.id] ? 'border-orange-300 dark:border-orange-800 bg-orange-50/30 dark:bg-orange-900/10' : ''}`}
                                             placeholder={cat.currentValue.toString()}
                                             value={valuations[cat.id] || ""}
                                             onChange={(e) => setValuations({ ...valuations, [cat.id]: parseFloat(e.target.value) })}
                                         />
                                     </TableCell>
-                                    <TableCell className="text-right px-1 py-1 opacity-50 text-[10px] text-muted-foreground w-16 whitespace-nowrap">
+                                    <TableCell
+                                        className="text-right px-1 py-1 opacity-50 text-[10px] text-muted-foreground w-16 whitespace-nowrap cursor-pointer hover:opacity-100 hover:text-primary transition-all underline decoration-dotted"
+                                        onClick={() => setValuations({ ...valuations, [cat.id]: Number(cat.currentValue) })}
+                                        title="前回値をコピー"
+                                    >
                                         ¥{Number(cat.currentValue).toLocaleString()}
                                     </TableCell>
                                 </TableRow>
