@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { ArrowLeft, Plus, History, RefreshCw, Edit2, Trash2, ArrowUpRight, ArrowDownRight } from "lucide-react"
+import { ArrowLeft, Plus, History, RefreshCw, Edit2, Trash2, ArrowUpRight, ArrowDownRight, AlertCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -92,6 +92,7 @@ export default function AssetDetailPage() {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
     const [deletingItemId, setDeletingItemId] = React.useState<string | null>(null)
     const [isMounted, setIsMounted] = React.useState(false)
+    const [showZeroWarning, setShowZeroWarning] = React.useState(false)
 
     React.useEffect(() => {
         setIsMounted(true)
@@ -153,6 +154,15 @@ export default function AssetDetailPage() {
         if (newTrx.type === 'VALUATION' && !newTrx.valuation) {
             toast.error("評価額を入力してください")
             return
+        }
+
+        // 入金・出金時の0円チェック
+        if ((newTrx.type === "DEPOSIT" || newTrx.type === "WITHDRAW") && !showZeroWarning) {
+            const checkVal = newTrx.type === "WITHDRAW" && !category?.isCash ? saleAmount : newTrx.amount;
+            if (!checkVal || Number(checkVal) === 0) {
+                setShowZeroWarning(true)
+                return
+            }
         }
 
         let res;
@@ -703,7 +713,9 @@ export default function AssetDetailPage() {
                     setEditingItem(null)
                     setBaseValuation(0);
                     setSaleAmount("");
+                    setShowZeroWarning(false)
                 } else if (!editingItem) {
+                    setShowZeroWarning(false)
                     setBaseValuation(category.currentValue);
                     setNewTrx({
                         date: new Date().toISOString().split('T')[0],
@@ -764,6 +776,7 @@ export default function AssetDetailPage() {
                                         valuation: baseValuation.toString()
                                     })
                                     setSaleAmount("")
+                                    setShowZeroWarning(false)
                                 }}
                                 disabled={category.isCash || !!editingItem}
                             >
@@ -877,9 +890,23 @@ export default function AssetDetailPage() {
                         </div>
                     </div>
 
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsTrxModalOpen(false)}>キャンセル</Button>
-                        <Button onClick={handleAddTrx}>保存する</Button>
+                    <DialogFooter className="flex-col gap-3 sm:flex-row">
+                        {showZeroWarning && (
+                            <div className="flex items-center gap-2 text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded-md border border-amber-200 dark:border-amber-900 text-[10px] w-full mb-2 sm:mb-0">
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                <span>{newTrx.type === "DEPOSIT" ? "入金額" : "売却額"}が0円ですが、このまま記録しますか？</span>
+                            </div>
+                        )}
+                        <div className="flex gap-2 justify-end w-full">
+                            <Button variant="outline" onClick={() => setIsTrxModalOpen(false)}>キャンセル</Button>
+                            <Button
+                                onClick={handleAddTrx}
+                                variant="default"
+                                className={showZeroWarning ? "bg-amber-600 hover:bg-amber-700 text-white" : ""}
+                            >
+                                {showZeroWarning ? "はい、記録します" : "保存する"}
+                            </Button>
+                        </div>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
