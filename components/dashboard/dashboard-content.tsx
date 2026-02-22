@@ -63,7 +63,7 @@ export function DashboardContent({
     const profitPercent = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0
 
     return (
-        <div className="flex flex-col gap-2 p-2 md:p-4">
+        <div className="flex flex-col gap-2 px-1 py-2 md:px-2 md:py-4">
             <section>
                 <SummaryCards
                     netWorth={totalAssets}
