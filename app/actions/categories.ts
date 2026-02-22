@@ -132,8 +132,8 @@ export async function getCategories() {
                 isCash: !!cat.isCash,
                 isLiability: !!cat.isLiability,
                 depth: cat.depth,
-                tags: (cat.tags || []).map((t: any) => t.tagOption?.name || ""),
-                tagSettings: (cat.tags || []).map((t: any) => ({
+                tags: (cat.tags || []).map((t) => t.tagOption?.name || ""),
+                tagSettings: (cat.tags || []).map((t) => ({
                     groupId: t.tagGroupId,
                     groupName: t.tagGroup?.name || "",
                     optionId: t.tagOptionId,
@@ -499,7 +499,7 @@ export async function getCategoryDetails(id: number) {
                 // For chart series: sum each direct child + its descendants
                 catWithNested.children.forEach((directChild: any) => {
                     const getRecursiveValue = (pid: number): number => {
-                        let selfVal = runningValues[pid] || 0;
+                        const selfVal = runningValues[pid] || 0;
                         const subChildren = allHistories.filter((h: any) => h.parentId === pid);
                         return selfVal + subChildren.reduce((sum: number, c: any) => sum + getRecursiveValue(c.id), 0);
                     };
@@ -513,7 +513,7 @@ export async function getCategoryDetails(id: number) {
             childrenInfo = catWithNested.children.map((c: any) => {
                 const getRecursiveCurrentValue = (catObj: any): number => {
                     const lastAs = catObj.assets && catObj.assets.length > 0 ? catObj.assets[catObj.assets.length - 1] : null;
-                    let val = Number(lastAs?.currentValue || 0);
+                    const val = Number(lastAs?.currentValue || 0);
                     const subDescendants = (catWithNested as any).allDescendants.filter((d: any) => d.parentId === catObj.id);
                     return val + subDescendants.reduce((sum: number, sd: any) => sum + getRecursiveCurrentValue(sd), 0);
                 };
