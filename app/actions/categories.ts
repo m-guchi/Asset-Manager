@@ -458,8 +458,9 @@ export async function getCategoryDetails(id: number) {
         let childrenInfo: { id: number, name: string, color: string, currentValue: number, isLiability: boolean }[] = [];
 
         if (hasChildren) {
-            // Aggregate all descendants' histories for merging
-            const descendantHistories = (catWithNested as any).allDescendants.map((c: any) => ({
+            // Include parent itself + all descendants for merging history
+            const allToProcess = [catWithNested, ...(catWithNested as any).allDescendants];
+            const allHistories = allToProcess.map((c: any) => ({
                 id: c.id,
                 parentId: c.parentId,
                 items: calculateHistoryForCategory(c)
@@ -467,7 +468,7 @@ export async function getCategoryDetails(id: number) {
 
             // Collect all unique dates
             const allDates = new Set<string>();
-            descendantHistories.forEach((ch: any) => {
+            allHistories.forEach((ch: any) => {
                 ch.items.forEach((i: { date: Date }) => allDates.add(i.date.toISOString().split('T')[0]));
             });
             const sortedDates = Array.from(allDates).sort();
@@ -476,25 +477,31 @@ export async function getCategoryDetails(id: number) {
             const runningCosts: Record<number, number> = {};
 
             history = sortedDates.map(dateStr => {
-                const point: Record<string, number | string> = { date: dateStr, value: 0, cost: 0 };
+                const point: Record<string, number | string> = { date: dateStr, value: 0, cost: 0, childrenValue: 0 };
 
-                descendantHistories.forEach((ch: any) => {
+                allHistories.forEach((ch: any) => {
                     const entry = ch.items.find((i: { date: Date }) => i.date.toISOString().split('T')[0] === dateStr);
                     if (entry) {
                         runningValues[ch.id] = (entry as { value: number }).value;
                         runningCosts[ch.id] = (entry as { cost: number }).cost;
                     }
 
-                    point.value = (point.value as number) + (runningValues[ch.id] || 0);
+                    const val = runningValues[ch.id] || 0;
+                    point.value = (point.value as number) + val;
                     point.cost = (point.cost as number) + (runningCosts[ch.id] || 0);
+
+                    // If it's a descendant
+                    if (ch.id !== catWithNested.id) {
+                        point.childrenValue = (point.childrenValue as number) + val;
+                    }
                 });
 
                 // For chart series: sum each direct child + its descendants
                 catWithNested.children.forEach((directChild: any) => {
                     const getRecursiveValue = (pid: number): number => {
                         let selfVal = runningValues[pid] || 0;
-                        const children = descendantHistories.filter((h: any) => h.parentId === pid);
-                        return selfVal + children.reduce((sum: number, c: any) => sum + getRecursiveValue(c.id), 0);
+                        const subChildren = allHistories.filter((h: any) => h.parentId === pid);
+                        return selfVal + subChildren.reduce((sum: number, c: any) => sum + getRecursiveValue(c.id), 0);
                     };
                     point[`child_${directChild.id}`] = getRecursiveValue(directChild.id);
                 });
@@ -604,6 +611,8 @@ export async function getCategoryDetails(id: number) {
             categoryId: number;
             realizedGain?: number | null;
             profitRatio?: number | null;
+            consolidatedValuation?: number;
+            childrenValuation?: number;
         }
         const mergedList: MergedItem[] = [];
 
@@ -636,12 +645,22 @@ export async function getCategoryDetails(id: number) {
             const dateStr = item.date.split('T')[0];
             const historyItem = history.find((h) => (h.date as string).startsWith(dateStr));
 
-            if (historyItem && Number(historyItem.cost) > 0) {
-                const profit = (historyItem.value as number) - (historyItem.cost as number);
-                item.profitRatio = (profit / (historyItem.cost as number)) * 100;
+            if (historyItem) {
+                if (Number(historyItem.cost) > 0) {
+                    const profit = (historyItem.value as number) - (historyItem.cost as number);
+                    item.profitRatio = (profit / (historyItem.cost as number)) * 100;
+                } else {
+                    item.profitRatio = null;
+                }
+
+                item.consolidatedValuation = historyItem.value as number;
+                item.childrenValuation = historyItem.childrenValue as number;
 
                 if (item.pointInTimeValuation === null || item.pointInTimeValuation === undefined) {
-                    item.pointInTimeValuation = historyItem.value as number;
+                    // Fallback to the specific category's value on that day if possible? 
+                    // No, historyItem.value is consolidated.
+                    // We don't have individual values in mergedList items easily here 
+                    // unless we use runningValues during history calculation.
                 }
             } else {
                 item.profitRatio = null;

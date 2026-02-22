@@ -63,6 +63,8 @@ interface TransactionItem {
     categoryColor?: string;
     profitRatio?: number | null;
     categoryId?: number;
+    consolidatedValuation?: number;
+    childrenValuation?: number;
 }
 
 interface CategoryDetail {
@@ -657,7 +659,10 @@ export default function AssetDetailPage() {
                                 <TableHead className="w-[120px]">日付</TableHead>
                                 <TableHead className="w-[100px]">種別</TableHead>
                                 <TableHead className="text-right">収支額</TableHead>
-                                <TableHead className="text-right">評価額</TableHead>
+                                <TableHead className="text-right">個別評価額</TableHead>
+                                {category?.children && category.children.length > 0 && (
+                                    <TableHead className="text-right">子アセット合計</TableHead>
+                                )}
                                 <TableHead className="hidden md:table-cell">備考</TableHead>
                                 <TableHead className="text-right w-[100px]">操作</TableHead>
                             </TableRow>
@@ -699,6 +704,20 @@ export default function AssetDetailPage() {
                                                 )}
                                             </div>
                                         </TableCell>
+                                        {category?.children && category.children.length > 0 && (
+                                            <TableCell className="text-right">
+                                                <div className="flex flex-col items-end">
+                                                    <span className="font-medium">
+                                                        {item.childrenValuation !== undefined ? `¥${item.childrenValuation.toLocaleString()}` : "-"}
+                                                    </span>
+                                                    {item.consolidatedValuation !== undefined && item.consolidatedValuation !== item.childrenValuation && (
+                                                        <span className="text-[10px] text-muted-foreground">
+                                                            (全体: ¥{item.consolidatedValuation.toLocaleString()})
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                        )}
                                         <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{item.memo}</TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-1">
