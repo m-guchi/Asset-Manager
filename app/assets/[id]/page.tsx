@@ -515,6 +515,7 @@ export default function AssetDetailPage() {
                                         axisLine={false}
                                         tickMargin={4}
                                         className="text-[10px]"
+                                        domain={['auto', 'auto']}
                                     />
                                     <ChartTooltip
                                         cursor={false}
