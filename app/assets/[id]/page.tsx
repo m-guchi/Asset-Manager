@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { ArrowLeft, Plus, History, RefreshCw, Edit2, Trash2, ArrowUpRight, ArrowDownRight, AlertCircle } from "lucide-react"
+import { ArrowLeft, Plus, History, RefreshCw, Edit2, Trash2, ArrowUpRight, ArrowDownRight, AlertCircle, ChevronRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -294,12 +294,22 @@ export default function AssetDetailPage() {
 
     return (
         <div className="flex flex-col gap-6 pb-20">
-            {/* Header */}
-            <div className="flex items-center gap-4">
-                <Link href={category?.parent ? `/assets/${category.parent.id}` : "/"} className="p-2 -ml-2 hover:bg-muted/50 rounded-full transition-colors">
-                    <ArrowLeft className="h-5 w-5" />
+            {/* Breadcrumbs */}
+            <nav className="flex items-center gap-1 text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                <Link href="/" className="hover:text-foreground transition-all hover:bg-muted p-1 px-1.5 rounded">
+                    TOP
                 </Link>
-            </div>
+                <ChevronRight className="h-3 w-3 opacity-50" />
+                {category?.parent && (
+                    <>
+                        <Link href={`/assets/${category.parent.id}`} className="hover:text-foreground transition-all hover:bg-muted p-1 px-1.5 rounded">
+                            {category.parent.name}
+                        </Link>
+                        <ChevronRight className="h-3 w-3 opacity-50" />
+                    </>
+                )}
+                <span className="text-foreground p-1 px-1.5">{category?.name}</span>
+            </nav>
 
             {/* Main Stats */}
             <div className={`grid grid-cols-1 ${category?.isCash ? 'md:grid-cols-1' : 'md:grid-cols-3'} gap-4`}>
