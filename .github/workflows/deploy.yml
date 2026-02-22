@@ -110,7 +110,7 @@ jobs:
             tar -xzf deploy.tar.gz
             rm deploy.tar.gz
 
-            # .envを強制的に再作成
+            # .envを強制的に再作成（クォートなしの生の値を出力するように修正）
             echo "Updating .env file safely..."
             rm -f .env
             node -e "
@@ -119,10 +119,10 @@ jobs:
               let envContent = '';
               for (const k of keys) {
                 if (process.env[k]) {
-                  envContent += k + '=' + JSON.stringify(process.env[k]) + '\n';
+                  envContent += k + '=' + process.env[k] + '\n';
                 }
               }
-              envContent += 'NEXT_PUBLIC_NEXTAUTH_URL=' + JSON.stringify(process.env.NEXTAUTH_URL || '') + '\n';
+              envContent += 'NEXT_PUBLIC_NEXTAUTH_URL=' + (process.env.NEXTAUTH_URL || '') + '\n';
               envContent += 'AUTH_TRUST_HOST=true\n';
               envContent += 'PORT=3102\n';
               fs.writeFileSync('.env', envContent);
