@@ -77,6 +77,11 @@ GitHub レポジトリの **Settings > Secrets and variables > Actions** に移�
 | `AUTH_GOOGLE_ID` | GCP コンソールから取得した Google クライアントID |
 | `AUTH_GOOGLE_SECRET` | GCP コンソールから取得した Google クライアントシークレット |
 
+> **⚠️ エラー 400: redirect_uri_mismatch が発生する場合**
+> Google Cloud コンソールの「認証情報」画面にて、OAuth 2.0 クライアントの「承認済みのリダイレクト URI」に以下のURLを追加してください。
+> - 本番環境: `https://asset.gucchii.com/api/auth/callback/google`
+> - ローカル環境: `http://localhost:3000/api/auth/callback/google`
+
 #### メール送信設定 (SMTP)
 パスワードリセットなどシステムメール送信用の設定です。
 | シークレット名 | 説明 |

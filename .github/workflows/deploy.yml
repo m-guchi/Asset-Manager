@@ -80,11 +80,24 @@ jobs:
 
       - name: Post-deployment tasks
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          AUTH_GOOGLE_ID: ${{ secrets.AUTH_GOOGLE_ID }}
+          AUTH_GOOGLE_SECRET: ${{ secrets.AUTH_GOOGLE_SECRET }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          NEXT_PUBLIC_GA_ID: ${{ secrets.NEXT_PUBLIC_GA_ID }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
+          envs: DATABASE_URL,NEXTAUTH_URL,NEXTAUTH_SECRET,AUTH_GOOGLE_ID,AUTH_GOOGLE_SECRET,SMTP_HOST,SMTP_PORT,SMTP_USER,SMTP_PASS,SMTP_FROM,NEXT_PUBLIC_GA_ID
           script: |
             cd /home/github-user/asset.gucchii.com
             
@@ -97,27 +110,23 @@ jobs:
             tar -xzf deploy.tar.gz
             rm deploy.tar.gz
 
-            # .envを強制的に再作成
-            echo "Updating .env file..."
+            # .envを強制的に再作成（クォートなしの生の値を出力するように修正）
+            echo "Updating .env file safely..."
             rm -f .env
-            echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
-            echo "NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}" >> .env
-            echo "NEXT_PUBLIC_NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}" >> .env
-            echo "NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}" >> .env
-            echo "AUTH_GOOGLE_ID=${{ secrets.AUTH_GOOGLE_ID }}" >> .env
-            echo "AUTH_GOOGLE_SECRET=${{ secrets.AUTH_GOOGLE_SECRET }}" >> .env
-            echo "AUTH_TRUST_HOST=true" >> .env
-            echo "PORT=3102" >> .env
-            
-            # SMTP
-            echo "SMTP_HOST=${{ secrets.SMTP_HOST }}" >> .env
-            echo "SMTP_PORT=${{ secrets.SMTP_PORT }}" >> .env
-            echo "SMTP_USER=${{ secrets.SMTP_USER }}" >> .env
-            echo "SMTP_PASS=${{ secrets.SMTP_PASS }}" >> .env
-            echo "SMTP_FROM=${{ secrets.SMTP_FROM }}" >> .env
-
-            # Google Analytics
-            echo "NEXT_PUBLIC_GA_ID=${{ secrets.NEXT_PUBLIC_GA_ID }}" >> .env
+            node -e "
+              const fs = require('fs');
+              const keys = ['DATABASE_URL', 'NEXTAUTH_URL', 'NEXTAUTH_SECRET', 'AUTH_GOOGLE_ID', 'AUTH_GOOGLE_SECRET', 'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'NEXT_PUBLIC_GA_ID'];
+              let envContent = '';
+              for (const k of keys) {
+                if (process.env[k]) {
+                  envContent += k + '=' + process.env[k] + '\n';
+                }
+              }
+              envContent += 'NEXT_PUBLIC_NEXTAUTH_URL=' + (process.env.NEXTAUTH_URL || '') + '\n';
+              envContent += 'AUTH_TRUST_HOST=true\n';
+              envContent += 'PORT=3102\n';
+              fs.writeFileSync('.env', envContent);
+            "
 
             # 依存関係のインストール
             echo "Installing production dependencies..."
@@ -138,13 +147,7 @@ jobs:
             pm2 delete asset-manager || true
             
             export PORT=3102
-            export NEXTAUTH_URL="${{ secrets.NEXTAUTH_URL }}"
-            export NEXT_PUBLIC_NEXTAUTH_URL="${{ secrets.NEXTAUTH_URL }}"
-            export AUTH_URL="${{ secrets.NEXTAUTH_URL }}"
-            export NEXTAUTH_SECRET="${{ secrets.NEXTAUTH_SECRET }}"
-            export AUTH_GOOGLE_ID="${{ secrets.AUTH_GOOGLE_ID }}"
-            export AUTH_GOOGLE_SECRET="${{ secrets.AUTH_GOOGLE_SECRET }}"
-            export AUTH_TRUST_HOST="true"
+            export AUTH_URL="$NEXTAUTH_URL"
             export TRUST_PROXY="1"
             
             echo "Starting PM2 with NEXTAUTH_URL: $NEXTAUTH_URL"
