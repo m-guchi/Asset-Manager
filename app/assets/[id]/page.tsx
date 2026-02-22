@@ -75,6 +75,7 @@ interface CategoryDetail {
     isLiability: boolean | null;
     parent: { id: number; name: string } | null;
     children: { id: number; name: string; color: string; currentValue: number; isLiability: boolean | null }[];
+    allDescendants?: { id: number; name: string }[];
     transactions: TransactionItem[];
     history: Record<string, string | number>[];
 }
@@ -122,7 +123,7 @@ export default function AssetDetailPage() {
     const filteredTransactions = React.useMemo(() => {
         if (!category) return []
         if (historyFilter === "ALL") return category.transactions
-        return category.transactions.filter((t: TransactionItem) => t.categoryName === historyFilter)
+        return category.transactions.filter((t: TransactionItem) => t.categoryId?.toString() === historyFilter)
     }, [category, historyFilter])
 
     const [newTrx, setNewTrx] = React.useState({
@@ -621,7 +622,7 @@ export default function AssetDetailPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="ALL">すべて表示</SelectItem>
-                                    {category.children.map((child) => (
+                                    {(category.allDescendants || category.children).map((child) => (
                                         <SelectItem key={child.id} value={child.id.toString()}>
                                             {child.name}
                                         </SelectItem>

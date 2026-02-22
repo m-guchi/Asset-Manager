@@ -285,30 +285,38 @@ interface CategoryWithNested {
 
 export async function getCategoryDetails(id: number) {
     try {
-        const cat = await prisma.category.findUnique({
-            where: { id },
+        const userId = await getCurrentUserId();
+        if (!userId) return null;
+
+        const allCatsForUser = await prisma.category.findMany({
+            where: { userId },
             include: {
-                tags: {
-                    include: {
-                        tagGroup: true,
-                        tagOption: true
-                    }
-                },
+                tags: { include: { tagGroup: true, tagOption: true } },
                 assets: { orderBy: { recordedAt: 'asc' } },
                 transactions: { orderBy: { transactedAt: 'asc' } },
-                children: {
-                    include: {
-                        assets: { orderBy: { recordedAt: 'asc' } },
-                        transactions: { orderBy: { transactedAt: 'asc' } }
-                    }
-                },
                 parent: true
             }
-        }) as unknown as CategoryWithNested;
+        });
 
+        const cat = allCatsForUser.find(c => c.id === id);
         if (!cat) return null;
 
-        const catWithNested = cat;
+        // Recursive function to find all descendant categories
+        const getDescendants = (parentId: number): any[] => {
+            const children = allCatsForUser.filter(c => c.parentId === parentId);
+            return [...children, ...children.flatMap(c => getDescendants(c.id))];
+        };
+
+        const allDescendants = getDescendants(id);
+        const directChildren = allCatsForUser.filter(c => c.parentId === id);
+
+        const catWithNested = {
+            ...cat,
+            // We'll use this for internal processing of ALL descendants
+            allDescendants: allDescendants,
+            // And this for direct children (list/dropdown)
+            children: directChildren
+        };
 
         // Helper to calc history for a single category node
         const calculateHistoryForCategory = (c: { transactions: TransactionDetail[], assets: AssetDetail[] }) => {
@@ -450,60 +458,71 @@ export async function getCategoryDetails(id: number) {
         let childrenInfo: { id: number, name: string, color: string, currentValue: number, isLiability: boolean }[] = [];
 
         if (hasChildren) {
-            // Aggregate Children
-            childrenInfo = catWithNested.children.map((c) => {
-                const lastAsset = c.assets.length > 0 ? c.assets[c.assets.length - 1] : null;
-                return {
-                    id: c.id,
-                    name: c.name,
-                    color: c.color || "#ccc",
-                    currentValue: lastAsset?.currentValue || 0,
-                    isLiability: !!c.isLiability
-                };
-            });
-
-            // Calculate history for each child
-            const childHistories = catWithNested.children.map((c) => ({
+            // Aggregate all descendants' histories for merging
+            const descendantHistories = (catWithNested as any).allDescendants.map((c: any) => ({
                 id: c.id,
+                parentId: c.parentId,
                 items: calculateHistoryForCategory(c)
             }));
 
-            // Collect all unique dates (normalized to YYYY-MM-DD)
+            // Collect all unique dates
             const allDates = new Set<string>();
-            childHistories.forEach((ch) => {
+            descendantHistories.forEach((ch: any) => {
                 ch.items.forEach((i: { date: Date }) => allDates.add(i.date.toISOString().split('T')[0]));
             });
-
             const sortedDates = Array.from(allDates).sort();
 
-            // Merge
             const runningValues: Record<number, number> = {};
             const runningCosts: Record<number, number> = {};
 
             history = sortedDates.map(dateStr => {
                 const point: Record<string, number | string> = { date: dateStr, value: 0, cost: 0 };
 
-                childHistories.forEach((ch) => {
-                    // Update running value if this child has an entry on this date
+                descendantHistories.forEach((ch: any) => {
                     const entry = ch.items.find((i: { date: Date }) => i.date.toISOString().split('T')[0] === dateStr);
                     if (entry) {
                         runningValues[ch.id] = (entry as { value: number }).value;
                         runningCosts[ch.id] = (entry as { cost: number }).cost;
                     }
-                    // Apply current running value
-                    point[`child_${ch.id}`] = runningValues[ch.id] || 0;
+
                     point.value = (point.value as number) + (runningValues[ch.id] || 0);
                     point.cost = (point.cost as number) + (runningCosts[ch.id] || 0);
+                });
+
+                // For chart series: sum each direct child + its descendants
+                catWithNested.children.forEach((directChild: any) => {
+                    const getRecursiveValue = (pid: number): number => {
+                        let selfVal = runningValues[pid] || 0;
+                        const children = descendantHistories.filter((h: any) => h.parentId === pid);
+                        return selfVal + children.reduce((sum: number, c: any) => sum + getRecursiveValue(c.id), 0);
+                    };
+                    point[`child_${directChild.id}`] = getRecursiveValue(directChild.id);
                 });
 
                 return point;
             });
 
-            // Consolidate current totals
-            currentValue = catWithNested.children.reduce((sum: number, c) => {
-                const lastAsset = c.assets[c.assets.length - 1];
-                return sum + Number(lastAsset?.currentValue || 0);
-            }, 0);
+            // Update currentValue and childrenInfo
+            childrenInfo = catWithNested.children.map((c: any) => {
+                const getRecursiveCurrentValue = (catObj: any): number => {
+                    const lastAs = catObj.assets && catObj.assets.length > 0 ? catObj.assets[catObj.assets.length - 1] : null;
+                    let val = Number(lastAs?.currentValue || 0);
+                    const subDescendants = (catWithNested as any).allDescendants.filter((d: any) => d.parentId === catObj.id);
+                    return val + subDescendants.reduce((sum: number, sd: any) => sum + getRecursiveCurrentValue(sd), 0);
+                };
+
+                return {
+                    id: c.id,
+                    name: c.name,
+                    color: c.color || "#ccc",
+                    currentValue: getRecursiveCurrentValue(c),
+                    isLiability: !!c.isLiability
+                };
+            });
+
+            currentValue = catWithNested.children.reduce((sum, c) => sum + (childrenInfo.find(ci => ci.id === c.id)?.currentValue || 0), 0);
+            const ownLatest = catWithNested.assets && catWithNested.assets.length > 0 ? catWithNested.assets[catWithNested.assets.length - 1] : null;
+            currentValue += Number(ownLatest?.currentValue || 0);
 
             // Recalculate cost basis
             costBasis = history.length > 0 ? Number(history[history.length - 1].cost || 0) : 0;
@@ -562,12 +581,12 @@ export async function getCategoryDetails(id: number) {
 
         const rawTransactions = [
             ...(catWithNested.transactions || []).map((t) => formatTx(t, catWithNested.name, catWithNested.color || "#ccc", catWithNested.id)),
-            ...(hasChildren ? catWithNested.children.flatMap((c) => (c.transactions || []).map((t) => formatTx(t, c.name, c.color || "#ccc", c.id))) : [])
+            ...((catWithNested as any).allDescendants || []).flatMap((c: any) => (c.transactions || []).map((t: any) => formatTx(t, c.name, c.color || "#ccc", c.id)))
         ];
 
         const rawAssets = [
             ...(catWithNested.assets || []).map((a) => formatAsset(a, catWithNested.name, catWithNested.color || "#ccc", catWithNested.id)),
-            ...(hasChildren ? catWithNested.children.flatMap((c) => (c.assets || []).map((a) => formatAsset(a, c.name, c.color || "#ccc", c.id))) : [])
+            ...((catWithNested as any).allDescendants || []).flatMap((c: any) => (c.assets || []).map((a: any) => formatAsset(a, c.name, c.color || "#ccc", c.id)))
         ];
 
         // Merge logic: Group by CategoryId + Date (YYYY-MM-DD)
@@ -642,6 +661,10 @@ export async function getCategoryDetails(id: number) {
             tags: (catWithNested.tags || []).map((t) => t.tagOption?.name),
             history,
             children: childrenInfo,
+            allDescendants: (catWithNested as any).allDescendants.map((d: any) => ({
+                id: d.id,
+                name: d.name
+            })),
             parent: catWithNested.parent ? { id: catWithNested.parent.id, name: catWithNested.parent.name } : null,
             transactions: mergedList
         };
