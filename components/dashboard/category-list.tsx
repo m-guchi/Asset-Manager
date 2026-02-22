@@ -274,11 +274,23 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
                                         </div>
                                     )}
 
-                                    {children.length > 0 && (
-                                        <div className="flex flex-col gap-1 ml-3 pl-2 border-l-2 border-muted border-dashed mt-0.5 pb-0.5">
-                                            {children.map(child => renderCategoryCard(child, true))}
-                                        </div>
-                                    )}
+                                    {(() => {
+                                        const renderChildren = (parentId: number) => {
+                                            const children = categories.filter(c => c.parentId === parentId)
+                                            if (children.length === 0) return null
+                                            return (
+                                                <div className="flex flex-col gap-1 ml-3 pl-2 border-l-2 border-muted border-dashed mt-0.5 pb-0.5">
+                                                    {children.map(child => (
+                                                        <div key={child.id}>
+                                                            {renderCategoryCard(child, true)}
+                                                            {renderChildren(child.id)}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )
+                                        }
+                                        return renderChildren(parent.id)
+                                    })()}
                                 </SortableCategoryItem>
                             )
                         })}

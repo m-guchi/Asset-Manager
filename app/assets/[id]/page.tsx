@@ -309,6 +309,7 @@ export default function AssetDetailPage() {
                     </>
                 )}
                 <span className="text-foreground p-1 px-1.5">{category?.name}</span>
+                <span className="font-mono opacity-30 ml-auto mr-2">#{category?.id}</span>
             </nav>
 
             {/* Main Stats */}

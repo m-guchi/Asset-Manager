@@ -58,6 +58,7 @@ interface Category {
     currentValue?: number;
     costBasis?: number;
     ownValue?: number;
+    depth?: number;
 }
 
 interface TagOption {
@@ -263,6 +264,7 @@ function CategoryManagement({ categories, tagGroups, onRefresh }: { categories: 
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                <TableHead className="w-[60px]">ID</TableHead>
                                 <TableHead>資産名</TableHead>
                                 <TableHead>種類</TableHead>
                                 <TableHead className="text-right">操作</TableHead>
@@ -272,15 +274,21 @@ function CategoryManagement({ categories, tagGroups, onRefresh }: { categories: 
                             {categories.map((cat) => {
                                 const isChild = !!cat.parentId
                                 return (
-                                    <TableRow key={cat.id} className={isChild ? "bg-muted/30" : ""}>
+                                    <TableRow key={cat.id} className={cat.parentId ? "bg-muted/30" : ""}>
+                                        <TableCell className="font-mono text-[10px] text-muted-foreground">
+                                            #{cat.id}
+                                        </TableCell>
                                         <TableCell className="font-medium p-0">
-                                            <div className={`flex items-center gap-2 px-4 py-3 ${isChild ? "ml-6" : ""}`}>
+                                            <div
+                                                className="flex items-center gap-2 px-4 py-3"
+                                                style={{ marginLeft: `${(cat.depth || 0) * 1.5}rem` }}
+                                            >
                                                 <Link
                                                     href={`/assets/${cat.id}`}
                                                     className="flex items-center gap-2 hover:underline decoration-primary transition-all"
                                                 >
                                                     <div className="h-3 w-3 rounded-full" style={{ backgroundColor: cat.color }} />
-                                                    <span className={isChild ? "text-sm text-muted-foreground" : "font-bold"}>{cat.name}</span>
+                                                    <span className={cat.parentId ? "text-sm text-muted-foreground" : "font-bold"}>{cat.name}</span>
                                                 </Link>
                                             </div>
                                         </TableCell>

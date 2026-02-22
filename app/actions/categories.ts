@@ -53,26 +53,20 @@ export async function getCategories() {
 
         if (!allCategories || allCategories.length === 0) return [];
 
-        // Sort hierarchically
-        const roots = allCategories
-            .filter((c) => !c.parentId)
-            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        // Recursive function to flatten hierarchy with depth
+        const sorted: (CategoryWithRelations & { depth: number })[] = [];
+        const processLevel = (parentId: number | null, depth: number) => {
+            const levelItems = allCategories
+                .filter(c => c.parentId === parentId)
+                .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-        const childrenMap = new Map<number, CategoryWithRelations[]>();
-        allCategories.forEach((c) => {
-            if (c.parentId) {
-                const existing = childrenMap.get(c.parentId) || [];
-                existing.push(c);
-                childrenMap.set(c.parentId, existing);
-            }
-        });
+            levelItems.forEach(item => {
+                sorted.push({ ...item, depth });
+                processLevel(item.id, depth + 1);
+            });
+        };
 
-        const sorted: CategoryWithRelations[] = [];
-        roots.forEach((root) => {
-            sorted.push(root);
-            const children = (childrenMap.get(root.id) || []).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-            sorted.push(...children);
-        });
+        processLevel(null, 0);
 
         return sorted.map((cat) => {
             try {
@@ -122,6 +116,7 @@ export async function getCategories() {
                     ownCostBasis,
                     isCash: !!cat.isCash,
                     isLiability: !!cat.isLiability,
+                    depth: (cat as any).depth || 0,
                     tags: (cat.tags || []).map((t) => t.tagOption?.name || ""),
                     tagSettings: (cat.tags || []).map((t) => ({
                         groupId: t.tagGroupId,
