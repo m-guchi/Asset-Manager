@@ -18,6 +18,8 @@ export interface Category {
         optionName: string;
     }[];
     conflicts?: string[]
+    depth?: number
+    dailyChange?: number
 }
 
 export interface HistoryPoint {

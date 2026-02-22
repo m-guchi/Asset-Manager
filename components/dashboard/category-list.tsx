@@ -194,21 +194,30 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
                     )}
                 </CardHeader>
                 <CardContent className={`pl-3 pr-2 ${isChild ? 'pb-1' : 'pb-1.5'} pt-0`}>
-                    <div className="flex items-baseline justify-between gap-1.5">
-                        <span className={`${isChild ? 'text-sm' : 'text-base'} font-bold tracking-tight leading-none ${category.isLiability ? "text-red-500" : ""}`}>
-                            {category.isLiability ? "-" : ""}¥{valueToUse.toLocaleString()}
-                        </span>
+                    <div className="flex flex-col gap-0.5">
+                        <div className="flex items-baseline justify-between gap-1.5">
+                            <span className={`${isChild ? 'text-sm' : 'text-base'} font-bold tracking-tight leading-none ${category.isLiability ? "text-red-500" : ""}`}>
+                                {category.isLiability ? "-" : ""}¥{valueToUse.toLocaleString()}
+                            </span>
 
-                        <span className={`${isChild ? 'text-[10px]' : 'text-xs'} font-bold whitespace-nowrap leading-none ${category.isCash ? "text-muted-foreground" : (isPositive ? "text-green-500" : "text-red-500")}`}>
-                            {category.isCash ? '±0' : (
-                                <>
-                                    {isPositive ? '+' : ''}¥{profit.toLocaleString()}
-                                    <span className="text-[10px] ml-0.5 opacity-70 font-normal">
-                                        ({isPositive ? '+' : ''}{profitPercent.toFixed(1)}%)
-                                    </span>
-                                </>
-                            )}
-                        </span>
+                            <span className={`${isChild ? 'text-[10px]' : 'text-xs'} font-bold whitespace-nowrap leading-none ${category.isCash ? "text-muted-foreground" : (isPositive ? "text-green-500" : "text-red-500")}`}>
+                                {category.isCash ? '±0' : (
+                                    <>
+                                        {isPositive ? '+' : ''}¥{profit.toLocaleString()}
+                                        <span className="text-[10px] ml-0.5 opacity-70 font-normal">
+                                            ({isPositive ? '+' : ''}{profitPercent.toFixed(1)}%)
+                                        </span>
+                                    </>
+                                )}
+                            </span>
+                        </div>
+
+                        {(category.dailyChange !== undefined && category.dailyChange !== 0) && (
+                            <div className={`text-[10px] font-medium flex items-center gap-1 ${category.dailyChange > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                                <span className="opacity-70">前日比</span>
+                                <span>{category.dailyChange > 0 ? '+' : ''}{category.dailyChange.toLocaleString()}円</span>
+                            </div>
+                        )}
                     </div>
                 </CardContent>
             </Card>
@@ -274,11 +283,23 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
                                         </div>
                                     )}
 
-                                    {children.length > 0 && (
-                                        <div className="flex flex-col gap-1 ml-3 pl-2 border-l-2 border-muted border-dashed mt-0.5 pb-0.5">
-                                            {children.map(child => renderCategoryCard(child, true))}
-                                        </div>
-                                    )}
+                                    {(() => {
+                                        const renderChildren = (parentId: number) => {
+                                            const children = categories.filter(c => c.parentId === parentId)
+                                            if (children.length === 0) return null
+                                            return (
+                                                <div className="flex flex-col gap-1 ml-3 pl-2 border-l-2 border-muted border-dashed mt-0.5 pb-0.5">
+                                                    {children.map(child => (
+                                                        <div key={child.id}>
+                                                            {renderCategoryCard(child, true)}
+                                                            {renderChildren(child.id)}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )
+                                        }
+                                        return renderChildren(parent.id)
+                                    })()}
                                 </SortableCategoryItem>
                             )
                         })}

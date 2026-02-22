@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { ArrowLeft, Plus, History, RefreshCw, Edit2, Trash2, ArrowUpRight, ArrowDownRight } from "lucide-react"
+import { ArrowLeft, Plus, History, RefreshCw, Edit2, Trash2, ArrowUpRight, ArrowDownRight, AlertCircle, ChevronRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -63,6 +63,8 @@ interface TransactionItem {
     categoryColor?: string;
     profitRatio?: number | null;
     categoryId?: number;
+    consolidatedValuation?: number;
+    childrenValuation?: number;
 }
 
 interface CategoryDetail {
@@ -75,6 +77,7 @@ interface CategoryDetail {
     isLiability: boolean | null;
     parent: { id: number; name: string } | null;
     children: { id: number; name: string; color: string; currentValue: number; isLiability: boolean | null }[];
+    allDescendants?: { id: number; name: string }[];
     transactions: TransactionItem[];
     history: Record<string, string | number>[];
 }
@@ -92,6 +95,7 @@ export default function AssetDetailPage() {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
     const [deletingItemId, setDeletingItemId] = React.useState<string | null>(null)
     const [isMounted, setIsMounted] = React.useState(false)
+    const [showZeroWarning, setShowZeroWarning] = React.useState(false)
 
     React.useEffect(() => {
         setIsMounted(true)
@@ -121,7 +125,7 @@ export default function AssetDetailPage() {
     const filteredTransactions = React.useMemo(() => {
         if (!category) return []
         if (historyFilter === "ALL") return category.transactions
-        return category.transactions.filter((t: TransactionItem) => t.categoryName === historyFilter)
+        return category.transactions.filter((t: TransactionItem) => t.categoryId?.toString() === historyFilter)
     }, [category, historyFilter])
 
     const [newTrx, setNewTrx] = React.useState({
@@ -140,7 +144,7 @@ export default function AssetDetailPage() {
         if (category && !editingItem) {
             setNewTrx(prev => ({
                 ...prev,
-                type: category.isCash ? "VALUATION" : "DEPOSIT",
+                type: "VALUATION",
                 valuation: category.currentValue.toString(),
                 realizedGain: undefined
             }))
@@ -153,6 +157,15 @@ export default function AssetDetailPage() {
         if (newTrx.type === 'VALUATION' && !newTrx.valuation) {
             toast.error("評価額を入力してください")
             return
+        }
+
+        // 入金・出金時の0円チェック
+        if ((newTrx.type === "DEPOSIT" || newTrx.type === "WITHDRAW") && !showZeroWarning) {
+            const checkVal = newTrx.type === "WITHDRAW" && !category?.isCash ? saleAmount : newTrx.amount;
+            if (!checkVal || Number(checkVal) === 0) {
+                setShowZeroWarning(true)
+                return
+            }
         }
 
         let res;
@@ -284,12 +297,23 @@ export default function AssetDetailPage() {
 
     return (
         <div className="flex flex-col gap-6 pb-20">
-            {/* Header */}
-            <div className="flex items-center gap-4">
-                <Link href={category?.parent ? `/assets/${category.parent.id}` : "/"} className="p-2 -ml-2 hover:bg-muted/50 rounded-full transition-colors">
-                    <ArrowLeft className="h-5 w-5" />
+            {/* Breadcrumbs */}
+            <nav className="flex items-center gap-1 text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                <Link href="/" className="hover:text-foreground transition-all hover:bg-muted p-1 px-1.5 rounded">
+                    TOP
                 </Link>
-            </div>
+                <ChevronRight className="h-3 w-3 opacity-50" />
+                {category?.parent && (
+                    <>
+                        <Link href={`/assets/${category.parent.id}`} className="hover:text-foreground transition-all hover:bg-muted p-1 px-1.5 rounded">
+                            {category.parent.name}
+                        </Link>
+                        <ChevronRight className="h-3 w-3 opacity-50" />
+                    </>
+                )}
+                <span className="text-foreground p-1 px-1.5">{category?.name}</span>
+                <span className="font-mono opacity-30 ml-auto mr-2">#{category?.id}</span>
+            </nav>
 
             {/* Main Stats */}
             <div className={`grid grid-cols-1 ${category?.isCash ? 'md:grid-cols-1' : 'md:grid-cols-3'} gap-4`}>
@@ -491,6 +515,7 @@ export default function AssetDetailPage() {
                                         axisLine={false}
                                         tickMargin={4}
                                         className="text-[10px]"
+                                        domain={['auto', 'auto']}
                                     />
                                     <ChartTooltip
                                         cursor={false}
@@ -600,7 +625,7 @@ export default function AssetDetailPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="ALL">すべて表示</SelectItem>
-                                    {category.children.map((child) => (
+                                    {(category.allDescendants || category.children).map((child) => (
                                         <SelectItem key={child.id} value={child.id.toString()}>
                                             {child.name}
                                         </SelectItem>
@@ -613,7 +638,7 @@ export default function AssetDetailPage() {
                             setBaseValuation(category.currentValue)
                             setNewTrx({
                                 date: new Date().toISOString().split('T')[0],
-                                type: category.isCash ? "VALUATION" : "DEPOSIT",
+                                type: "VALUATION",
                                 amount: "",
                                 valuation: category.currentValue.toString(),
                                 memo: "",
@@ -635,7 +660,10 @@ export default function AssetDetailPage() {
                                 <TableHead className="w-[120px]">日付</TableHead>
                                 <TableHead className="w-[100px]">種別</TableHead>
                                 <TableHead className="text-right">収支額</TableHead>
-                                <TableHead className="text-right">評価額</TableHead>
+                                <TableHead className="text-right">個別評価額</TableHead>
+                                {category?.children && category.children.length > 0 && (
+                                    <TableHead className="text-right">子アセット合計</TableHead>
+                                )}
                                 <TableHead className="hidden md:table-cell">備考</TableHead>
                                 <TableHead className="text-right w-[100px]">操作</TableHead>
                             </TableRow>
@@ -677,6 +705,20 @@ export default function AssetDetailPage() {
                                                 )}
                                             </div>
                                         </TableCell>
+                                        {category?.children && category.children.length > 0 && (
+                                            <TableCell className="text-right">
+                                                <div className="flex flex-col items-end">
+                                                    <span className="font-medium">
+                                                        {item.childrenValuation !== undefined ? `¥${item.childrenValuation.toLocaleString()}` : "-"}
+                                                    </span>
+                                                    {item.consolidatedValuation !== undefined && item.consolidatedValuation !== item.childrenValuation && (
+                                                        <span className="text-[10px] text-muted-foreground">
+                                                            (全体: ¥{item.consolidatedValuation.toLocaleString()})
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                        )}
                                         <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{item.memo}</TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-1">
@@ -703,11 +745,13 @@ export default function AssetDetailPage() {
                     setEditingItem(null)
                     setBaseValuation(0);
                     setSaleAmount("");
+                    setShowZeroWarning(false)
                 } else if (!editingItem) {
+                    setShowZeroWarning(false)
                     setBaseValuation(category.currentValue);
                     setNewTrx({
                         date: new Date().toISOString().split('T')[0],
-                        type: category.isCash ? "VALUATION" : "DEPOSIT",
+                        type: "VALUATION",
                         amount: "",
                         valuation: category.currentValue.toString(),
                         memo: "",
@@ -764,6 +808,7 @@ export default function AssetDetailPage() {
                                         valuation: baseValuation.toString()
                                     })
                                     setSaleAmount("")
+                                    setShowZeroWarning(false)
                                 }}
                                 disabled={category.isCash || !!editingItem}
                             >
@@ -877,9 +922,23 @@ export default function AssetDetailPage() {
                         </div>
                     </div>
 
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsTrxModalOpen(false)}>キャンセル</Button>
-                        <Button onClick={handleAddTrx}>保存する</Button>
+                    <DialogFooter className="flex-col gap-3 sm:flex-row">
+                        {showZeroWarning && (
+                            <div className="flex items-center gap-2 text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded-md border border-amber-200 dark:border-amber-900 text-[10px] w-full mb-2 sm:mb-0">
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                <span>{newTrx.type === "DEPOSIT" ? "入金額" : "売却額"}が0円ですが、このまま記録しますか？</span>
+                            </div>
+                        )}
+                        <div className="flex gap-2 justify-end w-full">
+                            <Button variant="outline" onClick={() => setIsTrxModalOpen(false)}>キャンセル</Button>
+                            <Button
+                                onClick={handleAddTrx}
+                                variant="default"
+                                className={showZeroWarning ? "bg-amber-600 hover:bg-amber-700 text-white" : ""}
+                            >
+                                {showZeroWarning ? "はい、記録します" : "保存する"}
+                            </Button>
+                        </div>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
