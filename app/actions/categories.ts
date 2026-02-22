@@ -45,7 +45,7 @@ export async function getCategories() {
                 },
                 assets: {
                     orderBy: { recordedAt: 'desc' },
-                    take: 1
+                    take: 2
                 },
                 transactions: true
             }
@@ -68,83 +68,78 @@ export async function getCategories() {
 
         processLevel(null, 0);
 
-        return sorted.map((cat) => {
-            try {
-                const latestAsset = (cat.assets && cat.assets.length > 0) ? cat.assets[0] : null;
-                const ownValue = Number(latestAsset?.currentValue || 0);
+        // 1. First, calculate 'own' values for all categories
+        const mappedCategories = sorted.map(cat => {
+            const latestAsset = (cat.assets && cat.assets.length > 0) ? cat.assets[0] : null;
+            const prevAsset = (cat.assets && cat.assets.length > 1) ? cat.assets[1] : null;
+            const ownValue = Number(latestAsset?.currentValue || 0);
+            const ownDailyChange = latestAsset && prevAsset ? Number(latestAsset.currentValue) - Number(prevAsset.currentValue) : 0;
 
-                let ownCostBasis = 0;
-                const trxs = cat.transactions || [];
-                if (cat.isCash) {
-                    ownCostBasis = ownValue;
-                } else {
-                    ownCostBasis = trxs.reduce((acc: number, t) => {
-                        const amt = Number(t.amount || 0);
-                        return t.type === 'DEPOSIT' ? acc + amt : (t.type === 'WITHDRAW' ? acc - amt : acc);
-                    }, 0);
-                }
-
-                // Child Aggregation
-                const children = sorted.filter((c) => c.parentId === cat.id);
-                let consolidatedValue = ownValue;
-                let consolidatedCostBasis = ownCostBasis;
-
-                children.forEach((child) => {
-                    const childVal = Number(child.assets?.[0]?.currentValue || 0);
-                    consolidatedValue += childVal;
-                    if (child.isCash) {
-                        consolidatedCostBasis += childVal;
-                    } else {
-                        consolidatedCostBasis += (child.transactions || []).reduce((acc: number, t) => {
-                            const amt = Number(t.amount || 0);
-                            return t.type === 'DEPOSIT' ? acc + amt : (t.type === 'WITHDRAW' ? acc - amt : acc);
-                        }, 0);
-                    }
-                });
-
-                return {
-                    id: cat.id,
-                    name: cat.name || "名称なし",
-                    color: cat.color || "#cccccc",
-                    order: cat.order || 0,
-                    valuationOrder: cat.valuationOrder ?? 0,
-                    isValuationTarget: cat.isValuationTarget ?? true,
-                    parentId: cat.parentId,
-                    currentValue: consolidatedValue,
-                    costBasis: consolidatedCostBasis,
-                    ownValue,
-                    ownCostBasis,
-                    isCash: !!cat.isCash,
-                    isLiability: !!cat.isLiability,
-                    depth: (cat as any).depth || 0,
-                    tags: (cat.tags || []).map((t) => t.tagOption?.name || ""),
-                    tagSettings: (cat.tags || []).map((t) => ({
-                        groupId: t.tagGroupId,
-                        groupName: t.tagGroup?.name || "",
-                        optionId: t.tagOptionId,
-                        optionName: t.tagOption?.name || ""
-                    }))
-                };
-            } catch (e) {
-                console.error(`Map error for ${cat.id}`, e);
-                return {
-                    id: cat.id,
-                    name: "Error",
-                    currentValue: 0,
-                    costBasis: 0,
-                    tags: [],
-                    color: "#ccc",
-                    order: 0,
-                    valuationOrder: 0,
-                    isValuationTarget: true,
-                    parentId: null,
-                    ownValue: 0,
-                    ownCostBasis: 0,
-                    isCash: false,
-                    isLiability: false,
-                    tagSettings: []
-                };
+            let ownCostBasis = 0;
+            const trxs = cat.transactions || [];
+            if (cat.isCash) {
+                ownCostBasis = ownValue;
+            } else {
+                ownCostBasis = trxs.reduce((acc: number, t) => {
+                    const amt = Number(t.amount || 0);
+                    return t.type === 'DEPOSIT' ? acc + amt : (t.type === 'WITHDRAW' ? acc - amt : acc);
+                }, 0);
             }
+
+            return {
+                ...cat,
+                ownValue,
+                ownCostBasis,
+                ownDailyChange,
+                // Placeholders for consolidated values
+                currentValue: ownValue,
+                costBasis: ownCostBasis,
+                dailyChange: ownDailyChange,
+            };
+        });
+
+        // 2. Aggregate bottom-up (from deepest to roots)
+        // Sort by depth descending
+        const depthSorted = [...mappedCategories].sort((a, b) => b.depth - a.depth);
+
+        depthSorted.forEach(item => {
+            if (item.parentId) {
+                const parent = mappedCategories.find(p => p.id === item.parentId);
+                if (parent) {
+                    parent.currentValue += item.currentValue;
+                    parent.dailyChange += item.dailyChange;
+                    // For cost basis, we sum up the child's consolidated cost basis
+                    parent.costBasis += item.costBasis;
+                }
+            }
+        });
+
+        // 3. Return final objects in the original sorted order (hierarchical)
+        return mappedCategories.map((cat) => {
+            return {
+                id: cat.id,
+                name: cat.name || "名称なし",
+                color: cat.color || "#cccccc",
+                order: cat.order || 0,
+                valuationOrder: cat.valuationOrder ?? 0,
+                isValuationTarget: cat.isValuationTarget ?? true,
+                parentId: cat.parentId,
+                currentValue: cat.currentValue,
+                costBasis: cat.costBasis,
+                ownValue: cat.ownValue,
+                ownCostBasis: cat.ownCostBasis,
+                dailyChange: cat.dailyChange,
+                isCash: !!cat.isCash,
+                isLiability: !!cat.isLiability,
+                depth: cat.depth,
+                tags: (cat.tags || []).map((t: any) => t.tagOption?.name || ""),
+                tagSettings: (cat.tags || []).map((t: any) => ({
+                    groupId: t.tagGroupId,
+                    groupName: t.tagGroup?.name || "",
+                    optionId: t.tagOptionId,
+                    optionName: t.tagOption?.name || ""
+                }))
+            };
         });
     } catch (error) {
         console.error("[getCategories] Critical fail", error);

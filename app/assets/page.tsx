@@ -59,6 +59,7 @@ interface Category {
     costBasis?: number;
     ownValue?: number;
     depth?: number;
+    dailyChange?: number;
 }
 
 interface TagOption {

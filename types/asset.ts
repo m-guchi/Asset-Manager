@@ -19,6 +19,7 @@ export interface Category {
     }[];
     conflicts?: string[]
     depth?: number
+    dailyChange?: number
 }
 
 export interface HistoryPoint {
