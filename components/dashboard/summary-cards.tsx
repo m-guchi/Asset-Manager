@@ -6,7 +6,7 @@ import { ArrowUpRight, ArrowDownRight, TrendingUp, Wallet, Percent } from "lucid
 interface SummaryCardsProps {
     netWorth: number
     totalAssets: number
-    totalLiabilities: number
+    totalCost: number
     totalProfit: number
     profitPercent: number
 }
@@ -22,7 +22,7 @@ const formatCurrency = (value: number) => {
 export function SummaryCards({
     netWorth,
     totalAssets,
-    totalLiabilities,
+    totalCost,
     totalProfit,
     profitPercent,
 }: SummaryCardsProps) {
@@ -43,22 +43,17 @@ export function SummaryCards({
                         </div>
                         <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Gross Assets</div>
                     </div>
-
-                    {/* Liability / Net Worth Breakdown */}
-                    <div className="flex flex-col gap-1 p-3 md:p-5 border-b md:border-r md:border-b-0 border-border/50 transition-colors hover:bg-muted/30 col-span-1">
-                        <div className="flex flex-col gap-1 pr-2">
-                            <div className="flex justify-between items-baseline border-b border-border/30 pb-1">
-                                <span className="text-[9px] text-muted-foreground font-medium uppercase">負債</span>
-                                <span className="text-sm md:text-base font-bold text-red-500">¥{(totalLiabilities === 0 ? 0 : -totalLiabilities).toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between items-baseline pt-1">
-                                <span className="text-[9px] text-muted-foreground font-medium uppercase">純資産</span>
-                                <span className="text-sm md:text-base font-bold text-primary">¥{(totalAssets - totalLiabilities).toLocaleString()}</span>
-                            </div>
+                    {/* Cost Basis */}
+                    <div className="flex flex-col gap-1 p-3 md:p-6 border-b md:border-r md:border-b-0 border-border/50 transition-colors hover:bg-muted/30 col-span-1">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                            <Wallet className="h-4 w-4 opacity-70" />
+                            <span className="text-[10px] md:text-sm font-medium">取得原価</span>
                         </div>
-                        <div className="mt-auto text-[9px] text-muted-foreground uppercase tracking-wider pt-1">Balance</div>
+                        <div className="text-base md:text-2xl font-bold tracking-tight truncate text-muted-foreground">
+                            {formatCurrency(totalCost)}
+                        </div>
+                        <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Total Cost</div>
                     </div>
-
                     {/* Profit/Loss */}
                     <div className="flex flex-col gap-1 p-4 md:p-6 border-r border-border/50 transition-colors hover:bg-muted/30 col-span-1">
                         <div className="flex items-center gap-2 text-muted-foreground">

@@ -130,7 +130,7 @@ export async function getCategories() {
                 ownCostBasis: cat.ownCostBasis,
                 dailyChange: cat.dailyChange,
                 isCash: !!cat.isCash,
-                isLiability: !!cat.isLiability,
+                isLiability: false,
                 depth: cat.depth,
                 tags: (cat.tags || []).map((t) => t.tagOption?.name || ""),
                 tagSettings: (cat.tags || []).map((t) => ({
@@ -171,7 +171,7 @@ export async function saveCategory(data: SaveCategoryData) {
             color: data.color,
             order: data.order ?? 0,
             isCash: !!data.isCash,
-            isLiability: !!data.isLiability,
+            isLiability: false,
             parentId: data.parentId === 0 ? null : (data.parentId || null),
         }
 
@@ -523,7 +523,7 @@ export async function getCategoryDetails(id: number) {
                     name: c.name,
                     color: c.color || "#ccc",
                     currentValue: getRecursiveCurrentValue(c),
-                    isLiability: !!c.isLiability
+                    isLiability: false
                 };
             });
 
@@ -674,7 +674,7 @@ export async function getCategoryDetails(id: number) {
             name: catWithNested.name,
             color: catWithNested.color || "#ccc",
             isCash: catWithNested.isCash,
-            isLiability: catWithNested.isLiability,
+            isLiability: false,
             currentValue,
             costBasis,
             tags: (catWithNested.tags || []).map((t) => t.tagOption?.name),

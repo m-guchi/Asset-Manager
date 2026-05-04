@@ -96,9 +96,9 @@ export async function getHistoryData() {
             const cat = categoryMap.get(id);
             if (!cat) return { val: 0, cost: 0 };
 
-            const multiplier = cat.isLiability ? -1 : 1;
+            const multiplier = 1;
             let val = (valSource.get(id) || 0) * multiplier;
-            let cost = (costSource.get(id) || 0) * (cat.isLiability ? 0 : 1);
+            let cost = (costSource.get(id) || 0);
 
             const children = childrenMap.get(id) || [];
             children.forEach(childId => {
@@ -169,7 +169,7 @@ export async function getHistoryData() {
 
             // Tag Aggregation (Per Category Contribution)
             categories.forEach((cat) => {
-                const val = (latestValues.get(cat.id) || 0) * (cat.isLiability ? -1 : 1);
+                const val = (latestValues.get(cat.id) || 0);
                 const tags = getEffectiveTags(cat.id);
 
                 // Deduplicate based on groupId + name to ensure uniqueness within the category context
@@ -188,24 +188,19 @@ export async function getHistoryData() {
 
             // Total Aggregation (Roots only)
             let grossAssets = 0;
-            let liabilities = 0;
             let totalCost = 0;
 
             categories.forEach(cat => {
                 if (!cat.parentId) {
                     const res = getConsolidated(cat.id, latestValues, latestCostBasis);
-                    if (cat.isLiability) {
-                        liabilities += Math.abs(res.val);
-                    } else {
-                        grossAssets += res.val;
-                        totalCost += Math.max(0, res.cost);
-                    }
+                    grossAssets += res.val;
+                    totalCost += Math.max(0, res.cost);
                 }
             });
 
             point.totalAssets = grossAssets;
             point.totalCost = totalCost;
-            point.netWorth = (grossAssets - liabilities);
+            point.netWorth = grossAssets;
 
             // The previous logic to set tag values to 0 for null/negative is now handled by initialization
             // and the removal of `if (val !== 0)` condition.

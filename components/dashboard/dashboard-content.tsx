@@ -51,15 +51,10 @@ export function DashboardContent({
 
     const topLevelCategories = categories.filter(c => !c.parentId)
     const totalAssets = topLevelCategories
-        .filter(c => !c.isLiability)
-        .reduce((acc, cat) => acc + cat.currentValue, 0)
-    const totalLiabilities = topLevelCategories
-        .filter(c => c.isLiability)
         .reduce((acc, cat) => acc + cat.currentValue, 0)
     const totalCost = topLevelCategories
-        .filter(c => !c.isLiability)
         .reduce((acc, cat) => acc + (cat.isCash ? cat.currentValue : cat.costBasis), 0)
-    const totalProfit = totalAssets - totalLiabilities - (totalCost - totalLiabilities) // Matches previous net profit logic
+    const totalProfit = totalAssets - totalCost
     const profitPercent = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0
 
     return (
@@ -68,7 +63,7 @@ export function DashboardContent({
                 <SummaryCards
                     netWorth={totalAssets}
                     totalAssets={totalAssets}
-                    totalLiabilities={totalLiabilities}
+                    totalCost={totalCost}
                     totalProfit={totalProfit}
                     profitPercent={profitPercent}
                 />

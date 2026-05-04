@@ -52,7 +52,7 @@ export function AssetAllocationChart({
                     name: c.name,
                     value: c.currentValue,
                     fill: c.color || "var(--chart-1)",
-                    isLiability: !!c.isLiability
+                    isLiability: false
                 }))
         } else {
             const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
@@ -91,8 +91,7 @@ export function AssetAllocationChart({
                     const val = (cat.ownValue !== undefined) ? cat.ownValue : (cat.parentId ? cat.currentValue : 0);
                     // Special case: if we are processing a root that has own value, we take it.
                     // But if it's a root folder without direct records, its currentValue is already handled.
-                    const sign = cat.isLiability ? -1 : 1;
-                    tagMap.set(matchingTag, (tagMap.get(matchingTag) || 0) + (val * sign));
+                    tagMap.set(matchingTag, (tagMap.get(matchingTag) || 0) + val);
                 }
             });
 

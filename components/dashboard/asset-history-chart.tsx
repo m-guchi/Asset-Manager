@@ -46,7 +46,6 @@ export function AssetHistoryChart({
     const [activePoint, setActivePoint] = React.useState<ChartPoint | null>(null)
     const [hoverPoint, setHoverPoint] = React.useState<ChartPoint | null>(null)
     const [isLocked, setIsLocked] = React.useState(false)
-    const [showNetWorth, setShowNetWorth] = React.useState(false)
     const [isAnimating, setIsAnimating] = React.useState(false)
 
     // Trigger animation only when display settings change
@@ -54,7 +53,7 @@ export function AssetHistoryChart({
         setIsAnimating(true)
         const timer = setTimeout(() => setIsAnimating(false), 1500)
         return () => clearTimeout(timer)
-    }, [mode, selectedTagGroup, showNetWorth, showPercent, timeRange])
+    }, [mode, selectedTagGroup, showPercent, timeRange])
 
     React.useEffect(() => {
         setIsMounted(true);
@@ -203,16 +202,14 @@ export function AssetHistoryChart({
                                             <>
                                                 <div className="flex items-center gap-1.5 shrink-0">
                                                     <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--color-totalAssets)" }} />
-                                                    <span className="text-[9px] text-muted-foreground font-bold">{showNetWorth ? "純資産" : "評価額"}</span>
-                                                    <span className="text-[11px] font-bold">¥{Math.round(showNetWorth ? activePoint.netWorth : activePoint.totalAssets).toLocaleString()}</span>
+                                                    <span className="text-[9px] text-muted-foreground font-bold">評価額</span>
+                                                    <span className="text-[11px] font-bold">¥{Math.round(activePoint.totalAssets).toLocaleString()}</span>
                                                 </div>
-                                                {!showNetWorth && (
-                                                    <div className="flex items-center gap-1.5 shrink-0 border-l border-border/50 pl-4">
-                                                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#888888" }} />
-                                                        <span className="text-[9px] text-muted-foreground font-bold">取得原価</span>
-                                                        <span className="text-[11px] font-bold text-[#888888]">¥{Math.round(activePoint.totalCost).toLocaleString()}</span>
-                                                    </div>
-                                                )}
+                                                <div className="flex items-center gap-1.5 shrink-0 border-l border-border/50 pl-4">
+                                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#888888" }} />
+                                                    <span className="text-[9px] text-muted-foreground font-bold">取得原価</span>
+                                                    <span className="text-[11px] font-bold text-[#888888]">¥{Math.round(activePoint.totalCost).toLocaleString()}</span>
+                                                </div>
                                             </>
                                         ) : (
                                             activeKeys.map((key, i) => {
@@ -242,7 +239,7 @@ export function AssetHistoryChart({
                         <div className="flex-1 w-full min-h-0 px-2 py-2" onClick={(e) => e.stopPropagation()} style={{ touchAction: "none" }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <ComposedChart
-                                    key={`${mode}-${selectedTagGroup}-${showPercent}-${showNetWorth}-${timeRange}`}
+                                    key={`${mode}-${selectedTagGroup}-${showPercent}-${timeRange}`}
                                     data={filteredData}
                                     onMouseMove={(e) => {
                                         if (e && e.activePayload && e.activePayload.length > 0) {
@@ -341,7 +338,7 @@ export function AssetHistoryChart({
 
                                     {mode === "total" && (
                                         <Area
-                                            dataKey={showNetWorth ? "netWorth" : "totalAssets"}
+                                            dataKey="totalAssets"
                                             type="linear"
                                             stroke="var(--color-totalAssets)"
                                             strokeWidth={2}
@@ -351,7 +348,7 @@ export function AssetHistoryChart({
                                             animationDuration={1200}
                                         />
                                     )}
-                                    {mode === "total" && !showNetWorth && (
+                                    {mode === "total" && (
                                         <Line
                                             dataKey="totalCost"
                                             type="stepAfter"
@@ -412,16 +409,7 @@ export function AssetHistoryChart({
                                     100%
                                 </button>
                             )}
-                            {mode === "total" && (
-                                <button
-                                    onClick={() => setShowNetWorth(!showNetWorth)}
-                                    className={`px-3 py-1 text-[10px] font-bold rounded-md border transition-all ${showNetWorth
-                                        ? "bg-foreground text-background"
-                                        : "bg-background text-muted-foreground hover:text-foreground"}`}
-                                >
-                                    負債を含める
-                                </button>
-                            )}
+
                         </div>
                     </div>
                 </ChartContainer>
