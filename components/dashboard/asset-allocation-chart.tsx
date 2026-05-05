@@ -33,6 +33,26 @@ export function AssetAllocationChart({
     selectedTagGroup: number,
     activePoint?: HistoryPoint | null
 }) {
+    const [isMobile, setIsMobile] = React.useState(false);
+
+    React.useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+    const activeKeys = React.useMemo(() => {
+        if (mode === "tag") {
+            const grp = tagGroups.find(g => g.id === selectedTagGroup)
+            const keys = grp?.options?.map(o => o.name) || grp?.tags || []
+            return Array.from(new Set(keys.map(k => String(k).trim())))
+        }
+        return []
+    }, [mode, selectedTagGroup, tagGroups])
+
     // Logic to transform data based on mode
     const chartData = React.useMemo(() => {
         if (mode === "total") {
@@ -142,117 +162,166 @@ export function AssetAllocationChart({
     }, [chartData])
 
     return (
-        <div className="flex flex-col h-full p-2 sm:p-4 w-full">
-            <ChartContainer
-                config={chartConfig}
-                className="mx-auto h-[350px] sm:h-[400px] w-full min-w-0 flex-1"
-            >
-                <PieChart margin={{ top: 20, bottom: 40, left: 10, right: 10 }}>
-                    <ChartTooltip
-                        cursor={false}
-                        content={
-                            <ChartTooltipContent
-                                hideLabel
-                                formatter={(value, name, props) => {
-                                    const val = Number(value);
-                                    const percent = totalValue > 0 ? ((val / totalValue) * 100).toFixed(1) : "0.0";
-                                    return (
-                                        <div className="flex flex-col gap-0.5 min-w-[120px]">
-                                            <div className="flex items-center gap-2">
-                                                <div className="h-2 w-2 rounded-full" style={{ backgroundColor: props.color || props.payload?.fill }} />
-                                                <span className="font-bold text-sm">{name}</span>
+        <div className="flex flex-col h-full px-2 sm:px-4 py-0 w-full">
+            <div className={`flex ${isMobile ? "flex-row items-center" : "flex-col"} w-full h-full`}>
+                <ChartContainer
+                    config={chartConfig}
+                    className="mx-auto h-[350px] sm:h-[400px] w-full min-w-0 flex-1"
+                >
+                    <PieChart margin={{ 
+                        top: 0, 
+                        bottom: 0, 
+                        left: 0, 
+                        right: 0 
+                    }}>
+                        <ChartTooltip
+                            cursor={false}
+                            content={
+                                <ChartTooltipContent
+                                    hideLabel
+                                    formatter={(value, name, props) => {
+                                        const val = Number(value);
+                                        const percent = totalValue > 0 ? ((val / totalValue) * 100).toFixed(1) : "0.0";
+                                        return (
+                                            <div className="flex flex-col gap-0.5 min-w-[120px]">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="h-2 w-2 rounded-full" style={{ backgroundColor: props.color || props.payload?.fill }} />
+                                                    <span className="font-bold text-sm">{name}</span>
+                                                </div>
+                                                <div className="flex flex-col pl-4 text-xs text-muted-foreground">
+                                                    <span>¥{val.toLocaleString()}</span>
+                                                    <span className="font-medium text-foreground">{percent}%</span>
+                                                </div>
                                             </div>
-                                            <div className="flex flex-col pl-4 text-xs text-muted-foreground">
-                                                <span>¥{val.toLocaleString()}</span>
-                                                <span className="font-medium text-foreground">{percent}%</span>
-                                            </div>
-                                        </div>
-                                    );
-                                }}
-                            />
-                        }
-                    />
-                    <Legend
-                        verticalAlign="bottom"
-                        align="center"
-                        iconType="circle"
-                        wrapperStyle={{ fontSize: '10px', paddingTop: '20px' }}
-                    />
-                    <Pie
-                        data={displayData}
-                        dataKey="value"
-                        nameKey="name"
-                        startAngle={90}
-                        endAngle={-270}
-                        innerRadius={60}
-                        outerRadius={100}
-                        isAnimationActive={true}
-                        animationBegin={0}
-                        animationDuration={800}
-                        animationEasing="ease-out"
-                        labelLine={false}
-                        label={({ name, value, cx, cy, midAngle, innerRadius, outerRadius }) => {
-                            const percent = (value / totalValue) * 100;
-                            if (percent < 8) return null;
+                                        );
+                                    }}
+                                />
+                            }
+                        />
 
-                            const RADIAN = Math.PI / 180;
-                            const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                            const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                            const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                        <Pie
+                            data={displayData}
+                            dataKey="value"
+                            nameKey="name"
+                            startAngle={90}
+                            endAngle={-270}
+                            innerRadius={60}
+                            outerRadius={100}
+                            isAnimationActive={true}
+                            animationBegin={0}
+                            animationDuration={800}
+                            animationEasing="ease-out"
+                            labelLine={false}
+                            label={({ name, value, cx, cy, midAngle, innerRadius, outerRadius }) => {
+                                const percent = (value / totalValue) * 100;
+                                if (percent < 8) return null;
 
-                            return (
-                                <g style={{ animation: 'fadeIn 0.5s ease-out 0.3s both' }}>
-                                    <text
-                                        x={x}
-                                        y={y}
-                                        className="fill-foreground text-[9px] md:text-[10px] font-bold pointer-events-none"
-                                        textAnchor="middle"
-                                        dominantBaseline="central"
-                                    >
-                                        <tspan x={x} dy="-0.6em">{name}</tspan>
-                                        <tspan x={x} dy="1.2em" className="font-medium opacity-90">
-                                            {`${Math.round(value / 10000).toLocaleString()}万`}
-                                        </tspan>
-                                    </text>
-                                </g>
-                            );
-                        }}
-                        strokeWidth={2}
-                    >
-                        <Label
-                            content={({ viewBox }) => {
-                                if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                                    return (
-                                        <g style={{ animation: 'fadeIn 0.6s ease-out 0.2s both' }}>
-                                            <text
-                                                x={viewBox.cx}
-                                                y={viewBox.cy}
-                                                textAnchor="middle"
-                                                dominantBaseline="middle"
-                                            >
-                                                <tspan
+                                const RADIAN = Math.PI / 180;
+                                const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                                const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                                const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+                                return (
+                                    <g style={{ animation: 'fadeIn 0.5s ease-out 0.3s both' }}>
+                                        <text
+                                            x={x}
+                                            y={y}
+                                            className="fill-foreground text-[9px] md:text-[10px] font-bold pointer-events-none"
+                                            textAnchor="middle"
+                                            dominantBaseline="central"
+                                        >
+                                            <tspan x={x} dy="-0.6em">{name}</tspan>
+                                            <tspan x={x} dy="1.2em" className="font-medium opacity-90">
+                                                {`${Math.round(value / 10000).toLocaleString()}万`}
+                                            </tspan>
+                                        </text>
+                                    </g>
+                                );
+                            }}
+                            strokeWidth={2}
+                        >
+                            <Label
+                                content={({ viewBox }) => {
+                                    if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+                                        return (
+                                            <g style={{ animation: 'fadeIn 0.6s ease-out 0.2s both' }}>
+                                                <text
                                                     x={viewBox.cx}
                                                     y={viewBox.cy}
-                                                    className="fill-foreground text-xl font-bold md:text-2xl"
+                                                    textAnchor="middle"
+                                                    dominantBaseline="middle"
                                                 >
-                                                    {`¥${Math.round(totalValue / 10000).toLocaleString()}万`}
-                                                </tspan>
-                                                <tspan
-                                                    x={viewBox.cx}
-                                                    y={(viewBox.cy || 0) + 24}
-                                                    className="fill-muted-foreground text-[10px]"
-                                                >
-                                                    合計資産
-                                                </tspan>
-                                            </text>
-                                        </g>
-                                    )
-                                }
-                            }}
-                        />
-                    </Pie>
-                </PieChart>
-            </ChartContainer>
+                                                    <tspan
+                                                        x={viewBox.cx}
+                                                        y={viewBox.cy}
+                                                        className="fill-foreground text-xl font-bold md:text-2xl"
+                                                    >
+                                                        {`¥${Math.round(totalValue / 10000).toLocaleString()}万`}
+                                                    </tspan>
+                                                    <tspan
+                                                        x={viewBox.cx}
+                                                        y={(viewBox.cy || 0) + 24}
+                                                        className="fill-muted-foreground text-[10px]"
+                                                    >
+                                                        合計資産
+                                                    </tspan>
+                                                </text>
+                                            </g>
+                                        )
+                                    }
+                                }}
+                            />
+                        </Pie>
+                    </PieChart>
+                </ChartContainer>
+
+                {/* カスタム凡例（旧最上部バーの内容） */}
+                <div className={`flex ${isMobile ? "flex-col justify-center pl-4 border-l gap-y-2" : "flex-row flex-wrap justify-center gap-x-4 gap-y-2 py-4 border-t"} shrink-0 min-w-[120px]`}>
+                    {!activePoint ? (
+                        <span className="text-[10px] text-muted-foreground animate-pulse font-medium">
+                            計算中...
+                        </span>
+                    ) : (
+                        mode === "total" ? (
+                            <>
+                                <div className={`grid ${isMobile ? "grid-cols-[auto_1fr_auto_80px] w-full" : "flex items-center"} gap-1.5 shrink-0`}>
+                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--color-totalAssets)" }} />
+                                    <span className="text-[9px] text-muted-foreground font-bold whitespace-nowrap">評価額</span>
+                                    <span className="text-[10px] font-medium opacity-70 text-right">¥</span>
+                                    <span className="text-[11px] font-bold tabular-nums text-right">
+                                        {Math.round(activePoint.totalAssets || 0).toLocaleString()}
+                                    </span>
+                                </div>
+                                <div className={`grid ${isMobile ? "grid-cols-[auto_1fr_auto_80px] w-full" : "flex items-center"} gap-1.5 shrink-0`}>
+                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#888888" }} />
+                                    <span className="text-[9px] text-muted-foreground font-bold whitespace-nowrap">取得原価</span>
+                                    <span className="text-[10px] font-medium opacity-70 text-right">¥</span>
+                                    <span className="text-[11px] font-bold tabular-nums text-right text-[#888888]">
+                                        {Math.round(activePoint.totalCost || 0).toLocaleString()}
+                                    </span>
+                                </div>
+                            </>
+                        ) : (
+                            activeKeys.map((key, i) => {
+                                const k = `tag_${selectedTagGroup}_${key}`
+                                const val = (activePoint as Record<string, unknown>)[k] || 0
+                                if (val === 0) return null
+                                const color = `var(--chart-${(i % 5) + 1})`
+                                return (
+                                    <div key={key} className={`grid ${isMobile ? "grid-cols-[auto_1fr_auto_80px] w-full" : "flex items-center"} gap-1.5 shrink-0`}>
+                                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+                                        <span className="text-[9px] text-muted-foreground font-bold whitespace-nowrap">{key}</span>
+                                        <span className="text-[10px] font-medium opacity-70 text-right">¥</span>
+                                        <span className="text-[11px] font-bold tabular-nums text-right">
+                                            {Math.round(Number(val)).toLocaleString()}
+                                        </span>
+                                    </div>
+                                )
+                            })
+                        )
+                    )}
+                </div>
+            </div>
             <style jsx global>{`
                 @keyframes fadeIn {
                     from { opacity: 0; }

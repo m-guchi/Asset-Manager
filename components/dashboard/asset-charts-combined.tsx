@@ -72,63 +72,10 @@ export function AssetChartsCombined({
                 </div>
             </CardHeader>
 
-            {/* 各項目の数値（共通バー） */}
-            <div className="px-4 py-2 border-b border-border/40 bg-muted/10 min-h-[44px] flex items-center shrink-0 w-full m-0">
-                {!activePoint ? (
-                    <div className="w-full text-center">
-                        <span className="text-[10px] text-muted-foreground animate-pulse font-medium">
-                            グラフ情報を計算中...
-                        </span>
-                    </div>
-                ) : (
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 w-full">
-                        {mode === "total" ? (
-                            <>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--color-totalAssets)" }} />
-                                    <span className="text-[9px] text-muted-foreground font-bold">評価額</span>
-                                    <span className="text-[11px] font-bold">¥{Math.round(activePoint.totalAssets || 0).toLocaleString()}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 shrink-0 pl-1">
-                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#888888" }} />
-                                    <span className="text-[9px] text-muted-foreground font-bold">取得原価</span>
-                                    <span className="text-[11px] font-bold text-[#888888]">¥{Math.round(activePoint.totalCost || 0).toLocaleString()}</span>
-                                </div>
-                            </>
-                        ) : (
-                            activeKeys.map((key, i) => {
-                                const k = `tag_${selectedTagGroup}_${key}`
-                                const val = (activePoint as Record<string, unknown>)[k] || 0
-                                if (val === 0) return null
-                                const color = `var(--chart-${(i % 5) + 1})`
-                                return (
-                                    <div key={key} className="flex items-center gap-1.5 shrink-0">
-                                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-                                        <span className="text-[9px] text-muted-foreground font-bold">{key}</span>
-                                        <span className="text-[11px] font-bold">
-                                            ¥{Math.round(Number(val)).toLocaleString()}
-                                        </span>
-                                    </div>
-                                )
-                            })
-                        )}
-                    </div>
-                )}
-            </div>
 
             <CardContent className="p-0 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7">
-                <div className="col-span-1 lg:col-span-4 min-w-0 flex flex-col relative w-full h-full">
-                    <AssetHistoryChart 
-                        data={historyData} 
-                        tagGroups={tagGroups} 
-                        initialTimeRange={initialTimeRange} 
-                        mode={mode} 
-                        selectedTagGroup={selectedTagGroup}
-                        onActivePointChange={setActivePoint}
-                    />
-                </div>
-                {/* 境界線を1本にする：PC時は左ボーダー、スマホ時は上ボーダー */}
-                <div className="col-span-1 md:col-span-1 lg:col-span-3 min-w-0 flex flex-col pt-2 pb-2 relative lg:border-l lg:border-t-0 border-t w-full h-full">
+                {/* 円グラフ（PCでは左側、モバイルでは上） */}
+                <div className="col-span-1 md:col-span-1 lg:col-span-3 min-w-0 flex flex-col relative w-full h-full">
                     <AssetAllocationChart 
                         categories={categories} 
                         allCategories={allCategories} 
@@ -136,6 +83,18 @@ export function AssetChartsCombined({
                         mode={mode} 
                         selectedTagGroup={selectedTagGroup}
                         activePoint={activePoint}
+                    />
+                </div>
+
+                {/* 折れ線グラフ（PCでは右側、モバイルでは下） */}
+                <div className="col-span-1 lg:col-span-4 min-w-0 flex flex-col relative lg:border-l lg:border-t-0 border-t w-full h-full">
+                    <AssetHistoryChart 
+                        data={historyData} 
+                        tagGroups={tagGroups} 
+                        initialTimeRange={initialTimeRange} 
+                        mode={mode} 
+                        selectedTagGroup={selectedTagGroup}
+                        onActivePointChange={setActivePoint}
                     />
                 </div>
             </CardContent>
