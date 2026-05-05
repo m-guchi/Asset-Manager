@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { AlertCircle, GripVertical, Check, X, ArrowDownUp, Eye, EyeOff } from "lucide-react"
+import { AlertCircle, GripVertical, Check, X, ArrowDownUp, Eye, EyeOff, RefreshCw } from "lucide-react"
 import {
     Tooltip,
     TooltipContent,
@@ -30,7 +30,6 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { reorderCategoriesAction, toggleCategoryVisibility } from "@/app/actions/categories"
-import { RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 
 import { Category } from "@/types/asset"
@@ -117,15 +116,6 @@ export function CategoryList({
 
         if (over && active.id !== over.id) {
             setCategories((items) => {
-                // Find indices in the FULL list, but simplistic arrayMove is for flat list.
-                // We need to reorder specifically the top-level items while keeping children associated.
-                // However, since we are only sorting the array of IDs passed to SortableContext,
-                // we should manipulate `categories` array but carefully.
-
-                // Strategy: 
-                // We need to handle both top-level and child-level reordering.
-                // The item being dragged (active.id) and the target (over.id) 
-                // MUST have the same parentId for the move to be valid within a SortableContext.
                 const activeItem = items.find(c => c.id === active.id);
                 const overItem = items.find(c => c.id === over.id);
 
@@ -193,7 +183,6 @@ export function CategoryList({
         const costToUse = (category.isCash ? valueToUse : (isChild ? category.ownCostBasis : category.costBasis)) ?? 0
         const profit = valueToUse - costToUse
         const profitPercent = costToUse > 0 ? (profit / costToUse) * 100 : 0
-        const isPositive = profit >= 0
 
         const showProfit = !category.isCash;
 

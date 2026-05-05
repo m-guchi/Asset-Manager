@@ -141,7 +141,7 @@ export async function getCategories() {
                 monthlyChange: ownMonthlyChange,
                 monthlyChangeRate: ownMonthlyChangeRate,
                 monthlyChangeDays: ownMonthlyChangeDays,
-                lastUpdated: latestAsset?.recordedAt || null,
+                lastUpdated: latestAsset?.recordedAt || undefined,
             };
         });
 

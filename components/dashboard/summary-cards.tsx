@@ -1,13 +1,16 @@
 "use client"
 
 import { Card, CardContent } from "@/components/ui/card"
-import { ArrowUpRight, ArrowDownRight, TrendingUp, Wallet, Percent } from "lucide-react"
+import { TrendingUp, Wallet } from "lucide-react"
 
 interface SummaryCardsProps {
     netWorth: number
-    totalCost: number
     totalProfit: number
     profitPercent: number
+    dailyChange: number
+    dailyChangeRate: number
+    monthlyChange: number
+    monthlyChangeRate: number
 }
 
 const formatCurrency = (value: number) => {
@@ -18,68 +21,80 @@ const formatCurrency = (value: number) => {
     }).format(value)
 }
 
+const PerformanceValue = ({ amount, rate, label }: { amount: number, rate: number, label: string }) => {
+    const isPositive = amount >= 0
+    const colorClass = isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-500'
+    
+    return (
+        <div className="flex flex-col gap-1 p-3 md:p-6 border-r border-border/50 transition-colors hover:bg-muted/30">
+            <div className="flex items-center gap-2 text-muted-foreground">
+                <TrendingUp className={`h-4 w-4 ${colorClass}`} />
+                <span className="text-[10px] md:text-sm font-medium">{label}</span>
+            </div>
+            <div className={`text-sm md:text-xl font-bold tracking-tight tabular-nums ${colorClass}`}>
+                {isPositive ? '+' : ''}{formatCurrency(amount)}
+            </div>
+            <div className={`text-[10px] md:text-xs font-medium ${colorClass}`}>
+                {isPositive ? '+' : ''}{rate.toFixed(2)}%
+            </div>
+        </div>
+    )
+}
+
 export function SummaryCards({
     netWorth,
-    totalCost,
     totalProfit,
     profitPercent,
+    dailyChange,
+    dailyChangeRate,
+    monthlyChange,
+    monthlyChangeRate,
 }: SummaryCardsProps) {
-    const isPositive = totalProfit >= 0
+    const isTotalPositive = totalProfit >= 0
 
     return (
         <Card className="overflow-hidden border shadow-sm">
             <CardContent className="p-0">
                 <div className="grid grid-cols-2 md:grid-cols-4">
-                    {/* Evaluated Assets (Headline) */}
+                    {/* 1. Evaluated Assets */}
                     <div className="flex flex-col gap-1 p-3 md:p-6 border-r border-b md:border-b-0 border-border/50 transition-colors hover:bg-muted/30 col-span-1">
                         <div className="flex items-center gap-2 text-muted-foreground">
                             <Wallet className="h-4 w-4" />
                             <span className="text-[10px] md:text-sm font-medium">評価資産</span>
                         </div>
                         <div className="text-base md:text-2xl font-bold tracking-tight truncate">
-                            {formatCurrency(netWorth)} {/* The 'netWorth' prop now contains totalAssets */}
+                            {formatCurrency(netWorth)}
                         </div>
-                        <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Gross Assets</div>
+                        <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Net Worth</div>
                     </div>
-                    {/* Cost Basis */}
-                    <div className="flex flex-col gap-1 p-3 md:p-6 border-b md:border-r md:border-b-0 border-border/50 transition-colors hover:bg-muted/30 col-span-1">
+
+                    {/* 2. Total Profit/Loss */}
+                    <div className="flex flex-col gap-1 p-3 md:p-6 border-r border-b md:border-b-0 border-border/50 transition-colors hover:bg-muted/30 col-span-1">
                         <div className="flex items-center gap-2 text-muted-foreground">
-                            <Wallet className="h-4 w-4 opacity-70" />
-                            <span className="text-[10px] md:text-sm font-medium">取得原価</span>
+                            <TrendingUp className={`h-4 w-4 ${isTotalPositive ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`} />
+                            <span className="text-[10px] md:text-sm font-medium">通算損益</span>
                         </div>
-                        <div className="text-base md:text-2xl font-bold tracking-tight truncate text-muted-foreground">
-                            {formatCurrency(totalCost)}
+                        <div className={`text-base md:text-2xl font-bold tracking-tight tabular-nums ${isTotalPositive ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                            {isTotalPositive ? '+' : ''}{formatCurrency(totalProfit)}
                         </div>
-                        <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Total Cost</div>
-                    </div>
-                    {/* Profit/Loss */}
-                    <div className="flex flex-col gap-1 p-4 md:p-6 border-r border-border/50 transition-colors hover:bg-muted/30 col-span-1">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                            <TrendingUp className={`h-4 w-4 ${isPositive ? 'text-green-500' : 'text-red-500'}`} />
-                            <span className="text-xs md:text-sm font-medium">評価損益</span>
-                        </div>
-                        <div className={`text-lg md:text-2xl font-bold tracking-tight tabular-nums ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                            {isPositive ? '+' : ''}{formatCurrency(totalProfit)}
-                        </div>
-                        <div className="flex items-center gap-1">
-                            {isPositive ? <ArrowUpRight className="h-3 w-3 text-green-500" /> : <ArrowDownRight className="h-3 w-3 text-red-500" />}
-                            <span className={`text-[10px] uppercase tracking-wider ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                                {isPositive ? 'Profit' : 'Loss'}
-                            </span>
+                        <div className={`text-[10px] md:text-xs font-medium ${isTotalPositive ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                            {isTotalPositive ? '+' : ''}{profitPercent.toFixed(2)}%
                         </div>
                     </div>
 
-                    {/* Profit Percent */}
-                    <div className="flex flex-col gap-1 p-4 md:p-6 transition-colors hover:bg-muted/30 col-span-1">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                            <Percent className="h-4 w-4" />
-                            <span className="text-xs md:text-sm font-medium">損益率</span>
-                        </div>
-                        <div className={`text-lg md:text-2xl font-bold tracking-tight ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                            {isPositive ? '+' : ''}{profitPercent.toFixed(2)}%
-                        </div>
-                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Performance</div>
-                    </div>
+                    {/* 3. Daily Performance */}
+                    <PerformanceValue 
+                        amount={dailyChange} 
+                        rate={dailyChangeRate} 
+                        label="1日前比" 
+                    />
+
+                    {/* 4. Monthly Performance */}
+                    <PerformanceValue 
+                        amount={monthlyChange} 
+                        rate={monthlyChangeRate} 
+                        label="30日前比" 
+                    />
                 </div>
             </CardContent>
         </Card>

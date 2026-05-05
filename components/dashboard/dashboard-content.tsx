@@ -4,9 +4,6 @@ import * as React from "react"
 import { SummaryCards } from "@/components/dashboard/summary-cards"
 import { AssetChartsCombined } from "@/components/dashboard/asset-charts-combined"
 import { CategoryList } from "@/components/dashboard/category-list"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { Pencil, RefreshCw } from "lucide-react"
 import { getCategories } from "@/app/actions/categories"
 import { getTagGroups } from "@/app/actions/tags"
 import { getHistoryData } from "@/app/actions/history"
@@ -56,14 +53,26 @@ export function DashboardContent({
     const totalProfit = totalAssets - totalCost
     const profitPercent = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0
 
+    // Portfolio Performance Aggregation
+    const totalDailyChange = topLevelCategories.reduce((acc, cat) => acc + (cat.dailyChange || 0), 0)
+    const prevDayTotal = totalAssets - totalDailyChange
+    const dailyChangeRate = prevDayTotal > 0 ? (totalDailyChange / prevDayTotal) * 100 : 0
+
+    const totalMonthlyChange = topLevelCategories.reduce((acc, cat) => acc + (cat.monthlyChange || 0), 0)
+    const prevMonthTotal = totalAssets - totalMonthlyChange
+    const monthlyChangeRate = prevMonthTotal > 0 ? (totalMonthlyChange / prevMonthTotal) * 100 : 0
+
     return (
         <div className="flex flex-col gap-2 px-1 py-2 md:px-2 md:py-4">
             <section>
                 <SummaryCards
                     netWorth={totalAssets}
-                    totalCost={totalCost}
                     totalProfit={totalProfit}
                     profitPercent={profitPercent}
+                    dailyChange={totalDailyChange}
+                    dailyChangeRate={dailyChangeRate}
+                    monthlyChange={totalMonthlyChange}
+                    monthlyChangeRate={monthlyChangeRate}
                 />
             </section>
 
