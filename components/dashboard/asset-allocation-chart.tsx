@@ -17,7 +17,7 @@ const chartConfigBase = {
 } satisfies ChartConfig
 
 interface ChartDataItem {
-    id: number;
+    id: string | number;
     name: string;
     value: number;
     fill: string;
@@ -26,7 +26,6 @@ interface ChartDataItem {
 
 export function AssetAllocationChart({
     categories,
-    allCategories = [],
     tagGroups = [],
     mode,
     selectedTagGroup,
@@ -35,7 +34,6 @@ export function AssetAllocationChart({
     onAssetClick
 }: {
     categories: Category[],
-    allCategories?: Category[],
     tagGroups?: TagGroup[],
     mode: "total" | "tag",
     selectedTagGroup: number,
@@ -60,94 +58,74 @@ export function AssetAllocationChart({
 
     // Logic to transform data based on mode
     const chartData = React.useMemo((): ChartDataItem[] => {
+        const topLevelCategories = categories.filter(c => !c.parentId);
+        
         if (mode === "total") {
             // "total" mode uses top-level categories
-            if (activePoint) {
-                return categories
-                    .filter(c => !c.parentId)
-                    .map(c => {
-                        const val = Number(activePoint[`category_${c.id}`]) || 0;
-                        return {
-                            id: c.id,
-                            name: c.name,
-                            value: val,
-                            fill: c.color || "var(--chart-1)",
-                            isLiability: false
-                        };
-                    }).filter(d => d.value > 0)
-            } else {
-                return categories
-                    .filter(c => !c.parentId && c.currentValue > 0)
-                    .map(c => ({
-                        id: c.id,
-                        name: c.name,
-                        value: c.currentValue,
-                        fill: c.color || "var(--chart-1)",
-                        isLiability: false
-                    }))
-            }
+            const items = topLevelCategories.map(c => {
+                const val = activePoint ? (Number((activePoint as unknown as Record<string, number | string>)[`category_${c.id}`]) || 0) : (c.currentValue || 0);
+                const colorIndex = topLevelCategories.findIndex(tc => tc.id === c.id);
+                return {
+                    id: c.id,
+                    name: c.name,
+                    value: val,
+                    fill: c.color || `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`,
+                    isLiability: false
+                };
+            });
+            return items.filter(d => d.value > 0);
         } else {
             const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
             if (!activeGroup) return []
-            const targetTags = activeGroup.options?.map(o => o.name) || activeGroup.tags || []
+            const targetTags = (activeGroup.options?.map(o => String(o.name).trim()) || activeGroup.tags?.map(t => String(t).trim()) || []) as string[];
 
-            // If we have an activePoint from the history chart, use it to sync values to the selected date
             if (activePoint) {
-                return targetTags.map((tagName: string, i: number) => {
-                    const key = `tag_${selectedTagGroup}_${tagName}`
-                    const val = Number(activePoint[key]) || 0
+                return targetTags.map((tagName: string) => {
+                    const key = `tag_${selectedTagGroup}_${tagName}`;
+                    const val = Number((activePoint as unknown as Record<string, number | string>)[key]) || 0;
+                    const colorIndex = targetTags.indexOf(tagName);
                     return {
-                        id: i,
+                        id: tagName,
                         name: tagName,
-                        value: Math.max(0, val),
-                        fill: `var(--chart-${(i % 5) + 1})`,
+                        value: val,
+                        fill: `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`,
                         isLiability: false
                     }
-                }).filter(d => d.value > 0)
+                }).filter((d: ChartDataItem) => d.value > 0);
             }
 
-            // Fallback: use live data if no active point
-            const sourceData = allCategories.length > 0 ? allCategories : categories;
+            // Fallback: sum up categories if no active point
             const tagMap = new Map<string, number>();
             targetTags.forEach(t => tagMap.set(t, 0));
 
-            // Helper to find effective tag for a category in the current group
             const findEffectiveTag = (cat: Category): string | null => {
-                // 1. Check direct tags in this group
                 const directTag = cat.tagSettings?.find((s) => s.groupId === selectedTagGroup)?.optionName;
                 if (directTag && targetTags.includes(directTag)) return directTag;
-
-                // Fallback to legacy string check if tagSettings is missing
                 const stringMatch = targetTags.find(t => cat.tags?.includes(t));
-                if (stringMatch) return stringMatch;
-
-                // 2. Inherit from parent
-                if (cat.parentId) {
-                    const parent = sourceData.find(p => p.id === cat.parentId);
-                    if (parent) return findEffectiveTag(parent);
-                }
-
-                return null;
+                return stringMatch || (cat.parentId ? findEffectiveTag(categories.find(p => p.id === cat.parentId) as Category) : null);
             };
 
-            sourceData.forEach(cat => {
+            categories.forEach(cat => {
                 const matchingTag = findEffectiveTag(cat);
                 if (matchingTag) {
-                    // Use ownValue for more precise non-overlapping sum in flat processing
                     const val = (cat.ownValue !== undefined) ? cat.ownValue : (cat.parentId ? cat.currentValue : 0);
                     tagMap.set(matchingTag, (tagMap.get(matchingTag) || 0) + val);
                 }
             });
 
-            return activeKeys.map((keyName, i) => ({
-                id: i,
-                name: keyName,
-                value: Math.max(0, tagMap.get(keyName) || 0),
-                fill: `var(--chart-${(i % 5) + 1})`,
-                isLiability: false
-            })).filter(d => d.value > 0)
+            return targetTags.map((tagName: string) => {
+                const val = tagMap.get(tagName) || 0;
+                const colorIndex = targetTags.indexOf(tagName);
+                return {
+                    id: tagName,
+                    name: tagName,
+                    value: Math.max(0, val),
+                    fill: `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`,
+                    isLiability: false
+                }
+            }).filter(d => d.value > 0);
         }
-    }, [categories, allCategories, mode, selectedTagGroup, tagGroups, activePoint, activeKeys])
+    }, [categories, mode, selectedTagGroup, tagGroups, activePoint])
 
     const chartConfig = React.useMemo(() => {
         const config: ChartConfig = { ...chartConfigBase }
@@ -181,12 +159,20 @@ export function AssetAllocationChart({
     if (!isMounted) return null
 
     return (
-        <div className="flex flex-col h-[350px] w-full">
+        <div className="flex flex-col h-[300px] w-full">
             <div className="flex-1 flex flex-row min-h-0">
-                <div className="w-[100px] sm:w-[140px] flex items-center justify-center shrink-0">
+                <div className="w-[100px] sm:w-[140px] flex flex-col items-center justify-center shrink-0 pt-4">
+                    {/* 合計評価額を表示 (万円単位) */}
+                    <div className="mb-2 flex items-baseline gap-0.5">
+                        <span className="text-[14px] font-bold tabular-nums leading-none">
+                            {Math.round(totalValue / 10000).toLocaleString()}
+                        </span>
+                        <span className="text-[10px] font-medium opacity-70 leading-none">万円</span>
+                    </div>
+                    
                     <ChartContainer
                         config={chartConfig}
-                        className="w-full h-full min-h-[300px]"
+                        className="w-full flex-1 min-h-0"
                     >
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart
@@ -256,6 +242,12 @@ export function AssetAllocationChart({
                                     if (val === 0) return null
                                     const key = `category_${cat.id}`
                                     const isDimmed = selectedAssetKey && selectedAssetKey !== key
+                                    
+                                    // グラフ本体と同じロジックで色を決定
+                                    const topLevelCategories = categories.filter(c => !c.parentId);
+                                    const colorIndex = topLevelCategories.findIndex(tc => tc.id === cat.id);
+                                    const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`;
+                                    
                                     return (
                                         <div 
                                             key={cat.id} 
@@ -264,7 +256,7 @@ export function AssetAllocationChart({
                                                 onAssetClick?.(selectedAssetKey === key ? null : key);
                                             }}
                                         >
-                                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color || "var(--chart-1)" }} />
+                                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
                                             <span className="text-[10px] text-muted-foreground font-bold truncate">{cat.name}</span>
                                             <div className="flex items-center gap-1.5 ml-auto shrink-0">
                                                 <div className="flex items-baseline gap-0.5">
@@ -285,13 +277,19 @@ export function AssetAllocationChart({
                                         </div>
                                     )
                                 })}
-                                {mode === "tag" && activeKeys.map((keyName, i) => {
+                                {mode === "tag" && activeKeys.map((keyName) => {
                                     const k = `tag_${selectedTagGroup}_${keyName}`
                                     const val = (activePoint as Record<string, unknown>)[k] || 0
-                                    if (val === 0) return null
+                                    if (Number(val) === 0) return null
                                     const key = `tag_${selectedTagGroup}_${keyName}`
                                     const isDimmed = selectedAssetKey && selectedAssetKey !== key
-                                    const color = `var(--chart-${(i % 5) + 1})`
+                                    
+                                    // グラフ本体と同じロジックで色を決定
+                                    const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
+                                    const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
+                                    const colorIndex = targetTags.indexOf(keyName);
+                                    const color = `var(--chart-${(colorIndex % 12) + 1})`;
+                                    
                                     return (
                                         <div 
                                             key={keyName} 
