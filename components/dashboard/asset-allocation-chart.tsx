@@ -1,13 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { Label, BarChart, Bar, XAxis, YAxis, Cell, ResponsiveContainer, ReferenceLine, ReferenceArea } from "recharts"
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, ReferenceLine } from "recharts"
 
 import {
     ChartConfig,
     ChartContainer,
-    ChartTooltip,
-    ChartTooltipContent,
 } from "@/components/ui/chart"
 
 import { Category, TagGroup, HistoryPoint } from "@/types/asset"
@@ -45,18 +43,10 @@ export function AssetAllocationChart({
     selectedAssetKey?: string | null,
     onAssetClick?: (key: string | null) => void
 }) {
-    const [isMobile, setIsMobile] = React.useState(false);
     const [isMounted, setIsMounted] = React.useState(false);
-    const [isTooltipActive, setIsTooltipActive] = React.useState<boolean | undefined>(undefined);
 
     React.useEffect(() => {
         setIsMounted(true);
-        const checkMobile = () => {
-            setIsMobile(window.innerWidth < 768);
-        };
-        checkMobile();
-        window.addEventListener('resize', checkMobile);
-        return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
     const activeKeys = React.useMemo(() => {
@@ -181,7 +171,7 @@ export function AssetAllocationChart({
     }, [chartData])
 
     const stackedData = React.useMemo(() => {
-        const item: Record<string, any> = { name: "Allocation" };
+        const item: Record<string, number | string> = { name: "Allocation" };
         displayData.forEach(d => {
             item[d.name] = d.value;
         });
@@ -271,8 +261,6 @@ export function AssetAllocationChart({
                                             key={cat.id} 
                                             className={`grid grid-cols-[auto_1fr_auto] items-center gap-x-2 shrink-0 cursor-pointer transition-opacity ${isDimmed ? "opacity-30" : "opacity-100"}`}
                                             onClick={() => {
-                                                setIsTooltipActive(false);
-                                                setTimeout(() => setIsTooltipActive(undefined), 50);
                                                 onAssetClick?.(selectedAssetKey === key ? null : key);
                                             }}
                                         >
@@ -299,8 +287,6 @@ export function AssetAllocationChart({
                                             key={keyName} 
                                             className={`grid grid-cols-[auto_1fr_auto] items-center gap-x-2 shrink-0 cursor-pointer transition-opacity ${isDimmed ? "opacity-30" : "opacity-100"}`}
                                             onClick={() => {
-                                                setIsTooltipActive(false);
-                                                setTimeout(() => setIsTooltipActive(undefined), 50);
                                                 onAssetClick?.(selectedAssetKey === key ? null : key);
                                             }}
                                         >
