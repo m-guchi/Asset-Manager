@@ -43,6 +43,25 @@ npm run dev:tunnel
 
 ---
 
+## ✅ デプロイ前のテスト・品質チェック
+
+本番環境にデプロイしてビルドエラーを起こさないために、Push前に以下のコマンドを順番に実行してエラーが出ないか確認することを推奨します。
+
+```bash
+# 1. Linter（静的コード解析）による構文や未使用変数のチェック
+npm run lint
+
+# 2. TypeScriptの型チェック（型エラーの検知）
+npx tsc --noEmit
+
+# 3. ローカルでの本番ビルドテスト
+npm run build
+```
+
+すべてのコマンドがエラーなく（`✓ Compiled successfully` など）完了すれば、デプロイやPushの準備は完了です。
+
+---
+
 ## 🚀 デプロイ方法 (GitHub Actions 経由)
 
 本アプリケーションは、`main` ブランチへの Push 操作をトリガーとして、VPS等へ自動デプロイされるよう GitHub Actions ワークフロー (`.github/workflows/deploy.yml`) が構成されています。
