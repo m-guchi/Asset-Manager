@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Label, Pie, PieChart, Legend } from "recharts"
+import { Label, Pie, PieChart, Legend, Cell } from "recharts"
 
 import {
     ChartConfig,
@@ -24,16 +24,21 @@ export function AssetAllocationChart({
     tagGroups = [],
     mode,
     selectedTagGroup,
-    activePoint
+    activePoint,
+    selectedAssetKey,
+    onAssetClick
 }: {
     categories: Category[],
     allCategories?: Category[],
     tagGroups?: TagGroup[],
     mode: "total" | "tag",
     selectedTagGroup: number,
-    activePoint?: HistoryPoint | null
+    activePoint?: HistoryPoint | null,
+    selectedAssetKey?: string | null,
+    onAssetClick?: (key: string | null) => void
 }) {
     const [isMobile, setIsMobile] = React.useState(false);
+    const [isTooltipActive, setIsTooltipActive] = React.useState<boolean | undefined>(undefined);
 
     React.useEffect(() => {
         const checkMobile = () => {
@@ -63,6 +68,7 @@ export function AssetAllocationChart({
                     .map(c => {
                         const val = Number(activePoint[`category_${c.id}`]) || 0;
                         return {
+                            id: c.id,
                             name: c.name,
                             value: val,
                             fill: c.color || "var(--chart-1)",
@@ -73,6 +79,7 @@ export function AssetAllocationChart({
                 return categories
                     .filter(c => !c.parentId && c.currentValue > 0)
                     .map(c => ({
+                        id: c.id,
                         name: c.name,
                         value: c.currentValue,
                         fill: c.color || "var(--chart-1)",
@@ -175,6 +182,7 @@ export function AssetAllocationChart({
                         right: 0 
                     }}>
                         <ChartTooltip
+                            active={isTooltipActive}
                             cursor={false}
                             content={
                                 <ChartTooltipContent
@@ -239,7 +247,33 @@ export function AssetAllocationChart({
                                 );
                             }}
                             strokeWidth={2}
+                            onClick={(data) => {
+                                if (!onAssetClick) return;
+                                const payload = data.payload as any;
+                                const id = payload.id;
+                                const name = payload.name;
+                                const key = mode === "total" ? `category_${id}` : `tag_${selectedTagGroup}_${name}`;
+                                
+                                // ツールチップを一時的に非表示にして「残り」を防ぐ
+                                setIsTooltipActive(false);
+                                setTimeout(() => setIsTooltipActive(undefined), 50);
+                                
+                                onAssetClick(selectedAssetKey === key ? null : key);
+                            }}
                         >
+                            {displayData.map((entry: any, index) => {
+                                const key = mode === "total" ? `category_${entry.id}` : `tag_${selectedTagGroup}_${entry.name}`;
+                                const isDimmed = selectedAssetKey && selectedAssetKey !== key;
+                                return (
+                                    <Cell 
+                                        key={`cell-${index}`} 
+                                        fill={entry.fill} 
+                                        fillOpacity={isDimmed ? 0.3 : 1}
+                                        strokeOpacity={isDimmed ? 0.3 : 1}
+                                        style={{ cursor: 'pointer', transition: 'all 0.3s ease' }}
+                                    />
+                                );
+                            })}
                             <Label
                                 content={({ viewBox }) => {
                                     if (viewBox && "cx" in viewBox && "cy" in viewBox) {
@@ -282,42 +316,60 @@ export function AssetAllocationChart({
                             計算中...
                         </span>
                     ) : (
-                        mode === "total" ? (
-                            <>
-                                {categories.filter(c => !c.parentId && !c.isLiability).map((cat, i) => {
-                                    const val = Number(activePoint[`category_${cat.id}`]) || 0
-                                    if (val === 0) return null
-                                    const color = cat.color || `var(--chart-${(i % 5) + 1})`
-                                    return (
-                                        <div key={cat.id} className={`grid ${isMobile ? "grid-cols-[auto_1fr_80px_auto] w-full items-baseline" : "flex items-baseline"} gap-x-1 shrink-0`}>
-                                            <div className="w-1.5 h-1.5 rounded-full translate-y-[-1px]" style={{ backgroundColor: color }} />
-                                            <span className="text-[9px] text-muted-foreground font-bold whitespace-nowrap">{cat.name}</span>
-                                            <span className="text-[11px] font-bold tabular-nums text-right">
-                                                {Math.round(val).toLocaleString()}
-                                            </span>
-                                            <span className="text-[8px] font-medium opacity-70">円</span>
-                                        </div>
-                                    )
-                                })}
-                            </>
-                        ) : (
-                            activeKeys.map((key, i) => {
-                                const k = `tag_${selectedTagGroup}_${key}`
+                        <>
+                            {mode === "total" && categories.filter(c => !c.parentId && !c.isLiability).map((cat) => {
+                                const val = Number(activePoint[`category_${cat.id}`]) || 0
+                                if (val === 0) return null
+                                const key = `category_${cat.id}`
+                                const isDimmed = selectedAssetKey && selectedAssetKey !== key
+                                return (
+                                    <div 
+                                        key={cat.id} 
+                                        className={`grid ${isMobile ? "grid-cols-[auto_1fr_80px_auto] w-full items-baseline" : "flex items-baseline"} gap-x-1 shrink-0 cursor-pointer transition-opacity ${isDimmed ? "opacity-30" : "opacity-100"}`}
+                                        onClick={() => {
+                                            // 凡例クリック時もツールチップをクリア
+                                            setIsTooltipActive(false);
+                                            setTimeout(() => setIsTooltipActive(undefined), 50);
+                                            onAssetClick?.(selectedAssetKey === key ? null : key);
+                                        }}
+                                    >
+                                        <div className="w-1.5 h-1.5 rounded-full translate-y-[-1px]" style={{ backgroundColor: cat.color || "var(--chart-1)" }} />
+                                        <span className="text-[9px] text-muted-foreground font-bold whitespace-nowrap">{cat.name}</span>
+                                        <span className="text-[11px] font-bold tabular-nums text-right">
+                                            {Math.round(val).toLocaleString()}
+                                        </span>
+                                        <span className="text-[8px] font-medium opacity-70">円</span>
+                                    </div>
+                                )
+                            })}
+                            {mode === "tag" && activeKeys.map((keyName, i) => {
+                                const k = `tag_${selectedTagGroup}_${keyName}`
                                 const val = (activePoint as Record<string, unknown>)[k] || 0
                                 if (val === 0) return null
+                                const key = `tag_${selectedTagGroup}_${keyName}`
+                                const isDimmed = selectedAssetKey && selectedAssetKey !== key
                                 const color = `var(--chart-${(i % 5) + 1})`
                                 return (
-                                    <div key={key} className={`grid ${isMobile ? "grid-cols-[auto_1fr_80px_auto] w-full items-baseline" : "flex items-baseline"} gap-x-1 shrink-0`}>
+                                    <div 
+                                        key={keyName} 
+                                        className={`grid ${isMobile ? "grid-cols-[auto_1fr_80px_auto] w-full items-baseline" : "flex items-baseline"} gap-x-1 shrink-0 cursor-pointer transition-opacity ${isDimmed ? "opacity-30" : "opacity-100"}`}
+                                        onClick={() => {
+                                            // 凡例クリック時もツールチップをクリア
+                                            setIsTooltipActive(false);
+                                            setTimeout(() => setIsTooltipActive(undefined), 50);
+                                            onAssetClick?.(selectedAssetKey === key ? null : key);
+                                        }}
+                                    >
                                         <div className="w-1.5 h-1.5 rounded-full translate-y-[-1px]" style={{ backgroundColor: color }} />
-                                        <span className="text-[9px] text-muted-foreground font-bold whitespace-nowrap">{key}</span>
+                                        <span className="text-[9px] text-muted-foreground font-bold whitespace-nowrap">{keyName}</span>
                                         <span className="text-[11px] font-bold tabular-nums text-right">
                                             {Math.round(Number(val)).toLocaleString()}
                                         </span>
                                         <span className="text-[8px] font-medium opacity-70">円</span>
                                     </div>
                                 )
-                            })
-                        )
+                            })}
+                        </>
                     )}
                 </div>
             </div>

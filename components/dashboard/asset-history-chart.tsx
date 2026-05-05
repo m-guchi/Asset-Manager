@@ -16,7 +16,6 @@ interface ChartPoint extends HistoryPoint {
     totalCost: number;
     netWorth: number;
 }
-
 interface AssetHistoryChartProps {
     data?: HistoryPoint[];
     tagGroups?: TagGroup[];
@@ -25,6 +24,7 @@ interface AssetHistoryChartProps {
     selectedTagGroup: number;
     onActivePointChange?: (point: ChartPoint | null) => void;
     categories?: any[];
+    selectedAssetKey?: string | null;
 }
 
 export function AssetHistoryChart({
@@ -34,7 +34,8 @@ export function AssetHistoryChart({
     mode,
     selectedTagGroup,
     onActivePointChange,
-    categories = []
+    categories = [],
+    selectedAssetKey
 }: AssetHistoryChartProps) {
     const [isMounted, setIsMounted] = React.useState(false);
     const [timeRange, setTimeRange] = React.useState(initialTimeRange)
@@ -321,7 +322,7 @@ export function AssetHistoryChart({
                                         />
                                     )}
 
-                                    {mode === "total" && categories.filter(cat => !cat.isLiability).map((cat, i) => (
+                                    {mode === "total" && categories.filter(cat => !cat.isLiability && (!selectedAssetKey || selectedAssetKey === `category_${cat.id}`)).map((cat, i) => (
                                         <Area
                                             key={cat.id}
                                             dataKey={`category_${cat.id}`}
@@ -335,7 +336,7 @@ export function AssetHistoryChart({
                                         />
                                     ))}
 
-                                    {mode === "tag" && activeKeys.map((key, i) => (
+                                    {mode === "tag" && activeKeys.filter(key => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key, i) => (
                                         <Area
                                             key={key}
                                             dataKey={`tag_${selectedTagGroup}_${key}`}
@@ -357,7 +358,7 @@ export function AssetHistoryChart({
                                         if (mode === "tag") {
                                             const sum = activeKeys.reduce((a, key) => a + Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0), 0) || 1;
                                             
-                                            return activeKeys.map((key, i) => {
+                                            return activeKeys.filter(key => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key, i) => {
                                                 const val = Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0);
                                                 if (val === 0) return null;
                                                 const yVal = showPercent ? (val / sum) : val;
@@ -380,7 +381,7 @@ export function AssetHistoryChart({
                                             const displayCats = categories.filter(cat => !cat.isLiability);
                                             const sum = displayCats.reduce((a, cat) => a + Number(activePoint[`category_${cat.id}`] || 0), 0) || 1;
 
-                                            return displayCats.map((cat, i) => {
+                                            return displayCats.filter(cat => !selectedAssetKey || selectedAssetKey === `category_${cat.id}`).map((cat, i) => {
                                                 const val = Number(activePoint[`category_${cat.id}`] || 0);
                                                 if (val === 0) return null;
                                                 const yVal = showPercent ? (val / sum) : val;

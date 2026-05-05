@@ -24,6 +24,12 @@ export function AssetChartsCombined({
     const [mode, setMode] = React.useState<"total" | "tag">("total")
     const [selectedTagGroup, setSelectedTagGroup] = React.useState<number>(1)
     const [activePoint, setActivePoint] = React.useState<HistoryPoint | null>(null)
+    const [selectedAssetKey, setSelectedAssetKey] = React.useState<string | null>(null)
+
+    // カテゴリが変更されたら選択を解除
+    React.useEffect(() => {
+        setSelectedAssetKey(null)
+    }, [mode, selectedTagGroup])
 
     React.useEffect(() => {
         if (tagGroups && tagGroups.length > 0) {
@@ -83,6 +89,8 @@ export function AssetChartsCombined({
                         mode={mode} 
                         selectedTagGroup={selectedTagGroup}
                         activePoint={activePoint}
+                        selectedAssetKey={selectedAssetKey}
+                        onAssetClick={setSelectedAssetKey}
                     />
                 </div>
 
@@ -96,6 +104,7 @@ export function AssetChartsCombined({
                         mode={mode} 
                         selectedTagGroup={selectedTagGroup}
                         onActivePointChange={setActivePoint}
+                        selectedAssetKey={selectedAssetKey}
                     />
                 </div>
             </CardContent>
