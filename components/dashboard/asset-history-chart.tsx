@@ -1,9 +1,9 @@
 "use client"
 import * as React from "react"
-import { Area, CartesianGrid, XAxis, ResponsiveContainer, YAxis, ReferenceLine, ReferenceDot, Line, ComposedChart } from "recharts"
+import { Area, CartesianGrid, XAxis, ResponsiveContainer, YAxis, ReferenceLine, ReferenceDot, ComposedChart } from "recharts"
 
 import { ChartConfig, ChartContainer } from "@/components/ui/chart"
-import { HistoryPoint, TagGroup } from "@/types/asset"
+import { HistoryPoint, TagGroup, Category } from "@/types/asset"
 
 const mockTagGroups: TagGroup[] = [
     { id: 1, name: "目的別", tags: ["投資資金", "生活防衛費", "代替通貨"] },
@@ -16,7 +16,6 @@ interface ChartPoint extends HistoryPoint {
     totalCost: number;
     netWorth: number;
 }
-
 interface AssetHistoryChartProps {
     data?: HistoryPoint[];
     tagGroups?: TagGroup[];
@@ -24,6 +23,8 @@ interface AssetHistoryChartProps {
     mode: "total" | "tag";
     selectedTagGroup: number;
     onActivePointChange?: (point: ChartPoint | null) => void;
+    categories?: Category[];
+    selectedAssetKey?: string | null;
 }
 
 export function AssetHistoryChart({
@@ -32,7 +33,9 @@ export function AssetHistoryChart({
     initialTimeRange = "1Y",
     mode,
     selectedTagGroup,
-    onActivePointChange
+    onActivePointChange,
+    categories = [],
+    selectedAssetKey
 }: AssetHistoryChartProps) {
     const [isMounted, setIsMounted] = React.useState(false);
     const [timeRange, setTimeRange] = React.useState(initialTimeRange)
@@ -66,9 +69,9 @@ export function AssetHistoryChart({
 
     const activeKeys = React.useMemo(() => {
         if (mode === "tag") {
-            const grp = tagGroups.find(g => g.id === selectedTagGroup)
-            const keys = grp?.options?.map(o => o.name) || grp?.tags || []
-            return Array.from(new Set(keys.map(k => String(k).trim())))
+            const grp = tagGroups.find((g: TagGroup) => g.id === selectedTagGroup)
+            const keys = grp?.options?.map((o: { name: string }) => o.name) || grp?.tags || []
+            return Array.from(new Set(keys.map((k: string) => String(k).trim())))
         }
         return []
     }, [mode, selectedTagGroup, tagGroups])
@@ -77,7 +80,7 @@ export function AssetHistoryChart({
     const allProcessedData = React.useMemo(() => {
         if (!data || data.length === 0) return []
         return data
-            .map(p => {
+            .map((p: HistoryPoint) => {
                 const d = new Date(p.date)
                 const point: ChartPoint = {
                     ...p,
@@ -88,7 +91,7 @@ export function AssetHistoryChart({
                 }
 
                 if (mode === "tag") {
-                    activeKeys.forEach(key => {
+                    activeKeys.forEach((key: string) => {
                         const k = `tag_${selectedTagGroup}_${key}`
                         if (point[k as keyof ChartPoint] === undefined || point[k as keyof ChartPoint] === null) {
                             (point as Record<string, unknown>)[k] = 0
@@ -269,7 +272,7 @@ export function AssetHistoryChart({
                                 <ComposedChart
                                     key={`${mode}-${selectedTagGroup}-${showPercent}-${timeRange}`}
                                     data={allProcessedData}
-                                    stackOffset={mode === "tag" && showPercent ? "expand" : "none"}
+                                    stackOffset={showPercent ? "expand" : "none"}
                                     margin={{ top: 25, right: 30, left: 10, bottom: 0 }}
                                 >
                                     <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#888888" strokeOpacity={0.2} />
@@ -319,33 +322,21 @@ export function AssetHistoryChart({
                                         />
                                     )}
 
-                                    {mode === "total" && (
+                                    {mode === "total" && categories.filter((cat: Category) => !cat.isLiability && (!selectedAssetKey || selectedAssetKey === `category_${cat.id}`)).map((cat: Category, i: number) => (
                                         <Area
-                                            dataKey="totalAssets"
+                                            key={cat.id}
+                                            dataKey={`category_${cat.id}`}
+                                            stackId="1"
                                             type="linear"
-                                            stroke="var(--color-totalAssets)"
-                                            strokeWidth={2}
-                                            fill="var(--color-totalAssets)"
-                                            fillOpacity={0.2}
+                                            stroke={cat.color || `var(--chart-${(i % 5) + 1})`}
+                                            fill={cat.color || `var(--chart-${(i % 5) + 1})`}
+                                            fillOpacity={0.4}
                                             isAnimationActive={isAnimating}
                                             animationDuration={1200}
                                         />
-                                    )}
-                                    {mode === "total" && (
-                                        <Line
-                                            dataKey="totalCost"
-                                            type="stepAfter"
-                                            stroke="#888888"
-                                            strokeWidth={1.5}
-                                            strokeDasharray="5 5"
-                                            dot={false}
-                                            isAnimationActive={isAnimating}
-                                            animationDuration={1200}
-                                            connectNulls
-                                        />
-                                    )}
+                                    ))}
 
-                                    {mode === "tag" && activeKeys.map((key, i) => (
+                                    {mode === "tag" && activeKeys.filter(key => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key, i) => (
                                         <Area
                                             key={key}
                                             dataKey={`tag_${selectedTagGroup}_${key}`}
@@ -360,53 +351,55 @@ export function AssetHistoryChart({
                                     ))}
 
                                     {/* 交点の丸マーク */}
-                                    {activePoint && mode === "total" && (
-                                        <ReferenceDot
-                                            x={activePoint.timestamp}
-                                            y={activePoint.totalAssets}
-                                            r={4}
-                                            fill="var(--color-totalAssets)"
-                                            stroke="var(--background)"
-                                            strokeWidth={2}
-                                            isFront={true}
-                                        />
-                                    )}
-                                    {activePoint && mode === "total" && activePoint.totalCost > 0 && (
-                                        <ReferenceDot
-                                            x={activePoint.timestamp}
-                                            y={activePoint.totalCost}
-                                            r={4}
-                                            fill="#888888"
-                                            stroke="var(--background)"
-                                            strokeWidth={2}
-                                            isFront={true}
-                                        />
-                                    )}
-                                    {activePoint && mode === "tag" && (() => {
+
+                                    {activePoint && (() => {
                                         let cumulativeY = 0;
-                                        const sum = activeKeys.reduce((a, key) => a + Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0), 0) || 1;
                                         
-                                        return activeKeys.map((key, i) => {
-                                            const val = Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0);
-                                            if (val === 0) return null;
+                                        if (mode === "tag") {
+                                            const sum = activeKeys.reduce((a: number, key: string) => a + Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0), 0) || 1;
                                             
-                                            // showPercent の場合は 100% = 1 の割合
-                                            const yVal = showPercent ? (val / sum) : val;
-                                            cumulativeY += yVal;
-                                            
-                                            return (
-                                                <ReferenceDot
-                                                    key={key}
-                                                    x={activePoint.timestamp}
-                                                    y={cumulativeY}
-                                                    r={4}
-                                                    fill={`var(--chart-${(i % 5) + 1})`}
-                                                    stroke="var(--background)"
-                                                    strokeWidth={2}
-                                                    isFront={true}
-                                                />
-                                            )
-                                        })
+                                            return activeKeys.filter((key: string) => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key: string, i: number) => {
+                                                const val = Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0);
+                                                if (val === 0) return null;
+                                                const yVal = showPercent ? (val / sum) : val;
+                                                cumulativeY += yVal;
+                                                return (
+                                                    <ReferenceDot
+                                                        key={key}
+                                                        x={activePoint.timestamp}
+                                                        y={cumulativeY}
+                                                        r={4}
+                                                        fill={`var(--chart-${(i % 5) + 1})`}
+                                                        stroke="var(--background)"
+                                                        strokeWidth={2}
+                                                        isFront={true}
+                                                    />
+                                                )
+                                            })
+                                        } else {
+                                            // mode === "total"
+                                            const displayCats = categories.filter((cat: Category) => !cat.isLiability);
+                                            const sum = displayCats.reduce((a: number, cat: Category) => a + Number((activePoint as Record<string, unknown>)[`category_${cat.id}`] || 0), 0) || 1;
+
+                                            return displayCats.filter((cat: Category) => !selectedAssetKey || selectedAssetKey === `category_${cat.id}`).map((cat: Category, i: number) => {
+                                                const val = Number(activePoint[`category_${cat.id}`] || 0);
+                                                if (val === 0) return null;
+                                                const yVal = showPercent ? (val / sum) : val;
+                                                cumulativeY += yVal;
+                                                return (
+                                                    <ReferenceDot
+                                                        key={cat.id}
+                                                        x={activePoint.timestamp}
+                                                        y={cumulativeY}
+                                                        r={4}
+                                                        fill={cat.color || `var(--chart-${(i % 5) + 1})`}
+                                                        stroke="var(--background)"
+                                                        strokeWidth={2}
+                                                        isFront={true}
+                                                    />
+                                                )
+                                            })
+                                        }
                                     })()}
                                 </ComposedChart>
                             </ResponsiveContainer>
@@ -429,16 +422,14 @@ export function AssetHistoryChart({
                                     )
                                 })}
                             </div>
-                            {mode === "tag" && (
-                                <button
-                                    onClick={() => setShowPercent(!showPercent)}
-                                    className={`px-3 py-1 text-[10px] font-bold rounded-md border transition-all ${showPercent
-                                        ? "bg-foreground text-background"
-                                        : "bg-background text-muted-foreground hover:text-foreground"}`}
-                                >
-                                    100%
-                                </button>
-                            )}
+                            <button
+                                onClick={() => setShowPercent(!showPercent)}
+                                className={`px-3 py-1 text-[10px] font-bold rounded-md border transition-all ${showPercent
+                                    ? "bg-foreground text-background"
+                                    : "bg-background text-muted-foreground hover:text-foreground"}`}
+                            >
+                                100%
+                            </button>
 
                         </div>
                     </div>
