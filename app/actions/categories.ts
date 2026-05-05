@@ -12,6 +12,7 @@ interface CategoryWithRelations {
     order: number;
     valuationOrder: number | null;
     isValuationTarget: boolean | null;
+    hidden: boolean;
     parentId: number | null;
     isCash: boolean | null;
     isLiability: boolean | null;
@@ -46,7 +47,7 @@ export async function getCategories() {
                 },
                 assets: {
                     orderBy: { recordedAt: 'desc' },
-                    take: 2
+                    take: 100 // To find "1 month ago" record
                 },
                 transactions: true
             }
@@ -74,7 +75,46 @@ export async function getCategories() {
             const latestAsset = (cat.assets && cat.assets.length > 0) ? cat.assets[0] : null;
             const prevAsset = (cat.assets && cat.assets.length > 1) ? cat.assets[1] : null;
             const ownValue = Number(latestAsset?.currentValue || 0);
-            const ownDailyChange = latestAsset && prevAsset ? Number(latestAsset.currentValue) - Number(prevAsset.currentValue) : 0;
+
+            // Daily Performance calculation (Value Change - Net Flow)
+            const ownDailyValueChange = latestAsset && prevAsset ? Number(latestAsset.currentValue) - Number(prevAsset.currentValue) : 0;
+            const dailyNetFlow = latestAsset && prevAsset ? (cat.transactions || [])
+                .filter(t => t.transactedAt > prevAsset.recordedAt && t.transactedAt <= latestAsset.recordedAt)
+                .reduce((acc, t) => {
+                    const amt = Number(t.amount);
+                    if (t.type === 'DEPOSIT') return acc + amt;
+                    if (t.type === 'WITHDRAW') return acc - amt;
+                    return acc;
+                }, 0) : 0;
+            const ownDailyChange = ownDailyValueChange - dailyNetFlow;
+
+            const ownDailyChangeDays = latestAsset && prevAsset 
+                ? Math.max(1, Math.round((latestAsset.recordedAt.getTime() - prevAsset.recordedAt.getTime()) / (1000 * 60 * 60 * 24))) 
+                : 1;
+            const prevValue = Number(prevAsset?.currentValue || 0);
+            // Rate should ideally be based on prevValue, but for performance change, it's often against prevValue as well.
+            const ownDailyChangeRate = prevValue > 0 ? (ownDailyChange / prevValue) * 100 : 0;
+
+            // Monthly Performance calculation (~30 days ago)
+            const thirtyDaysAgoLimit = latestAsset ? new Date(latestAsset.recordedAt.getTime() - (30 * 24 * 60 * 60 * 1000)) : null;
+            const monthAgoAsset = thirtyDaysAgoLimit ? (cat.assets || []).find(a => a.recordedAt <= thirtyDaysAgoLimit) : null;
+            
+            const ownMonthlyValueChange = latestAsset && monthAgoAsset ? Number(latestAsset.currentValue) - Number(monthAgoAsset.currentValue) : 0;
+            const monthlyNetFlow = latestAsset && monthAgoAsset ? (cat.transactions || [])
+                .filter(t => t.transactedAt > monthAgoAsset.recordedAt && t.transactedAt <= latestAsset.recordedAt)
+                .reduce((acc, t) => {
+                    const amt = Number(t.amount);
+                    if (t.type === 'DEPOSIT') return acc + amt;
+                    if (t.type === 'WITHDRAW') return acc - amt;
+                    return acc;
+                }, 0) : 0;
+            const ownMonthlyChange = ownMonthlyValueChange - monthlyNetFlow;
+
+            const ownMonthlyChangeDays = latestAsset && monthAgoAsset 
+                ? Math.max(1, Math.round((latestAsset.recordedAt.getTime() - monthAgoAsset.recordedAt.getTime()) / (1000 * 60 * 60 * 24))) 
+                : 30;
+            const monthAgoValue = Number(monthAgoAsset?.currentValue || 0);
+            const ownMonthlyChangeRate = monthAgoValue > 0 ? (ownMonthlyChange / monthAgoValue) * 100 : 0;
 
             let ownCostBasis = 0;
             const trxs = cat.transactions || [];
@@ -96,6 +136,12 @@ export async function getCategories() {
                 currentValue: ownValue,
                 costBasis: ownCostBasis,
                 dailyChange: ownDailyChange,
+                dailyChangeRate: ownDailyChangeRate,
+                dailyChangeDays: ownDailyChangeDays,
+                monthlyChange: ownMonthlyChange,
+                monthlyChangeRate: ownMonthlyChangeRate,
+                monthlyChangeDays: ownMonthlyChangeDays,
+                lastUpdated: latestAsset?.recordedAt || undefined,
             };
         });
 
@@ -109,10 +155,22 @@ export async function getCategories() {
                 if (parent) {
                     parent.currentValue += item.currentValue;
                     parent.dailyChange += item.dailyChange;
-                    // For cost basis, we sum up the child's consolidated cost basis
+                    parent.monthlyChange += item.monthlyChange;
                     parent.costBasis += item.costBasis;
+                    if (item.lastUpdated && (!parent.lastUpdated || item.lastUpdated > parent.lastUpdated)) {
+                        parent.lastUpdated = item.lastUpdated;
+                    }
                 }
             }
+        });
+
+        // 2.5 Recalculate rates for parents (consolidated)
+        mappedCategories.forEach(cat => {
+            const prevDayVal = cat.currentValue - cat.dailyChange;
+            cat.dailyChangeRate = prevDayVal > 0 ? (cat.dailyChange / prevDayVal) * 100 : 0;
+
+            const prevMonthVal = cat.currentValue - cat.monthlyChange;
+            cat.monthlyChangeRate = prevMonthVal > 0 ? (cat.monthlyChange / prevMonthVal) * 100 : 0;
         });
 
         // 3. Return final objects in the original sorted order (hierarchical)
@@ -130,6 +188,13 @@ export async function getCategories() {
                 ownValue: cat.ownValue,
                 ownCostBasis: cat.ownCostBasis,
                 dailyChange: cat.dailyChange,
+                dailyChangeRate: cat.dailyChangeRate,
+                dailyChangeDays: cat.dailyChangeDays,
+                monthlyChange: cat.monthlyChange,
+                monthlyChangeRate: cat.monthlyChangeRate,
+                monthlyChangeDays: cat.monthlyChangeDays,
+                lastUpdated: cat.lastUpdated,
+                hidden: !!cat.hidden,
                 isCash: !!cat.isCash,
                 isLiability: false,
                 depth: cat.depth,
@@ -156,6 +221,7 @@ interface SaveCategoryData {
     isCash: boolean;
     isLiability: boolean;
     parentId?: number;
+    hidden?: boolean;
     tagSettings?: { groupId: number, optionId: number }[];
 }
 
@@ -173,6 +239,7 @@ export async function saveCategory(data: SaveCategoryData) {
             order: data.order ?? 0,
             isCash: !!data.isCash,
             isLiability: false,
+            hidden: !!data.hidden,
             parentId: data.parentId === 0 ? null : (data.parentId || null),
         }
 
@@ -698,6 +765,20 @@ export async function updateValuationSettingsAction(settings: { id: number, valu
         return { success: true };
     } catch (e) {
         console.error("Failed to update valuation settings", e);
+        return { success: false };
+    }
+}
+
+export async function toggleCategoryVisibility(id: number, hidden: boolean) {
+    try {
+        await prisma.category.update({
+            where: { id },
+            data: { hidden }
+        });
+        revalidatePath("/");
+        return { success: true };
+    } catch (error) {
+        console.error("Toggle visibility error", error);
         return { success: false };
     }
 }

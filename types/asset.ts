@@ -20,6 +20,13 @@ export interface Category {
     conflicts?: string[]
     depth?: number
     dailyChange?: number
+    dailyChangeRate?: number
+    dailyChangeDays?: number
+    monthlyChange?: number
+    monthlyChangeRate?: number
+    monthlyChangeDays?: number
+    lastUpdated?: Date
+    hidden?: boolean
 }
 
 export interface HistoryPoint {
