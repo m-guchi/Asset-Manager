@@ -2,14 +2,13 @@
 
 import * as React from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { HistoryPoint, Category, TagGroup } from "@/types/asset"
+import { HistoryPoint, Category, TagGroup, ChartViewMode } from "@/types/asset"
 import { AssetHistoryChart } from "@/components/dashboard/asset-history-chart"
 import { AssetAllocationChart } from "@/components/dashboard/asset-allocation-chart"
 
 interface AssetChartsCombinedProps {
     historyData: HistoryPoint[];
     categories: Category[];
-    allCategories?: Category[];
     tagGroups: TagGroup[];
     initialTimeRange: string;
 }
@@ -17,7 +16,6 @@ interface AssetChartsCombinedProps {
 export function AssetChartsCombined({
     historyData,
     categories,
-    allCategories = [],
     tagGroups,
     initialTimeRange
 }: AssetChartsCombinedProps) {
@@ -25,6 +23,7 @@ export function AssetChartsCombined({
     const [selectedTagGroup, setSelectedTagGroup] = React.useState<number>(1)
     const [activePoint, setActivePoint] = React.useState<HistoryPoint | null>(null)
     const [selectedAssetKey, setSelectedAssetKey] = React.useState<string | null>(null)
+    const [viewMode, setViewMode] = React.useState<ChartViewMode>("value")
 
     // カテゴリが変更されたら選択を解除
     React.useEffect(() => {
@@ -75,13 +74,13 @@ export function AssetChartsCombined({
                 <div className="col-span-1 md:col-span-1 lg:col-span-3 min-w-0 flex flex-col relative w-full h-full">
                     <AssetAllocationChart 
                         categories={categories} 
-                        allCategories={allCategories} 
                         tagGroups={tagGroups} 
                         mode={mode} 
                         selectedTagGroup={selectedTagGroup}
                         activePoint={activePoint}
                         selectedAssetKey={selectedAssetKey}
                         onAssetClick={setSelectedAssetKey}
+                        viewMode={viewMode}
                     />
                 </div>
 
@@ -96,6 +95,8 @@ export function AssetChartsCombined({
                         selectedTagGroup={selectedTagGroup}
                         onActivePointChange={setActivePoint}
                         selectedAssetKey={selectedAssetKey}
+                        viewMode={viewMode}
+                        onViewModeChange={setViewMode}
                     />
                 </div>
             </CardContent>

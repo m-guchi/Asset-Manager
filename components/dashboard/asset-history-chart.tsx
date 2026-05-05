@@ -1,9 +1,9 @@
 "use client"
 import * as React from "react"
-import { Area, CartesianGrid, XAxis, ResponsiveContainer, YAxis, ReferenceLine, ReferenceDot, ComposedChart } from "recharts"
+import { Area, CartesianGrid, XAxis, ResponsiveContainer, YAxis, ReferenceLine, ReferenceDot, ComposedChart, Line } from "recharts"
 
 import { ChartConfig, ChartContainer } from "@/components/ui/chart"
-import { HistoryPoint, TagGroup, Category } from "@/types/asset"
+import { HistoryPoint, TagGroup, Category, ChartViewMode } from "@/types/asset"
 
 const mockTagGroups: TagGroup[] = [
     { id: 1, name: "目的別", tags: ["投資資金", "生活防衛費", "代替通貨"] },
@@ -16,6 +16,7 @@ interface ChartPoint extends HistoryPoint {
     totalCost: number;
     netWorth: number;
 }
+
 interface AssetHistoryChartProps {
     data?: HistoryPoint[];
     tagGroups?: TagGroup[];
@@ -25,6 +26,8 @@ interface AssetHistoryChartProps {
     onActivePointChange?: (point: ChartPoint | null) => void;
     categories?: Category[];
     selectedAssetKey?: string | null;
+    viewMode: ChartViewMode;
+    onViewModeChange: (mode: ChartViewMode) => void;
 }
 
 export function AssetHistoryChart({
@@ -35,11 +38,13 @@ export function AssetHistoryChart({
     selectedTagGroup,
     onActivePointChange,
     categories = [],
-    selectedAssetKey
+    selectedAssetKey,
+    viewMode,
+    onViewModeChange
 }: AssetHistoryChartProps) {
     const [isMounted, setIsMounted] = React.useState(false);
     const [timeRange, setTimeRange] = React.useState(initialTimeRange)
-    const [showPercent, setShowPercent] = React.useState(false)
+    const showPercent = viewMode === "percent"
     const [isAnimating, setIsAnimating] = React.useState(false)
 
     // ドラッグ(スワイプ)用ステート
@@ -79,6 +84,7 @@ export function AssetHistoryChart({
     // 全データの加工 (フィルタリングなし)
     const allProcessedData = React.useMemo(() => {
         if (!data || data.length === 0) return []
+        const topLevelCategories = categories.filter(c => !c.parentId)
         return data
             .map((p: HistoryPoint) => {
                 const d = new Date(p.date)
@@ -98,11 +104,19 @@ export function AssetHistoryChart({
                         }
                     })
                 }
+
+                // カテゴリ別損益率を計算 (category_cost_${id} は history.ts で保存済み)
+                topLevelCategories.forEach(cat => {
+                    const val = Number((point as Record<string, unknown>)[`category_${cat.id}`] || 0)
+                    const cost = Number((point as Record<string, unknown>)[`category_cost_${cat.id}`] || 0)
+                    ;(point as Record<string, unknown>)[`pnl_${cat.id}`] = cost > 0 ? ((val - cost) / cost) * 100 : 0
+                })
+
                 return point
             })
             .filter(p => p.timestamp > 0)
             .sort((a, b) => a.timestamp - b.timestamp)
-    }, [data, activeKeys, mode, selectedTagGroup])
+    }, [data, activeKeys, mode, selectedTagGroup, categories])
 
     const baseWindowMs = React.useMemo(() => {
         if (timeRange === "ALL") return null;
@@ -158,6 +172,38 @@ export function AssetHistoryChart({
             Math.abs(curr.timestamp - targetTime) < Math.abs(prev.timestamp - targetTime) ? curr : prev
         );
     }, [allProcessedData, currentDomain]);
+
+    // 損益率モード時のY軸の動的ドメイン計算
+    const yAxisDomain = React.useMemo(() => {
+        if (viewMode === "percent") return [0, 1] as [number, number]
+        if (viewMode === "pnl" && allProcessedData.length > 0) {
+            // 現在の表示範囲内のデータを抽出
+            const [minT, maxT] = currentDomain as [number, number]
+            const visibleData = allProcessedData.filter(d => d.timestamp >= minT && d.timestamp <= maxT)
+            
+            if (visibleData.length > 0) {
+                const pnlKeys = categories.filter(c => !c.parentId).map(c => `pnl_${c.id}`)
+                let minVal = Infinity
+                let maxVal = -Infinity
+                
+                visibleData.forEach(d => {
+                    pnlKeys.forEach(key => {
+                        const val = Number((d as Record<string, unknown>)[key] || 0)
+                        if (val < minVal) minVal = val
+                        if (val > maxVal) maxVal = val
+                    })
+                })
+
+                if (minVal === Infinity) return ['auto', 'auto']
+
+                // 上下に少しマージンを持たせる (データの範囲の10%)
+                const range = maxVal - minVal
+                const padding = Math.max(0.5, range * 0.1)
+                return [minVal - padding, maxVal + padding] as [number, number]
+            }
+        }
+        return ['auto', 'auto']
+    }, [viewMode, allProcessedData, currentDomain, categories])
 
     const [debouncedActivePoint, setDebouncedActivePoint] = React.useState<ChartPoint | null>(null);
 
@@ -289,12 +335,16 @@ export function AssetHistoryChart({
                                         allowDataOverflow={true}
                                     />
                                     <YAxis
-                                        tickFormatter={(val) => showPercent ? `${(val * 100).toFixed(0)}%` : `${Math.round(val / 10000)}万`}
+                                        tickFormatter={(val) => {
+                                            if (viewMode === "percent") return `${(val * 100).toFixed(0)}%`
+                                            if (viewMode === "pnl") return `${val.toFixed(1)}%`
+                                            return `${Math.round(val / 10000)}万`
+                                        }}
                                         tickLine={false}
                                         axisLine={false}
                                         tick={{ fill: 'currentColor', fontSize: 10, opacity: 0.5 }}
                                         width={40}
-                                        domain={showPercent ? [0, 1] : ['auto', 'auto']}
+                                        domain={yAxisDomain}
                                     />
                                     {activePoint && (
                                         <ReferenceLine
@@ -323,7 +373,8 @@ export function AssetHistoryChart({
                                         />
                                     )}
 
-                                    {mode === "total" && [...categories].reverse().filter((cat: Category) => !cat.isLiability && (!selectedAssetKey || selectedAssetKey === `category_${cat.id}`)).map((cat: Category) => {
+                                    {/* 評価額・割合モード時の面グラフ */}
+                                    {viewMode !== "pnl" && mode === "total" && [...categories].reverse().filter((cat: Category) => !cat.isLiability && (!selectedAssetKey || selectedAssetKey === `category_${cat.id}`)).map((cat: Category) => {
                                         const topLevelCategories = categories.filter(c => !c.parentId);
                                         const colorIndex = topLevelCategories.findIndex(tc => tc.id === cat.id);
                                         const color = cat.color || `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`;
@@ -342,7 +393,7 @@ export function AssetHistoryChart({
                                         );
                                     })}
 
-                                    {mode === "tag" && [...activeKeys].reverse().filter(key => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key) => {
+                                    {viewMode !== "pnl" && mode === "tag" && [...activeKeys].reverse().filter(key => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key) => {
                                         const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
                                         const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
                                         const colorIndex = targetTags.indexOf(key);
@@ -362,11 +413,61 @@ export function AssetHistoryChart({
                                         );
                                     })}
 
-                                    {/* 交点の丸マーク */}
-
-                                    {activePoint && (() => {
-                                        let cumulativeY = 0;
+                                    {/* 損益率モード時の折れ線グラフ */}
+                                    {viewMode === "pnl" && mode === "total" && categories.filter(c => !c.parentId).map(cat => {
+                                        const topLevel = categories.filter(c => !c.parentId)
+                                        const colorIndex = topLevel.findIndex(c => c.id === cat.id)
+                                        const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`
                                         
+                                        return (
+                                            <Line
+                                                key={cat.id}
+                                                dataKey={`pnl_${cat.id}`}
+                                                type="linear"
+                                                stroke={color}
+                                                strokeWidth={1.5}
+                                                dot={false}
+                                                isAnimationActive={isAnimating}
+                                            />
+                                        )
+                                    })}
+
+                                    {viewMode === "pnl" && (
+                                        <ReferenceLine 
+                                            y={0} 
+                                            stroke="currentColor" 
+                                            strokeOpacity={0.4} 
+                                            strokeDasharray="4 4" 
+                                        />
+                                    )}
+
+                                    {/* 交点の丸マーク */}
+                                    {activePoint && (() => {
+                                        if (viewMode === "pnl") {
+                                            // 損益率モード: 各カテゴリ独立
+                                            return categories.filter(c => !c.parentId).map(cat => {
+                                                const val = Number((activePoint as Record<string, unknown>)[`pnl_${cat.id}`] || 0)
+                                                const topLevel = categories.filter(c => !c.parentId)
+                                                const colorIndex = topLevel.findIndex(c => c.id === cat.id)
+                                                const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`
+                                                
+                                                return (
+                                                    <ReferenceDot
+                                                        key={cat.id}
+                                                        x={activePoint.timestamp}
+                                                        y={val}
+                                                        r={3}
+                                                        fill={color}
+                                                        stroke="var(--background)"
+                                                        strokeWidth={2}
+                                                        isFront={true}
+                                                    />
+                                                )
+                                            })
+                                        }
+
+                                        // 評価額・割合モード: 積み上げ
+                                        let cumulativeY = 0;
                                         if (mode === "tag") {
                                             const reversedActiveKeys = [...activeKeys].reverse();
                                             const sum = reversedActiveKeys.reduce((a: number, key: string) => a + Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0), 0) || 1;
@@ -374,7 +475,7 @@ export function AssetHistoryChart({
                                             return reversedActiveKeys.filter((key: string) => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key: string) => {
                                                 const val = Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0);
                                                 if (val === 0) return null;
-                                                const yVal = showPercent ? (val / sum) : val;
+                                                const yVal = viewMode === "percent" ? (val / sum) : val;
                                                 cumulativeY += yVal;
                                                 
                                                 const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
@@ -396,7 +497,6 @@ export function AssetHistoryChart({
                                                 )
                                             })
                                         } else {
-                                            // mode === "total"
                                             const displayCats = categories.filter((cat: Category) => !cat.isLiability && !cat.parentId);
                                             const reversedCats = [...displayCats].reverse();
                                             const sum = reversedCats.reduce((a: number, cat: Category) => a + Number((activePoint as Record<string, unknown>)[`category_${cat.id}`] || 0), 0) || 1;
@@ -404,7 +504,7 @@ export function AssetHistoryChart({
                                             return reversedCats.filter((cat: Category) => !selectedAssetKey || selectedAssetKey === `category_${cat.id}`).map((cat: Category) => {
                                                 const val = Number(activePoint[`category_${cat.id}`] || 0);
                                                 if (val === 0) return null;
-                                                const yVal = showPercent ? (val / sum) : val;
+                                                const yVal = viewMode === "percent" ? (val / sum) : val;
                                                 cumulativeY += yVal;
                                                 
                                                 const topLevelCategories = categories.filter(c => !c.parentId);
@@ -430,15 +530,15 @@ export function AssetHistoryChart({
                             </ResponsiveContainer>
                         </div>
 
-                        <div className="flex items-center justify-between px-4 pb-4 mt-0 shrink-0">
-                            <div className="flex bg-muted/50 rounded-md p-0.5 border">
+                        <div className="flex items-center justify-between px-4 pb-4 mt-0 shrink-0 gap-2 overflow-x-auto no-scrollbar">
+                            <div className="flex bg-muted/50 rounded-md p-0.5 border shrink-0">
                                 {["1M", "3M", "1Y", "ALL"].map((range) => {
                                     const label = { "1M": "1ヶ月", "3M": "3ヶ月", "1Y": "1年", "ALL": "全期間" }[range] || range;
                                     return (
                                         <button
                                             key={range}
                                             onClick={() => handleTimeRangeChange(range)}
-                                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${timeRange === range
+                                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all whitespace-nowrap ${timeRange === range
                                                 ? "bg-background text-foreground shadow-sm"
                                                 : "text-muted-foreground hover:text-foreground"}`}
                                         >
@@ -447,20 +547,27 @@ export function AssetHistoryChart({
                                     )
                                 })}
                             </div>
-                            <button
-                                onClick={() => setShowPercent(!showPercent)}
-                                className={`px-3 py-1 text-[10px] font-bold rounded-md border transition-all ${showPercent
-                                    ? "bg-foreground text-background"
-                                    : "bg-background text-muted-foreground hover:text-foreground"}`}
-                            >
-                                100%
-                            </button>
 
+                            <div className="flex bg-muted/50 rounded-md p-0.5 border shrink-0">
+                                {(["value", "percent", "pnl"] as ChartViewMode[]).map((m) => {
+                                    const label = { value: "評価額", percent: "割合", pnl: "損益率" }[m]
+                                    return (
+                                        <button
+                                            key={m}
+                                            onClick={() => onViewModeChange(m)}
+                                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all whitespace-nowrap ${viewMode === m
+                                                ? "bg-background text-foreground shadow-sm"
+                                                : "text-muted-foreground hover:text-foreground"}`}
+                                        >
+                                            {label}
+                                        </button>
+                                    )
+                                })}
+                            </div>
                         </div>
                     </div>
                 </ChartContainer>
             </div>
-
         </div>
     )
 }
