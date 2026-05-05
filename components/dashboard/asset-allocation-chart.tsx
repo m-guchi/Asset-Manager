@@ -310,7 +310,7 @@ export function AssetAllocationChart({
                 </ChartContainer>
 
                 {/* カスタム凡例（旧最上部バーの内容） */}
-                <div className={`flex ${isMobile ? "flex-col justify-center pl-4 border-l gap-y-2" : "flex-row flex-wrap justify-center gap-x-4 gap-y-2 py-4 border-t"} shrink-0 min-w-[120px]`}>
+                <div className={`flex ${isMobile ? "flex-col pl-4 border-l max-h-[350px] overflow-y-auto overflow-x-hidden scrollbar-hide" : "flex-row flex-wrap justify-center py-4 border-t max-h-[120px] overflow-y-auto"} gap-x-4 gap-y-2 shrink-0 min-w-[120px]`}>
                     {!activePoint ? (
                         <span className="text-[10px] text-muted-foreground animate-pulse font-medium">
                             計算中...
