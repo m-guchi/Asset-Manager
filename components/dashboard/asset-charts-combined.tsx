@@ -38,15 +38,6 @@ export function AssetChartsCombined({
         }
     }, [tagGroups, selectedTagGroup])
 
-    const activeKeys = React.useMemo(() => {
-        if (mode === "tag") {
-            const grp = tagGroups.find(g => g.id === selectedTagGroup)
-            const keys = grp?.options?.map(o => o.name) || grp?.tags || []
-            return Array.from(new Set(keys.map(k => String(k).trim())))
-        }
-        return []
-    }, [mode, selectedTagGroup, tagGroups])
-
     return (
         <Card className="flex flex-col overflow-hidden">
             <CardHeader className="items-center pb-1 pt-3 border-b">

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Label, Pie, PieChart, Legend, Cell } from "recharts"
+import { Label, Pie, PieChart, Cell } from "recharts"
 
 import {
     ChartConfig,
@@ -17,6 +17,14 @@ const chartConfigBase = {
         label: "Amount",
     },
 } satisfies ChartConfig
+
+interface ChartDataItem {
+    id: number;
+    name: string;
+    value: number;
+    fill: string;
+    isLiability: boolean;
+}
 
 export function AssetAllocationChart({
     categories,
@@ -59,7 +67,7 @@ export function AssetAllocationChart({
     }, [mode, selectedTagGroup, tagGroups])
 
     // Logic to transform data based on mode
-    const chartData = React.useMemo(() => {
+    const chartData = React.useMemo((): ChartDataItem[] => {
         if (mode === "total") {
             // "total" mode uses top-level categories
             if (activePoint) {
@@ -97,6 +105,7 @@ export function AssetAllocationChart({
                     const key = `tag_${selectedTagGroup}_${tagName}`
                     const val = Number(activePoint[key]) || 0
                     return {
+                        id: i,
                         name: tagName,
                         value: Math.max(0, val),
                         fill: `var(--chart-${(i % 5) + 1})`,
@@ -138,14 +147,15 @@ export function AssetAllocationChart({
                 }
             });
 
-            return targetTags.map((tagName: string, i: number) => ({
-                name: tagName,
-                value: Math.max(0, tagMap.get(tagName) || 0),
+            return activeKeys.map((keyName, i) => ({
+                id: i,
+                name: keyName,
+                value: Math.max(0, tagMap.get(keyName) || 0),
                 fill: `var(--chart-${(i % 5) + 1})`,
                 isLiability: false
             })).filter(d => d.value > 0)
         }
-    }, [categories, allCategories, mode, selectedTagGroup, tagGroups, activePoint])
+    }, [categories, allCategories, mode, selectedTagGroup, tagGroups, activePoint, activeKeys])
 
     const chartConfig = React.useMemo(() => {
         const config: ChartConfig = { ...chartConfigBase }
@@ -249,7 +259,7 @@ export function AssetAllocationChart({
                             strokeWidth={2}
                             onClick={(data) => {
                                 if (!onAssetClick) return;
-                                const payload = data.payload as any;
+                                const payload = data.payload as ChartDataItem;
                                 const id = payload.id;
                                 const name = payload.name;
                                 const key = mode === "total" ? `category_${id}` : `tag_${selectedTagGroup}_${name}`;
@@ -261,7 +271,7 @@ export function AssetAllocationChart({
                                 onAssetClick(selectedAssetKey === key ? null : key);
                             }}
                         >
-                            {displayData.map((entry: any, index) => {
+                            {displayData.map((entry: ChartDataItem, index) => {
                                 const key = mode === "total" ? `category_${entry.id}` : `tag_${selectedTagGroup}_${entry.name}`;
                                 const isDimmed = selectedAssetKey && selectedAssetKey !== key;
                                 return (

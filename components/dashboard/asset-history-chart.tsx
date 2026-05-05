@@ -1,9 +1,9 @@
 "use client"
 import * as React from "react"
-import { Area, CartesianGrid, XAxis, ResponsiveContainer, YAxis, ReferenceLine, ReferenceDot, Line, ComposedChart } from "recharts"
+import { Area, CartesianGrid, XAxis, ResponsiveContainer, YAxis, ReferenceLine, ReferenceDot, ComposedChart } from "recharts"
 
 import { ChartConfig, ChartContainer } from "@/components/ui/chart"
-import { HistoryPoint, TagGroup } from "@/types/asset"
+import { HistoryPoint, TagGroup, Category } from "@/types/asset"
 
 const mockTagGroups: TagGroup[] = [
     { id: 1, name: "目的別", tags: ["投資資金", "生活防衛費", "代替通貨"] },
@@ -23,7 +23,7 @@ interface AssetHistoryChartProps {
     mode: "total" | "tag";
     selectedTagGroup: number;
     onActivePointChange?: (point: ChartPoint | null) => void;
-    categories?: any[];
+    categories?: Category[];
     selectedAssetKey?: string | null;
 }
 
@@ -69,9 +69,9 @@ export function AssetHistoryChart({
 
     const activeKeys = React.useMemo(() => {
         if (mode === "tag") {
-            const grp = tagGroups.find(g => g.id === selectedTagGroup)
-            const keys = grp?.options?.map(o => o.name) || grp?.tags || []
-            return Array.from(new Set(keys.map(k => String(k).trim())))
+            const grp = tagGroups.find((g: TagGroup) => g.id === selectedTagGroup)
+            const keys = grp?.options?.map((o: { name: string }) => o.name) || grp?.tags || []
+            return Array.from(new Set(keys.map((k: string) => String(k).trim())))
         }
         return []
     }, [mode, selectedTagGroup, tagGroups])
@@ -80,7 +80,7 @@ export function AssetHistoryChart({
     const allProcessedData = React.useMemo(() => {
         if (!data || data.length === 0) return []
         return data
-            .map(p => {
+            .map((p: HistoryPoint) => {
                 const d = new Date(p.date)
                 const point: ChartPoint = {
                     ...p,
@@ -91,7 +91,7 @@ export function AssetHistoryChart({
                 }
 
                 if (mode === "tag") {
-                    activeKeys.forEach(key => {
+                    activeKeys.forEach((key: string) => {
                         const k = `tag_${selectedTagGroup}_${key}`
                         if (point[k as keyof ChartPoint] === undefined || point[k as keyof ChartPoint] === null) {
                             (point as Record<string, unknown>)[k] = 0
@@ -322,7 +322,7 @@ export function AssetHistoryChart({
                                         />
                                     )}
 
-                                    {mode === "total" && categories.filter(cat => !cat.isLiability && (!selectedAssetKey || selectedAssetKey === `category_${cat.id}`)).map((cat, i) => (
+                                    {mode === "total" && categories.filter((cat: Category) => !cat.isLiability && (!selectedAssetKey || selectedAssetKey === `category_${cat.id}`)).map((cat: Category, i: number) => (
                                         <Area
                                             key={cat.id}
                                             dataKey={`category_${cat.id}`}
@@ -356,9 +356,9 @@ export function AssetHistoryChart({
                                         let cumulativeY = 0;
                                         
                                         if (mode === "tag") {
-                                            const sum = activeKeys.reduce((a, key) => a + Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0), 0) || 1;
+                                            const sum = activeKeys.reduce((a: number, key: string) => a + Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0), 0) || 1;
                                             
-                                            return activeKeys.filter(key => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key, i) => {
+                                            return activeKeys.filter((key: string) => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key: string, i: number) => {
                                                 const val = Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0);
                                                 if (val === 0) return null;
                                                 const yVal = showPercent ? (val / sum) : val;
@@ -378,10 +378,10 @@ export function AssetHistoryChart({
                                             })
                                         } else {
                                             // mode === "total"
-                                            const displayCats = categories.filter(cat => !cat.isLiability);
-                                            const sum = displayCats.reduce((a, cat) => a + Number(activePoint[`category_${cat.id}`] || 0), 0) || 1;
+                                            const displayCats = categories.filter((cat: Category) => !cat.isLiability);
+                                            const sum = displayCats.reduce((a: number, cat: Category) => a + Number((activePoint as Record<string, unknown>)[`category_${cat.id}`] || 0), 0) || 1;
 
-                                            return displayCats.filter(cat => !selectedAssetKey || selectedAssetKey === `category_${cat.id}`).map((cat, i) => {
+                                            return displayCats.filter((cat: Category) => !selectedAssetKey || selectedAssetKey === `category_${cat.id}`).map((cat: Category, i: number) => {
                                                 const val = Number(activePoint[`category_${cat.id}`] || 0);
                                                 if (val === 0) return null;
                                                 const yVal = showPercent ? (val / sum) : val;
