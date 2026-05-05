@@ -91,7 +91,7 @@ export function AssetHistoryChart({
                     activeKeys.forEach(key => {
                         const k = `tag_${selectedTagGroup}_${key}`
                         if (point[k as keyof ChartPoint] === undefined || point[k as keyof ChartPoint] === null) {
-                            (point as any)[k] = 0
+                            (point as Record<string, unknown>)[k] = 0
                         }
                     })
                 }
@@ -299,8 +299,8 @@ export function AssetHistoryChart({
                                             strokeOpacity={0.6}
                                             strokeWidth={1}
                                             strokeDasharray="5 5"
-                                            label={(props: any) => {
-                                                const { viewBox } = props;
+                                            label={(props: Record<string, unknown>) => {
+                                                const viewBox = props.viewBox as {x: number, y: number};
                                                 const d = new Date(activePoint.timestamp);
                                                 const dateStr = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
                                                 return (
@@ -384,10 +384,10 @@ export function AssetHistoryChart({
                                     )}
                                     {activePoint && mode === "tag" && (() => {
                                         let cumulativeY = 0;
-                                        const sum = activeKeys.reduce((a, key) => a + Number((activePoint as any)[`tag_${selectedTagGroup}_${key}`] || 0), 0) || 1;
+                                        const sum = activeKeys.reduce((a, key) => a + Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0), 0) || 1;
                                         
                                         return activeKeys.map((key, i) => {
-                                            const val = Number((activePoint as any)[`tag_${selectedTagGroup}_${key}`] || 0);
+                                            const val = Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0);
                                             if (val === 0) return null;
                                             
                                             // showPercent の場合は 100% = 1 の割合

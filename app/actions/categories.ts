@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use server"
 
 import { prisma } from "@/lib/prisma"
@@ -266,22 +267,6 @@ interface AssetDetail {
     id: number;
 }
 
-interface CategoryWithNested {
-    id: number;
-    name: string;
-    color: string | null;
-    isCash: boolean | null;
-    isLiability: boolean | null;
-    parentId: number | null;
-    transactions: TransactionDetail[];
-    assets: AssetDetail[];
-    children: (CategoryWithRelations & {
-        assets: AssetDetail[];
-        transactions: TransactionDetail[];
-    })[];
-    tags: { tagGroupId: number, tagGroup: { name: string }, tagOptionId: number | null, tagOption: { name: string } | null }[];
-    parent: { id: number, name: string } | null;
-}
 
 export async function getCategoryDetails(id: number) {
     try {

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { AlertCircle, GripVertical, Check, X, ArrowDownUp } from "lucide-react"
@@ -267,7 +266,6 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
                 >
                     <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
                         {topLevel.map((parent) => {
-                            const children = categories.filter(c => c.parentId === parent.id)
                             const parentCard = renderCategoryCard(parent);
 
                             return (

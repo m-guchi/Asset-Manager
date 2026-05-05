@@ -5,7 +5,6 @@ import { ArrowUpRight, ArrowDownRight, TrendingUp, Wallet, Percent } from "lucid
 
 interface SummaryCardsProps {
     netWorth: number
-    totalAssets: number
     totalCost: number
     totalProfit: number
     profitPercent: number
@@ -21,7 +20,6 @@ const formatCurrency = (value: number) => {
 
 export function SummaryCards({
     netWorth,
-    totalAssets,
     totalCost,
     totalProfit,
     profitPercent,

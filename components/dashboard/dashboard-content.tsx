@@ -61,7 +61,6 @@ export function DashboardContent({
             <section>
                 <SummaryCards
                     netWorth={totalAssets}
-                    totalAssets={totalAssets}
                     totalCost={totalCost}
                     totalProfit={totalProfit}
                     profitPercent={profitPercent}

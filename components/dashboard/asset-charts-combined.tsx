@@ -98,7 +98,7 @@ export function AssetChartsCombined({
                         ) : (
                             activeKeys.map((key, i) => {
                                 const k = `tag_${selectedTagGroup}_${key}`
-                                const val = (activePoint as any)[k] || 0
+                                const val = (activePoint as Record<string, unknown>)[k] || 0
                                 if (val === 0) return null
                                 const color = `var(--chart-${(i % 5) + 1})`
                                 return (
