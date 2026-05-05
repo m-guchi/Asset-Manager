@@ -145,6 +145,27 @@ export async function getCategories() {
             };
         });
 
+        // Parent categories inherit child totals in this app.
+        // To avoid double counting, exclude parent's own valuation/performance
+        // from consolidated sums when it has children.
+        const parentIdsWithChildren = new Set(
+            mappedCategories
+                .filter((cat) => cat.parentId !== null && cat.parentId !== undefined)
+                .map((cat) => cat.parentId as number)
+        );
+
+        mappedCategories.forEach((cat) => {
+            if (parentIdsWithChildren.has(cat.id)) {
+                cat.ownValue = 0;
+                cat.ownCostBasis = 0;
+                cat.ownDailyChange = 0;
+                cat.currentValue = 0;
+                cat.costBasis = 0;
+                cat.dailyChange = 0;
+                cat.monthlyChange = 0;
+            }
+        });
+
         // 2. Aggregate bottom-up (from deepest to roots)
         // Sort by depth descending
         const depthSorted = [...mappedCategories].sort((a, b) => b.depth - a.depth);
