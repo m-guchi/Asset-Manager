@@ -98,6 +98,7 @@ model Category {
   parentId          Int?
   isValuationTarget Boolean       @default(true)
   valuationOrder    Int           @default(0)
+  hidden            Boolean       @default(false)
   userId            String
   parent            Category?     @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   children          Category[]    @relation("CategoryHierarchy")

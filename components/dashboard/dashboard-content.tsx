@@ -78,20 +78,12 @@ export function DashboardContent({
             </section>
 
             <section>
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold tracking-tight">アセット構成</h2>
-                    <div className="flex gap-2">
-                        <Button variant="ghost" size="sm" onClick={fetchData} title="データを更新">
-                            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                        </Button>
-                        <Link href="/assets/valuation">
-                            <Button variant="outline" size="sm">
-                                <Pencil className="mr-2 h-4 w-4" /> 評価額を一括更新
-                            </Button>
-                        </Link>
-                    </div>
-                </div>
-                <CategoryList categories={categories} />
+                <CategoryList 
+                    title="アセット構成"
+                    categories={categories} 
+                    onRefresh={fetchData}
+                    isRefreshing={isLoading}
+                />
             </section>
         </div>
     )

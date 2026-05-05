@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { AlertCircle, GripVertical, Check, X, ArrowDownUp } from "lucide-react"
+import { AlertCircle, GripVertical, Check, X, ArrowDownUp, Eye, EyeOff } from "lucide-react"
 import {
     Tooltip,
     TooltipContent,
@@ -26,15 +26,17 @@ import {
     sortableKeyboardCoordinates,
     useSortable,
     rectSortingStrategy,
+    verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { reorderCategoriesAction } from "@/app/actions/categories"
+import { reorderCategoriesAction, toggleCategoryVisibility } from "@/app/actions/categories"
+import { RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 
 import { Category } from "@/types/asset"
 
 // --- Sortable Item Component ---
-function SortableCategoryItem({ category, children, isEditing }: { category: Category, children: React.ReactNode, isEditing: boolean }) {
+function SortableCategoryItem({ category, children, isEditing, onToggleVisibility }: { category: Category, children: React.ReactNode, isEditing: boolean, onToggleVisibility?: () => void }) {
     const {
         attributes,
         listeners,
@@ -49,13 +51,29 @@ function SortableCategoryItem({ category, children, isEditing }: { category: Cat
         transition,
         zIndex: isDragging ? 50 : "auto",
         position: 'relative' as const,
+        opacity: !isEditing && category.hidden ? 0 : 1,
+        display: !isEditing && category.hidden ? 'none' : 'block'
     };
 
     return (
-        <div ref={setNodeRef} style={style} className={`flex flex-col gap-1 p-2 rounded-lg border bg-card/50 shadow-sm ${isDragging ? 'opacity-50 ring-2 ring-primary' : ''}`}>
+        <div ref={setNodeRef} style={style} className={`flex flex-col gap-1 p-2 rounded-lg border bg-card/50 shadow-sm ${isDragging ? 'opacity-50 ring-2 ring-primary' : ''} ${isEditing && category.hidden ? 'opacity-40 grayscale-[0.5]' : ''}`}>
             {isEditing && (
-                <div {...attributes} {...listeners} className="absolute right-2 top-2 z-10 cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded">
-                    <GripVertical className="h-4 w-4 text-muted-foreground" />
+                <div className="absolute right-2 top-2 z-20 flex gap-1">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 hover:bg-muted"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onToggleVisibility?.();
+                        }}
+                    >
+                        {category.hidden ? <EyeOff className="h-3.5 w-3.5 text-muted-foreground" /> : <Eye className="h-3.5 w-3.5 text-primary" />}
+                    </Button>
+                    <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1.5 hover:bg-muted rounded">
+                        <GripVertical className="h-4 w-4 text-muted-foreground" />
+                    </div>
                 </div>
             )}
             {children}
@@ -63,7 +81,17 @@ function SortableCategoryItem({ category, children, isEditing }: { category: Cat
     );
 }
 
-export function CategoryList({ categories: initialCategories = [] }: { categories?: Category[] }) {
+export function CategoryList({ 
+    categories: initialCategories = [], 
+    onRefresh, 
+    isRefreshing = false,
+    title
+}: { 
+    categories?: Category[], 
+    onRefresh?: () => void, 
+    isRefreshing?: boolean,
+    title?: string
+}) {
     const [categories, setCategories] = useState(initialCategories)
     const [isEditing, setIsEditing] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
@@ -95,58 +123,55 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
                 // we should manipulate `categories` array but carefully.
 
                 // Strategy: 
-                // 1. Get current top-level order
-                const oldIndex = topLevel.findIndex(c => c.id === active.id)
-                const newIndex = topLevel.findIndex(c => c.id === over.id)
+                // We need to handle both top-level and child-level reordering.
+                // The item being dragged (active.id) and the target (over.id) 
+                // MUST have the same parentId for the move to be valid within a SortableContext.
+                const activeItem = items.find(c => c.id === active.id);
+                const overItem = items.find(c => c.id === over.id);
 
-                if (oldIndex === -1 || newIndex === -1) return items;
+                if (!activeItem || !overItem || activeItem.parentId !== overItem.parentId) {
+                    return items;
+                }
 
-                // 2. Create a new sorted top-level array
-                const newTopLevel = arrayMove(topLevel, oldIndex, newIndex);
+                const oldIndex = items.findIndex(c => c.id === active.id);
+                const overIndex = items.findIndex(c => c.id === over.id);
 
-                // 3. Reconstruct the full list: newTopLevel (and their children) + orphans (if any)
-                // Actually, simple way: Map the new order to the items and update their 'order' property locally
-                // But full replacement is easier.
-
-                // Let's just create a new list where top-levels are reordered.
-                // Items that are not top-level (children) will stick with their parent lookups, 
-                // but we need to update the state so UI reflects the move.
-
-                // We will rely on `topLevel` derived from state for rendering.
-                // We just need to update `categories` state such that `filter(!parentId)` returns them in new order.
-                // But arrayMove works on array indices. `categories` contains children mixed in.
-
-                // Solution: Map reordered top-levels back to a new full array.
-                const newCategories: Category[] = [];
-                newTopLevel.forEach(parent => {
-                    newCategories.push(parent);
-                    // Add its children immediately after (to keep them together in the state array, though not strictly required for filter)
-                    // But actually, the order in `categories` state doesn't matter for `topLevel` filter unless we sort `topLevel`.
-                    // Wait, `topLevel` variable is `categories.filter(...)`. Filter preserves order.
-                    // So we DO need to move the item within `categories` array.
-                });
-
-                // Complex shuffle:
-                const oldCategories = [...items];
-                const activeItemIndex = oldCategories.findIndex(c => c.id === active.id);
-                // We need to find the target location in the big array.
-                // Because `over.id` is another parent, we find its index.
-                const overItemIndex = oldCategories.findIndex(c => c.id === over.id);
-
-                return arrayMove(oldCategories, activeItemIndex, overItemIndex);
+                return arrayMove(items, oldIndex, overIndex);
             });
+        }
+    };
+
+    const handleToggleVisibility = async (categoryId: number) => {
+        const category = categories.find(c => c.id === categoryId);
+        if (!category) return;
+
+        const newHidden = !category.hidden;
+        // Optimistic update
+        setCategories(prev => prev.map(c => c.id === categoryId ? { ...c, hidden: newHidden } : c));
+
+        const result = await toggleCategoryVisibility(categoryId, newHidden);
+        if (!result.success) {
+            toast.error("表示設定の更新に失敗しました");
+            // Rollback
+            setCategories(prev => prev.map(c => c.id === categoryId ? { ...c, hidden: !newHidden } : c));
         }
     };
 
     const handleSaveOrder = async () => {
         setIsSaving(true);
         // Calculate new order values based on current state array
-        // We only care about top-level order
-        const currentTopLevel = categories.filter(c => !c.parentId);
-        const updates = currentTopLevel.map((cat, index) => ({
-            id: cat.id,
-            order: index
-        }));
+        const updates: { id: number, order: number }[] = [];
+
+        // Recursive function to collect orders for each level
+        const collectOrders = (parentId: number | null) => {
+            const levelItems = categories.filter(c => c.parentId === parentId);
+            levelItems.forEach((cat, index) => {
+                updates.push({ id: cat.id, order: index });
+                collectOrders(cat.id);
+            });
+        };
+
+        collectOrders(null);
 
         const result = await reorderCategoriesAction(updates);
         if (result.success) {
@@ -170,10 +195,12 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
         const profitPercent = costToUse > 0 ? (profit / costToUse) * 100 : 0
         const isPositive = profit >= 0
 
+        const showProfit = !category.isCash;
+
         const cardContent = (
-            <Card className={`overflow-hidden h-full cursor-pointer hover:shadow-md transition-all border-l-0 relative group ${isChild ? 'bg-muted/30Scale' : ''} ${!isChild && isEditing ? 'select-none pointer-events-none' : ''}`}>
+            <Card className={`overflow-hidden h-full cursor-pointer hover:shadow-md transition-all border-l-0 relative group ${isChild ? 'bg-muted/30' : ''} ${!isChild && isEditing ? 'select-none pointer-events-none' : ''}`}>
                 <div className="absolute left-0 top-0 bottom-0 w-1.5 transition-all group-hover:w-2" style={{ backgroundColor: category.color }} />
-                <CardHeader className={`flex flex-row items-center justify-between space-y-0 pb-0 pl-3 pr-2 pt-1.5 ${isChild ? 'pt-1' : ''}`}>
+                <CardHeader className={`flex flex-row items-center justify-between space-y-0 pb-0 pl-3 pr-2 pt-0.5 ${isChild ? 'pt-0' : ''}`}>
                     <CardTitle className={`${isChild ? 'text-[10px]' : 'text-xs'} font-medium flex items-center gap-2 text-muted-foreground/80 truncate`}>
                         {category.name}
                     </CardTitle>
@@ -191,45 +218,62 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
                         </TooltipProvider>
                     )}
                 </CardHeader>
-                <CardContent className={`pl-3 pr-2 ${isChild ? 'pb-1' : 'pb-1.5'} pt-0`}>
-                    <div className="flex flex-col gap-0.5">
-                        <div className="flex items-baseline justify-between gap-1.5">
+                <CardContent className={`pl-3 pr-2 ${isChild ? 'pb-0' : 'pb-0.5'} pt-0`}>
+                    <div className="flex justify-between gap-1.5">
+                        {/* Left: Current Value */}
+                        <div className="flex items-baseline">
                             <span className={`${isChild ? 'text-sm' : 'text-base'} font-bold tracking-tight leading-none`}>
                                 ¥{valueToUse.toLocaleString()}
                             </span>
-
-                            <span className={`${isChild ? 'text-[10px]' : 'text-xs'} font-bold whitespace-nowrap leading-none ${category.isCash ? "text-muted-foreground" : (isPositive ? "text-green-500" : "text-red-500")}`}>
-                                {category.isCash ? '±0' : (
-                                    <>
-                                        {isPositive ? '+' : ''}¥{profit.toLocaleString()}
-                                        <span className="text-[10px] ml-0.5 opacity-70 font-normal">
-                                            ({isPositive ? '+' : ''}{profitPercent.toFixed(1)}%)
-                                        </span>
-                                    </>
-                                )}
-                            </span>
                         </div>
 
-                        {(category.dailyChange !== undefined && category.dailyChange !== 0) && (
-                            <div className={`text-[10px] font-medium flex items-center gap-1 ${category.dailyChange > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
-                                <span className="opacity-70">前日比</span>
-                                <span>{category.dailyChange > 0 ? '+' : ''}{category.dailyChange.toLocaleString()}円</span>
-                            </div>
-                        )}
+                        {/* Right: Profit & Performance Changes */}
+                        <div className="flex flex-col items-end gap-0">
+                            {/* Total Profit - LARGER */}
+                            <span className={`${isChild ? 'text-xs' : 'text-sm'} font-bold whitespace-nowrap leading-tight ${category.isCash ? "text-muted-foreground" : (profit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-500")}`}>
+                                {showProfit ? (
+                                    <>
+                                        {profit >= 0 ? '+' : ''}¥{profit.toLocaleString()}
+                                        <span className="text-[10px] ml-0.5 opacity-70 font-normal">
+                                            ({profit >= 0 ? '+' : ''}{profitPercent.toFixed(1)}%)
+                                        </span>
+                                    </>
+                                ) : null}
+                            </span>
+
+                            {/* Comparisons - SMALLER */}
+                            {(!category.isCash && category.dailyChange !== undefined && category.dailyChange !== 0) && (
+                                <div className={`text-[10px] font-medium flex items-baseline gap-1 mt-0.5 ${category.dailyChange > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                                    <div className="w-[38px] shrink-0 text-right">
+                                        <span className="opacity-70 text-[8px]">{category.dailyChangeDays || 1}日前比</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold">{category.dailyChange > 0 ? '+' : ''}{category.dailyChange.toLocaleString()}</span>
+                                    <span className="text-[8px] opacity-80 font-normal">円</span>
+                                    {category.dailyChangeRate !== undefined && (
+                                        <span className="text-[8px] opacity-70 ml-0.5">({category.dailyChange > 0 ? '+' : ''}{category.dailyChangeRate.toFixed(1)}%)</span>
+                                    )}
+                                </div>
+                            )}
+
+                            {(!category.isCash && category.monthlyChange !== undefined && category.monthlyChange !== 0) && (
+                                <div className={`text-[10px] font-medium flex items-baseline gap-1 mt-0 ${category.monthlyChange > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                                    <div className="w-[38px] shrink-0 text-right">
+                                        <span className="opacity-70 text-[8px]">{category.monthlyChangeDays || 30}日前比</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold">{category.monthlyChange > 0 ? '+' : ''}{category.monthlyChange.toLocaleString()}</span>
+                                    <span className="text-[8px] opacity-80 font-normal">円</span>
+                                    {category.monthlyChangeRate !== undefined && (
+                                        <span className="text-[8px] opacity-70 ml-0.5">({category.monthlyChange > 0 ? '+' : ''}{category.monthlyChangeRate.toFixed(1)}%)</span>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </CardContent>
             </Card>
         );
 
-        if (isChild) {
-            return (
-                <Link href={`/assets/${category.id}`} key={category.id} className="block w-full">
-                    {cardContent}
-                </Link>
-            )
-        }
-
-        return cardContent; // Wrap Link outside for Edit Mode handling in Parent
+        return cardContent;
     }
 
     if (categories.length === 0) return null
@@ -237,21 +281,31 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
     return (
         <div className="space-y-2">
             {/* Toolbar */}
-            <div className="flex justify-end gap-2 text-sm">
-                {!isEditing ? (
-                    <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)}>
-                        <ArrowDownUp className="mr-2 h-4 w-4" /> 並び替え
-                    </Button>
-                ) : (
-                    <>
-                        <Button variant="ghost" size="sm" onClick={handleCancel} disabled={isSaving}>
-                            <X className="mr-2 h-4 w-4" /> キャンセル
-                        </Button>
-                        <Button variant="default" size="sm" onClick={handleSaveOrder} disabled={isSaving}>
-                            <Check className="mr-2 h-4 w-4" /> 保存完了
-                        </Button>
-                    </>
-                )}
+            <div className="flex items-center justify-between mb-4">
+                {title && <h2 className="text-xl font-bold tracking-tight">{title}</h2>}
+                <div className="flex justify-end gap-1 text-sm">
+                    {!isEditing ? (
+                        <>
+                            {onRefresh && (
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onRefresh} title="データを更新">
+                                    <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                                </Button>
+                            )}
+                            <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                                <ArrowDownUp className="mr-1.5 h-3.5 w-3.5" /> 並び替え
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                            <Button variant="ghost" size="sm" onClick={handleCancel} disabled={isSaving}>
+                                <X className="mr-1.5 h-3.5 w-3.5" /> キャンセル
+                            </Button>
+                            <Button variant="default" size="sm" onClick={handleSaveOrder} disabled={isSaving}>
+                                <Check className="mr-1.5 h-3.5 w-3.5" /> 保存完了
+                            </Button>
+                        </>
+                    )}
+                </div>
             </div>
 
             <DndContext
@@ -269,7 +323,7 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
                             const parentCard = renderCategoryCard(parent);
 
                             return (
-                                <SortableCategoryItem key={parent.id} category={parent} isEditing={isEditing}>
+                                <SortableCategoryItem key={parent.id} category={parent} isEditing={isEditing} onToggleVisibility={() => handleToggleVisibility(parent.id)}>
                                     {!isEditing ? (
                                         <Link href={`/assets/${parent.id}`} className="block w-full">
                                             {parentCard}
@@ -285,14 +339,28 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
                                             const children = categories.filter(c => c.parentId === parentId)
                                             if (children.length === 0) return null
                                             return (
-                                                <div className="flex flex-col gap-1 ml-3 pl-2 border-l-2 border-muted border-dashed mt-0.5 pb-0.5">
-                                                    {children.map(child => (
-                                                        <div key={child.id}>
-                                                            {renderCategoryCard(child, true)}
-                                                            {renderChildren(child.id)}
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                                <SortableContext
+                                                    items={children.map(c => c.id)}
+                                                    strategy={verticalListSortingStrategy}
+                                                    disabled={!isEditing}
+                                                >
+                                                    <div className="flex flex-col gap-1 ml-3 pl-2 border-l-2 border-muted border-dashed mt-0.5 pb-0.5">
+                                                        {children.map(child => (
+                                                            <SortableCategoryItem key={child.id} category={child} isEditing={isEditing} onToggleVisibility={() => handleToggleVisibility(child.id)}>
+                                                                {!isEditing ? (
+                                                                    <Link href={`/assets/${child.id}`} className="block w-full">
+                                                                        {renderCategoryCard(child, true)}
+                                                                    </Link>
+                                                                ) : (
+                                                                    <div className="block w-full">
+                                                                        {renderCategoryCard(child, true)}
+                                                                    </div>
+                                                                )}
+                                                                {renderChildren(child.id)}
+                                                            </SortableCategoryItem>
+                                                        ))}
+                                                    </div>
+                                                </SortableContext>
                                             )
                                         }
                                         return renderChildren(parent.id)
