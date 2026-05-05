@@ -184,12 +184,65 @@ export function AssetHistoryChart({
         );
     }, [allProcessedData, currentDomain]);
 
-    // 損益率モード時のY軸の動的ドメイン計算
+    const visiblePnlDomain = React.useMemo(() => {
+        if (!allProcessedData.length) return [-1, 1] as [number, number]
+
+        const dataMaxTime = allProcessedData[allProcessedData.length - 1].timestamp
+        const rawMinT = currentDomain[0] === "dataMin" ? allProcessedData[0].timestamp : (currentDomain[0] as number)
+        const rawMaxT = currentDomain[1] === "dataMax" ? dataMaxTime : (currentDomain[1] as number)
+        // 右側は未来余白を含むため、実データ最大時刻でクランプ
+        const minT = rawMinT
+        const maxT = Math.min(rawMaxT, dataMaxTime)
+
+        const visiblePoints = allProcessedData.filter((p) => p.timestamp >= minT && p.timestamp <= maxT)
+        if (!visiblePoints.length) return [-1, 1] as [number, number]
+
+        const seriesKeys =
+            mode === "tag"
+                ? activeKeys
+                      .filter((key) => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`)
+                      .map((key) => `tag_pnl_${selectedTagGroup}_${key}`)
+                : categories
+                      .filter((c) => !c.parentId && !c.isLiability)
+                      .filter((c) => !selectedAssetKey || selectedAssetKey === `category_${c.id}`)
+                      .map((c) => `pnl_${c.id}`)
+
+        if (!seriesKeys.length) return [-1, 1] as [number, number]
+
+        let minValue = Number.POSITIVE_INFINITY
+        let maxValue = Number.NEGATIVE_INFINITY
+
+        visiblePoints.forEach((point) => {
+            seriesKeys.forEach((key) => {
+                const value = Number((point as Record<string, unknown>)[key])
+                if (!Number.isFinite(value)) return
+                if (value < minValue) minValue = value
+                if (value > maxValue) maxValue = value
+            })
+        })
+
+        if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) return [-1, 1] as [number, number]
+
+        if (minValue === maxValue) {
+            const pad = Math.max(Math.abs(minValue) * 0.2, 5)
+            const domainMin = Math.min(minValue - pad, 0)
+            const domainMax = Math.max(maxValue + pad, 0)
+            return [domainMin, domainMax] as [number, number]
+        }
+
+        const span = maxValue - minValue
+        const pad = Math.max(span * 0.1, 2)
+        const domainMin = Math.min(minValue - pad, 0)
+        const domainMax = Math.max(maxValue + pad, 0)
+        return [domainMin, domainMax] as [number, number]
+    }, [allProcessedData, currentDomain, mode, activeKeys, selectedTagGroup, categories, selectedAssetKey])
+
+    // Y軸のドメイン計算
     const yAxisDomain = React.useMemo(() => {
         if (viewMode === "percent") return [0, 1] as [number, number]
-        if (viewMode === "pnl") return [-25, 100] as [number, number]
+        if (viewMode === "pnl") return visiblePnlDomain
         return ['auto', 'auto']
-    }, [viewMode])
+    }, [viewMode, visiblePnlDomain])
 
     const [debouncedActivePoint, setDebouncedActivePoint] = React.useState<ChartPoint | null>(null);
 
@@ -334,6 +387,7 @@ export function AssetHistoryChart({
                                         tick={{ fill: 'currentColor', fontSize: 10, opacity: 0.5 }}
                                         width={40}
                                         domain={yAxisDomain}
+                                        allowDataOverflow={viewMode === "pnl"}
                                     />
                                     {activePoint && (
                                         <ReferenceLine
@@ -416,8 +470,8 @@ export function AssetHistoryChart({
                                     })}
 
                                     {/* 損益率モード時の折れ線グラフ */}
-                                    {viewMode === "pnl" && mode === "total" && categories.filter(c => !c.parentId).map(cat => {
-                                        const topLevel = categories.filter(c => !c.parentId)
+                                    {viewMode === "pnl" && mode === "total" && categories.filter(c => !c.parentId && !c.isLiability).map(cat => {
+                                        const topLevel = categories.filter(c => !c.parentId && !c.isLiability)
                                         const colorIndex = topLevel.findIndex(c => c.id === cat.id)
                                         const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`
                                         const key = `category_${cat.id}`
@@ -497,9 +551,9 @@ export function AssetHistoryChart({
                                                     )
                                                 })
                                             } else {
-                                                return categories.filter(c => !c.parentId).map(cat => {
+                                                return categories.filter(c => !c.parentId && !c.isLiability).map(cat => {
                                                     const val = Number((activePoint as Record<string, unknown>)[`pnl_${cat.id}`] || 0)
-                                                    const topLevel = categories.filter(c => !c.parentId)
+                                                    const topLevel = categories.filter(c => !c.parentId && !c.isLiability)
                                                     const colorIndex = topLevel.findIndex(c => c.id === cat.id)
                                                     const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`
                                                     const key = `category_${cat.id}`
