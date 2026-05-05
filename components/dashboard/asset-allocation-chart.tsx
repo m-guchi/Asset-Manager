@@ -17,7 +17,7 @@ const chartConfigBase = {
 } satisfies ChartConfig
 
 interface ChartDataItem {
-    id: number;
+    id: string | number;
     name: string;
     value: number;
     fill: string;
@@ -26,7 +26,6 @@ interface ChartDataItem {
 
 export function AssetAllocationChart({
     categories,
-    allCategories = [],
     tagGroups = [],
     mode,
     selectedTagGroup,
@@ -35,7 +34,6 @@ export function AssetAllocationChart({
     onAssetClick
 }: {
     categories: Category[],
-    allCategories?: Category[],
     tagGroups?: TagGroup[],
     mode: "total" | "tag",
     selectedTagGroup: number,
@@ -60,94 +58,74 @@ export function AssetAllocationChart({
 
     // Logic to transform data based on mode
     const chartData = React.useMemo((): ChartDataItem[] => {
+        const topLevelCategories = categories.filter(c => !c.parentId);
+        
         if (mode === "total") {
             // "total" mode uses top-level categories
-            if (activePoint) {
-                return categories
-                    .filter(c => !c.parentId)
-                    .map(c => {
-                        const val = Number(activePoint[`category_${c.id}`]) || 0;
-                        return {
-                            id: c.id,
-                            name: c.name,
-                            value: val,
-                            fill: c.color || "var(--chart-1)",
-                            isLiability: false
-                        };
-                    }).filter(d => d.value > 0)
-            } else {
-                return categories
-                    .filter(c => !c.parentId && c.currentValue > 0)
-                    .map((c, i) => ({
-                        id: c.id,
-                        name: c.name,
-                        value: c.currentValue,
-                        fill: `var(--chart-${(i % 12) + 1})`,
-                        isLiability: false
-                    }))
-            }
+            const items = topLevelCategories.map(c => {
+                const val = activePoint ? (Number((activePoint as unknown as Record<string, number | string>)[`category_${c.id}`]) || 0) : (c.currentValue || 0);
+                const colorIndex = topLevelCategories.findIndex(tc => tc.id === c.id);
+                return {
+                    id: c.id,
+                    name: c.name,
+                    value: val,
+                    fill: c.color || `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`,
+                    isLiability: false
+                };
+            });
+            return items.filter(d => d.value > 0);
         } else {
             const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
             if (!activeGroup) return []
-            const targetTags = activeGroup.options?.map(o => o.name) || activeGroup.tags || []
+            const targetTags = (activeGroup.options?.map(o => String(o.name).trim()) || activeGroup.tags?.map(t => String(t).trim()) || []) as string[];
 
-            // If we have an activePoint from the history chart, use it to sync values to the selected date
             if (activePoint) {
-                return targetTags.map((tagName: string, i: number) => {
-                    const key = `tag_${selectedTagGroup}_${tagName}`
-                    const val = Number(activePoint[key]) || 0
+                return targetTags.map((tagName: string) => {
+                    const key = `tag_${selectedTagGroup}_${tagName}`;
+                    const val = Number((activePoint as unknown as Record<string, number | string>)[key]) || 0;
+                    const colorIndex = targetTags.indexOf(tagName);
                     return {
-                        id: i,
+                        id: tagName,
                         name: tagName,
-                        value: Math.max(0, val),
-                        fill: `var(--chart-${(i % 5) + 1})`,
+                        value: val,
+                        fill: `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`,
                         isLiability: false
                     }
-                }).filter(d => d.value > 0)
+                }).filter((d: ChartDataItem) => d.value > 0);
             }
 
-            // Fallback: use live data if no active point
-            const sourceData = allCategories.length > 0 ? allCategories : categories;
+            // Fallback: sum up categories if no active point
             const tagMap = new Map<string, number>();
             targetTags.forEach(t => tagMap.set(t, 0));
 
-            // Helper to find effective tag for a category in the current group
             const findEffectiveTag = (cat: Category): string | null => {
-                // 1. Check direct tags in this group
                 const directTag = cat.tagSettings?.find((s) => s.groupId === selectedTagGroup)?.optionName;
                 if (directTag && targetTags.includes(directTag)) return directTag;
-
-                // Fallback to legacy string check if tagSettings is missing
                 const stringMatch = targetTags.find(t => cat.tags?.includes(t));
-                if (stringMatch) return stringMatch;
-
-                // 2. Inherit from parent
-                if (cat.parentId) {
-                    const parent = sourceData.find(p => p.id === cat.parentId);
-                    if (parent) return findEffectiveTag(parent);
-                }
-
-                return null;
+                return stringMatch || (cat.parentId ? findEffectiveTag(categories.find(p => p.id === cat.parentId) as Category) : null);
             };
 
-            sourceData.forEach(cat => {
+            categories.forEach(cat => {
                 const matchingTag = findEffectiveTag(cat);
                 if (matchingTag) {
-                    // Use ownValue for more precise non-overlapping sum in flat processing
                     const val = (cat.ownValue !== undefined) ? cat.ownValue : (cat.parentId ? cat.currentValue : 0);
                     tagMap.set(matchingTag, (tagMap.get(matchingTag) || 0) + val);
                 }
             });
 
-            return activeKeys.map((keyName, i) => ({
-                id: i,
-                name: keyName,
-                value: Math.max(0, tagMap.get(keyName) || 0),
-                fill: `var(--chart-${(i % 5) + 1})`,
-                isLiability: false
-            })).filter(d => d.value > 0)
+            return targetTags.map((tagName: string) => {
+                const val = tagMap.get(tagName) || 0;
+                const colorIndex = targetTags.indexOf(tagName);
+                return {
+                    id: tagName,
+                    name: tagName,
+                    value: Math.max(0, val),
+                    fill: `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`,
+                    isLiability: false
+                }
+            }).filter(d => d.value > 0);
         }
-    }, [categories, allCategories, mode, selectedTagGroup, tagGroups, activePoint, activeKeys])
+    }, [categories, mode, selectedTagGroup, tagGroups, activePoint])
 
     const chartConfig = React.useMemo(() => {
         const config: ChartConfig = { ...chartConfigBase }
