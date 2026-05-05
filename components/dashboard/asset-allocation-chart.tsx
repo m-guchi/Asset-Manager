@@ -183,10 +183,18 @@ export function AssetAllocationChart({
     return (
         <div className="flex flex-col h-[300px] w-full">
             <div className="flex-1 flex flex-row min-h-0">
-                <div className="w-[100px] sm:w-[140px] flex items-center justify-center shrink-0">
+                <div className="w-[100px] sm:w-[140px] flex flex-col items-center justify-center shrink-0 pt-4">
+                    {/* 合計評価額を表示 (万円単位) */}
+                    <div className="mb-2 flex items-baseline gap-0.5">
+                        <span className="text-[14px] font-bold tabular-nums leading-none">
+                            {Math.round(totalValue / 10000).toLocaleString()}
+                        </span>
+                        <span className="text-[10px] font-medium opacity-70 leading-none">万円</span>
+                    </div>
+                    
                     <ChartContainer
                         config={chartConfig}
-                        className="w-full h-full min-h-[250px]"
+                        className="w-full flex-1 min-h-0"
                     >
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart
