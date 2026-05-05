@@ -1,20 +1,11 @@
 "use client"
 import * as React from "react"
-import { Area, CartesianGrid, XAxis, Tooltip, ResponsiveContainer, YAxis, ReferenceLine, Line, ComposedChart } from "recharts"
+import { Area, CartesianGrid, XAxis, ResponsiveContainer, YAxis, ReferenceLine, ReferenceDot, Line, ComposedChart } from "recharts"
 
-import {
-    Card,
-    CardContent,
-    CardHeader,
-} from "@/components/ui/card"
-import {
-    ChartConfig,
-    ChartContainer,
-} from "@/components/ui/chart"
-
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { ChartConfig, ChartContainer } from "@/components/ui/chart"
 import { HistoryPoint, TagGroup } from "@/types/asset"
 
-// Tag groups definition for demo or fallback
 const mockTagGroups: TagGroup[] = [
     { id: 1, name: "目的別", tags: ["投資資金", "生活防衛費", "代替通貨"] },
     { id: 2, name: "資産クラス別", tags: ["安全資産", "リスク資産"] },
@@ -43,12 +34,13 @@ export function AssetHistoryChart({
     const [selectedTagGroup, setSelectedTagGroup] = React.useState<number>(1)
     const [timeRange, setTimeRange] = React.useState(initialTimeRange)
     const [showPercent, setShowPercent] = React.useState(false)
-    const [activePoint, setActivePoint] = React.useState<ChartPoint | null>(null)
-    const [hoverPoint, setHoverPoint] = React.useState<ChartPoint | null>(null)
-    const [isLocked, setIsLocked] = React.useState(false)
     const [isAnimating, setIsAnimating] = React.useState(false)
 
-    // Trigger animation only when display settings change
+    // ドラッグ(スワイプ)用ステート
+    const [dragStartX, setDragStartX] = React.useState<number | null>(null)
+    const [domainOffset, setDomainOffset] = React.useState<number>(0)
+    const chartRef = React.useRef<HTMLDivElement>(null);
+
     React.useEffect(() => {
         setIsAnimating(true)
         const timer = setTimeout(() => setIsAnimating(false), 1500)
@@ -63,13 +55,18 @@ export function AssetHistoryChart({
         }
     }, []);
 
-    // Ensure we have a valid group selected
     React.useEffect(() => {
         if (tagGroups && tagGroups.length > 0) {
             const exists = tagGroups.find(g => g.id === selectedTagGroup)
             if (!exists) setSelectedTagGroup(tagGroups[0].id)
         }
     }, [tagGroups, selectedTagGroup])
+
+    const handleTimeRangeChange = (range: string) => {
+        setTimeRange(range);
+        setDomainOffset(0); // リセット
+        localStorage.setItem("defaultTimeRange", range);
+    }
 
     const activeKeys = React.useMemo(() => {
         if (mode === "tag") {
@@ -80,21 +77,9 @@ export function AssetHistoryChart({
         return []
     }, [mode, selectedTagGroup, tagGroups])
 
-    const filteredData = React.useMemo(() => {
+    // 全データの加工 (フィルタリングなし)
+    const allProcessedData = React.useMemo(() => {
         if (!data || data.length === 0) return []
-
-        const now = new Date()
-        const cutoff = new Date()
-        const isAll = timeRange === "ALL"
-
-        if (!isAll) {
-            cutoff.setHours(0, 0, 0, 0)
-            if (timeRange === "1M") cutoff.setMonth(now.getMonth() - 1)
-            else if (timeRange === "3M") cutoff.setMonth(now.getMonth() - 3)
-            else if (timeRange === "1Y") cutoff.setFullYear(now.getFullYear() - 1)
-        }
-
-        const cTime = cutoff.getTime()
         return data
             .map(p => {
                 const d = new Date(p.date)
@@ -109,18 +94,71 @@ export function AssetHistoryChart({
                 if (mode === "tag") {
                     activeKeys.forEach(key => {
                         const k = `tag_${selectedTagGroup}_${key}`
-                        if (point[k] === undefined || point[k] === null) {
-                            point[k] = 0
+                        if (point[k as keyof ChartPoint] === undefined || point[k as keyof ChartPoint] === null) {
+                            (point as any)[k] = 0
                         }
                     })
                 }
-
                 return point
             })
             .filter(p => p.timestamp > 0)
-            .filter(p => isAll || p.timestamp >= cTime)
             .sort((a, b) => a.timestamp - b.timestamp)
-    }, [data, timeRange, activeKeys, mode, selectedTagGroup])
+    }, [data, activeKeys, mode, selectedTagGroup])
+
+    const baseWindowMs = React.useMemo(() => {
+        if (timeRange === "ALL") return null;
+        const now = new Date();
+        const past = new Date();
+        if (timeRange === "1M") past.setMonth(now.getMonth() - 1);
+        else if (timeRange === "3M") past.setMonth(now.getMonth() - 3);
+        else if (timeRange === "1Y") past.setFullYear(now.getFullYear() - 1);
+        return now.getTime() - past.getTime();
+    }, [timeRange]);
+
+    const currentDomain = React.useMemo(() => {
+        if (!allProcessedData.length) return ['dataMin', 'dataMax'] as [number | 'dataMin', number | 'dataMax'];
+        
+        const dataMinTime = allProcessedData[0].timestamp;
+        const dataMaxTime = allProcessedData[allProcessedData.length - 1].timestamp;
+
+        let minT, maxT;
+        if (timeRange === "ALL") {
+            const dataRange = dataMaxTime - dataMinTime;
+            // 右側に全体幅の10%にあたる余白を持たせる
+            const rightPadding = dataRange / 9;
+            maxT = dataMaxTime + rightPadding + domainOffset;
+            minT = dataMinTime + domainOffset;
+        } else {
+            const windowMs = baseWindowMs || 0;
+            const rightPadding = windowMs * 0.1;
+            maxT = dataMaxTime + rightPadding + domainOffset;
+            minT = maxT - windowMs;
+        }
+
+        return [minT, maxT] as [number, number];
+    }, [allProcessedData, timeRange, domainOffset, baseWindowMs]);
+
+    const activePoint = React.useMemo(() => {
+        if (!allProcessedData.length) return null;
+        
+        let minT = 0;
+        let maxT = 0;
+
+        if (currentDomain[0] === 'dataMin') {
+            minT = allProcessedData[0].timestamp;
+            maxT = allProcessedData[allProcessedData.length - 1].timestamp;
+        } else {
+            minT = currentDomain[0] as number;
+            maxT = currentDomain[1] as number;
+        }
+
+        const targetTime = maxT - (maxT - minT) * 0.1;
+
+        // targetTime に一番近いデータを検索
+        return allProcessedData.reduce((prev, curr) => 
+            Math.abs(curr.timestamp - targetTime) < Math.abs(prev.timestamp - targetTime) ? curr : prev
+        );
+    }, [allProcessedData, currentDomain]);
 
     const chartConfig = React.useMemo(() => {
         const config: ChartConfig = {
@@ -132,6 +170,54 @@ export function AssetHistoryChart({
         })
         return config
     }, [activeKeys, selectedTagGroup])
+
+    const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        setDragStartX(clientX);
+        // ドラッグ開始時にアニメーションをオフにする（カクつき防止）
+        setIsAnimating(false);
+    };
+
+    const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
+        if (dragStartX === null || !allProcessedData.length) return;
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const dx = clientX - dragStartX;
+        
+        if (chartRef.current && currentDomain[0] !== 'dataMin') {
+            const width = chartRef.current.clientWidth;
+            const [minT, maxT] = currentDomain as [number, number];
+            const timePerPixel = (maxT - minT) / width;
+            
+            const timeShift = -dx * timePerPixel;
+            
+            const dataMinTime = allProcessedData[0].timestamp;
+            const dataMaxTime = allProcessedData[allProcessedData.length - 1].timestamp;
+
+            setDomainOffset(prev => {
+                let newOffset = prev + timeShift;
+                // 未来方向への移動制限（ドメイン初期位置が上限）
+                if (newOffset > 0) newOffset = 0;
+                
+                // 過去方向への移動制限
+                // 最初のデータ(dataMinTime)が点線の位置(右から10%)に来る限界までスクロールを許可する
+                const minOffset = dataMinTime - dataMaxTime;
+                
+                if (minOffset >= 0) {
+                    newOffset = 0;
+                } else if (newOffset < minOffset) {
+                    // 左へ引っ張りすぎた場合
+                    newOffset = minOffset;
+                }
+                
+                return newOffset;
+            });
+            setDragStartX(clientX);
+        }
+    };
+
+    const handleMouseUp = () => {
+        setDragStartX(null);
+    };
 
     if (!isMounted) {
         return (
@@ -186,17 +272,12 @@ export function AssetHistoryChart({
                             {!activePoint ? (
                                 <div className="w-full text-center">
                                     <span className="text-[10px] text-muted-foreground animate-pulse font-medium">
-                                        グラフをホバーして詳細を表示
+                                        グラフ情報を計算中...
                                     </span>
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-3 w-full overflow-x-auto no-scrollbar">
-                                    <div className="bg-background border border-border/60 shadow-sm px-2 py-0.5 rounded text-[10px] font-bold shrink-0">
-                                        {(() => {
-                                            const d = new Date(activePoint.timestamp)
-                                            return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
-                                        })()}
-                                    </div>
+
                                     <div className="flex items-center gap-4 flex-1 pr-2">
                                         {mode === "total" ? (
                                             <>
@@ -214,7 +295,7 @@ export function AssetHistoryChart({
                                         ) : (
                                             activeKeys.map((key, i) => {
                                                 const k = `tag_${selectedTagGroup}_${key}`
-                                                const val = activePoint[k] || 0
+                                                const val = (activePoint as any)[k] || 0
                                                 if (val === 0) return null
                                                 const color = `var(--chart-${(i % 5) + 1})`
                                                 return (
@@ -223,8 +304,8 @@ export function AssetHistoryChart({
                                                         <span className="text-[9px] text-muted-foreground font-bold">{key}</span>
                                                         <span className="text-[11px] font-bold">
                                                             {showPercent
-                                                                ? `${((Number(activePoint[k] || 0) / (activeKeys.reduce((a, sky) => a + Number(activePoint[`tag_${selectedTagGroup}_${sky}`] || 0), 0) || 1)) * 100).toFixed(1)}%`
-                                                                : `¥${Math.round(Number(activePoint[k] || 0)).toLocaleString()}`
+                                                                ? `${((Number((activePoint as any)[k] || 0) / (activeKeys.reduce((a, sky) => a + Number((activePoint as any)[`tag_${selectedTagGroup}_${sky}`] || 0), 0) || 1)) * 100).toFixed(1)}%`
+                                                                : `¥${Math.round(Number((activePoint as any)[k] || 0)).toLocaleString()}`
                                                             }
                                                         </span>
                                                     </div>
@@ -236,66 +317,36 @@ export function AssetHistoryChart({
                             )}
                         </div>
 
-                        <div className="flex-1 w-full min-h-0 px-2 py-2" onClick={(e) => e.stopPropagation()} style={{ touchAction: "none" }}>
-                            <ResponsiveContainer width="100%" height="100%">
+                        <div 
+                            className="flex-1 w-full min-h-0 px-2 py-2 select-none" 
+                            ref={chartRef}
+                            onMouseDown={handleMouseDown}
+                            onMouseMove={handleMouseMove}
+                            onMouseUp={handleMouseUp}
+                            onMouseLeave={handleMouseUp}
+                            onTouchStart={handleMouseDown}
+                            onTouchMove={handleMouseMove}
+                            onTouchEnd={handleMouseUp}
+                            style={{ touchAction: "none", cursor: dragStartX !== null ? "grabbing" : "grab" }}
+                        >
+                            <ResponsiveContainer width="100%" height="100%" style={{ pointerEvents: "none" }}>
                                 <ComposedChart
                                     key={`${mode}-${selectedTagGroup}-${showPercent}-${timeRange}`}
-                                    data={filteredData}
-                                    onMouseMove={(e) => {
-                                        if (e && e.activePayload && e.activePayload.length > 0) {
-                                            const p = e.activePayload[0].payload as ChartPoint;
-                                            setHoverPoint(p);
-                                            if (!isLocked) setActivePoint(p);
-                                        }
-                                    }}
-                                    // @ts-expect-error: Recharts internal event payload types are not fully exposed
-                                    onTouchStart={(e) => {
-                                        if (e && e.activePayload && e.activePayload.length > 0) {
-                                            const p = e.activePayload[0].payload as ChartPoint;
-                                            setHoverPoint(p);
-                                            if (!isLocked) setActivePoint(p);
-                                        }
-                                    }}
-                                    // @ts-expect-error: Recharts internal event payload types are not fully exposed
-                                    onTouchMove={(e) => {
-                                        if (e && e.activePayload && e.activePayload.length > 0) {
-                                            const p = e.activePayload[0].payload as ChartPoint;
-                                            setHoverPoint(p);
-                                            if (!isLocked) setActivePoint(p);
-                                        }
-                                    }}
-                                    onClick={(e) => {
-                                        if (e && e.activePayload && e.activePayload.length > 0) {
-                                            const p = e.activePayload[0].payload as ChartPoint;
-                                            if (isLocked) {
-                                                // If already locked, unlock it
-                                                setIsLocked(false);
-                                            } else {
-                                                // If not locked, lock at the current hovered point
-                                                setActivePoint(p);
-                                                setIsLocked(true);
-                                            }
-                                        } else {
-                                            setIsLocked(false);
-                                        }
-                                    }}
-                                    onMouseLeave={() => {
-                                        setHoverPoint(null);
-                                        if (!isLocked) setActivePoint(null);
-                                    }}
+                                    data={allProcessedData}
                                     stackOffset={mode === "tag" && showPercent ? "expand" : "none"}
-                                    margin={{ top: 10, right: 30, left: 10, bottom: 0 }}
+                                    margin={{ top: 25, right: 30, left: 10, bottom: 0 }}
                                 >
                                     <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#888888" strokeOpacity={0.2} />
                                     <XAxis
                                         dataKey="timestamp"
                                         type="number"
-                                        domain={['dataMin', 'dataMax']}
+                                        domain={currentDomain}
                                         tickFormatter={formatXAxis}
                                         tickLine={false}
                                         axisLine={false}
                                         tick={{ fill: 'currentColor', fontSize: 10, opacity: 0.5 }}
                                         tickMargin={10}
+                                        allowDataOverflow={true}
                                     />
                                     <YAxis
                                         tickFormatter={(val) => showPercent ? `${(val * 100).toFixed(0)}%` : `${Math.round(val / 10000)}万`}
@@ -305,36 +356,32 @@ export function AssetHistoryChart({
                                         width={40}
                                         domain={showPercent ? [0, 1] : ['auto', 'auto']}
                                     />
-                                    <Tooltip
-                                        content={(props) => (
-                                            <TooltipUpdater
-                                                active={props.active}
-                                                payload={props.payload}
-                                                onUpdate={setActivePoint}
-                                                isLocked={isLocked}
-                                            />
-                                        )}
-                                        cursor={false}
-                                        isAnimationActive={false}
-                                    />
-                                    {isLocked && activePoint && (
+                                    {activePoint && (
                                         <ReferenceLine
                                             x={activePoint.timestamp}
-                                            stroke="currentColor"
-                                            strokeOpacity={0.8}
+                                            stroke="#888888"
+                                            strokeOpacity={0.6}
                                             strokeWidth={1}
+                                            strokeDasharray="5 5"
+                                            label={(props: any) => {
+                                                const { viewBox } = props;
+                                                const d = new Date(activePoint.timestamp);
+                                                const dateStr = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+                                                return (
+                                                    <text
+                                                        x={viewBox.x}
+                                                        y={15}
+                                                        fill="#888888"
+                                                        fontSize={10}
+                                                        fontWeight="bold"
+                                                        textAnchor="middle"
+                                                    >
+                                                        {dateStr}
+                                                    </text>
+                                                );
+                                            }}
                                         />
                                     )}
-                                    {hoverPoint && (!isLocked || (hoverPoint.timestamp !== activePoint?.timestamp)) && (
-                                        <ReferenceLine
-                                            x={hoverPoint.timestamp}
-                                            stroke="currentColor"
-                                            strokeOpacity={0.3}
-                                            strokeWidth={1}
-                                            strokeDasharray="3 3"
-                                        />
-                                    )}
-                                    <ReferenceLine y={0} stroke="currentColor" strokeOpacity={0.3} strokeDasharray="3 3" />
 
                                     {mode === "total" && (
                                         <Area
@@ -375,6 +422,56 @@ export function AssetHistoryChart({
                                             animationDuration={1200}
                                         />
                                     ))}
+
+                                    {/* 交点の丸マーク */}
+                                    {activePoint && mode === "total" && (
+                                        <ReferenceDot
+                                            x={activePoint.timestamp}
+                                            y={activePoint.totalAssets}
+                                            r={4}
+                                            fill="var(--color-totalAssets)"
+                                            stroke="var(--background)"
+                                            strokeWidth={2}
+                                            isFront={true}
+                                        />
+                                    )}
+                                    {activePoint && mode === "total" && activePoint.totalCost > 0 && (
+                                        <ReferenceDot
+                                            x={activePoint.timestamp}
+                                            y={activePoint.totalCost}
+                                            r={4}
+                                            fill="#888888"
+                                            stroke="var(--background)"
+                                            strokeWidth={2}
+                                            isFront={true}
+                                        />
+                                    )}
+                                    {activePoint && mode === "tag" && (() => {
+                                        let cumulativeY = 0;
+                                        const sum = activeKeys.reduce((a, key) => a + Number((activePoint as any)[`tag_${selectedTagGroup}_${key}`] || 0), 0) || 1;
+                                        
+                                        return activeKeys.map((key, i) => {
+                                            const val = Number((activePoint as any)[`tag_${selectedTagGroup}_${key}`] || 0);
+                                            if (val === 0) return null;
+                                            
+                                            // showPercent の場合は 100% = 1 の割合
+                                            const yVal = showPercent ? (val / sum) : val;
+                                            cumulativeY += yVal;
+                                            
+                                            return (
+                                                <ReferenceDot
+                                                    key={key}
+                                                    x={activePoint.timestamp}
+                                                    y={cumulativeY}
+                                                    r={4}
+                                                    fill={`var(--chart-${(i % 5) + 1})`}
+                                                    stroke="var(--background)"
+                                                    strokeWidth={2}
+                                                    isFront={true}
+                                                />
+                                            )
+                                        })
+                                    })()}
                                 </ComposedChart>
                             </ResponsiveContainer>
                         </div>
@@ -386,10 +483,7 @@ export function AssetHistoryChart({
                                     return (
                                         <button
                                             key={range}
-                                            onClick={() => {
-                                                setTimeRange(range);
-                                                localStorage.setItem("defaultTimeRange", range);
-                                            }}
+                                            onClick={() => handleTimeRangeChange(range)}
                                             className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${timeRange === range
                                                 ? "bg-background text-foreground shadow-sm"
                                                 : "text-muted-foreground hover:text-foreground"}`}
@@ -417,24 +511,4 @@ export function AssetHistoryChart({
 
         </Card>
     )
-}
-
-// Helper component to sync Tooltip state with activePoint
-function TooltipUpdater({
-    active,
-    payload,
-    onUpdate,
-    isLocked
-}: {
-    active?: boolean,
-    payload?: { payload?: ChartPoint }[],
-    onUpdate: (p: ChartPoint | null) => void,
-    isLocked: boolean
-}) {
-    React.useEffect(() => {
-        if (active && payload && payload.length > 0 && !isLocked && payload[0].payload) {
-            onUpdate(payload[0].payload)
-        }
-    }, [active, payload, isLocked, onUpdate])
-    return null
 }
