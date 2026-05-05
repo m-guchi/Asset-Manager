@@ -105,12 +105,23 @@ export function AssetHistoryChart({
                     })
                 }
 
-                // カテゴリ別損益率を計算 (category_cost_${id} は history.ts で保存済み)
+                // カテゴリ別損益率を計算
                 topLevelCategories.forEach(cat => {
                     const val = Number((point as Record<string, unknown>)[`category_${cat.id}`] || 0)
                     const cost = Number((point as Record<string, unknown>)[`category_cost_${cat.id}`] || 0)
                     ;(point as Record<string, unknown>)[`pnl_${cat.id}`] = cost > 0 ? ((val - cost) / cost) * 100 : 0
                 })
+
+                // タグ別損益率を計算
+                if (mode === "tag") {
+                    activeKeys.forEach((key: string) => {
+                        const valKey = `tag_${selectedTagGroup}_${key}`
+                        const costKey = `tag_cost_${selectedTagGroup}_${key}`
+                        const val = Number((point as Record<string, unknown>)[valKey] || 0)
+                        const cost = Number((point as Record<string, unknown>)[costKey] || 0)
+                        ;(point as Record<string, unknown>)[`tag_pnl_${selectedTagGroup}_${key}`] = cost > 0 ? ((val - cost) / cost) * 100 : 0
+                    })
+                }
 
                 return point
             })
@@ -176,34 +187,9 @@ export function AssetHistoryChart({
     // 損益率モード時のY軸の動的ドメイン計算
     const yAxisDomain = React.useMemo(() => {
         if (viewMode === "percent") return [0, 1] as [number, number]
-        if (viewMode === "pnl" && allProcessedData.length > 0) {
-            // 現在の表示範囲内のデータを抽出
-            const [minT, maxT] = currentDomain as [number, number]
-            const visibleData = allProcessedData.filter(d => d.timestamp >= minT && d.timestamp <= maxT)
-            
-            if (visibleData.length > 0) {
-                const pnlKeys = categories.filter(c => !c.parentId).map(c => `pnl_${c.id}`)
-                let minVal = Infinity
-                let maxVal = -Infinity
-                
-                visibleData.forEach(d => {
-                    pnlKeys.forEach(key => {
-                        const val = Number((d as Record<string, unknown>)[key] || 0)
-                        if (val < minVal) minVal = val
-                        if (val > maxVal) maxVal = val
-                    })
-                })
-
-                if (minVal === Infinity) return ['auto', 'auto']
-
-                // 上下に少しマージンを持たせる (データの範囲の10%)
-                const range = maxVal - minVal
-                const padding = Math.max(0.5, range * 0.1)
-                return [minVal - padding, maxVal + padding] as [number, number]
-            }
-        }
+        if (viewMode === "pnl") return [-25, 100] as [number, number]
         return ['auto', 'auto']
-    }, [viewMode, allProcessedData, currentDomain, categories])
+    }, [viewMode])
 
     const [debouncedActivePoint, setDebouncedActivePoint] = React.useState<ChartPoint | null>(null);
 
@@ -432,6 +418,25 @@ export function AssetHistoryChart({
                                         )
                                     })}
 
+                                    {viewMode === "pnl" && mode === "tag" && activeKeys.map(key => {
+                                        const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
+                                        const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
+                                        const colorIndex = targetTags.indexOf(key)
+                                        const color = `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`
+                                        
+                                        return (
+                                            <Line
+                                                key={key}
+                                                dataKey={`tag_pnl_${selectedTagGroup}_${key}`}
+                                                type="linear"
+                                                stroke={color}
+                                                strokeWidth={1.5}
+                                                dot={false}
+                                                isAnimationActive={isAnimating}
+                                            />
+                                        )
+                                    })}
+
                                     {viewMode === "pnl" && (
                                         <ReferenceLine 
                                             y={0} 
@@ -444,26 +449,49 @@ export function AssetHistoryChart({
                                     {/* 交点の丸マーク */}
                                     {activePoint && (() => {
                                         if (viewMode === "pnl") {
-                                            // 損益率モード: 各カテゴリ独立
-                                            return categories.filter(c => !c.parentId).map(cat => {
-                                                const val = Number((activePoint as Record<string, unknown>)[`pnl_${cat.id}`] || 0)
-                                                const topLevel = categories.filter(c => !c.parentId)
-                                                const colorIndex = topLevel.findIndex(c => c.id === cat.id)
-                                                const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`
-                                                
-                                                return (
-                                                    <ReferenceDot
-                                                        key={cat.id}
-                                                        x={activePoint.timestamp}
-                                                        y={val}
-                                                        r={3}
-                                                        fill={color}
-                                                        stroke="var(--background)"
-                                                        strokeWidth={2}
-                                                        isFront={true}
-                                                    />
-                                                )
-                                            })
+                                            // 損益率モード: 各カテゴリ/タグ独立
+                                            if (mode === "tag") {
+                                                return activeKeys.map(key => {
+                                                    const val = Number((activePoint as Record<string, unknown>)[`tag_pnl_${selectedTagGroup}_${key}`] || 0)
+                                                    const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
+                                                    const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
+                                                    const colorIndex = targetTags.indexOf(key)
+                                                    const color = `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`
+                                                    
+                                                    return (
+                                                        <ReferenceDot
+                                                            key={key}
+                                                            x={activePoint.timestamp}
+                                                            y={val}
+                                                            r={3}
+                                                            fill={color}
+                                                            stroke="var(--background)"
+                                                            strokeWidth={2}
+                                                            isFront={true}
+                                                        />
+                                                    )
+                                                })
+                                            } else {
+                                                return categories.filter(c => !c.parentId).map(cat => {
+                                                    const val = Number((activePoint as Record<string, unknown>)[`pnl_${cat.id}`] || 0)
+                                                    const topLevel = categories.filter(c => !c.parentId)
+                                                    const colorIndex = topLevel.findIndex(c => c.id === cat.id)
+                                                    const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`
+                                                    
+                                                    return (
+                                                        <ReferenceDot
+                                                            key={cat.id}
+                                                            x={activePoint.timestamp}
+                                                            y={val}
+                                                            r={3}
+                                                            fill={color}
+                                                            stroke="var(--background)"
+                                                            strokeWidth={2}
+                                                            isFront={true}
+                                                        />
+                                                    )
+                                                })
+                                            }
                                         }
 
                                         // 評価額・割合モード: 積み上げ
@@ -549,20 +577,21 @@ export function AssetHistoryChart({
                             </div>
 
                             <div className="flex bg-muted/50 rounded-md p-0.5 border shrink-0">
-                                {(["value", "percent", "pnl"] as ChartViewMode[]).map((m) => {
-                                    const label = { value: "評価額", percent: "割合", pnl: "損益率" }[m]
-                                    return (
-                                        <button
-                                            key={m}
-                                            onClick={() => onViewModeChange(m)}
-                                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all whitespace-nowrap ${viewMode === m
-                                                ? "bg-background text-foreground shadow-sm"
-                                                : "text-muted-foreground hover:text-foreground"}`}
-                                        >
-                                            {label}
-                                        </button>
-                                    )
-                                })}
+                                <button
+                                    onClick={() => {
+                                        const modes: ChartViewMode[] = ["value", "percent", "pnl"];
+                                        const currentIndex = modes.indexOf(viewMode);
+                                        const nextIndex = (currentIndex + 1) % modes.length;
+                                        onViewModeChange(modes[nextIndex]);
+                                    }}
+                                    className="px-4 py-1.5 text-[11px] font-bold rounded-md transition-all whitespace-nowrap bg-background text-foreground shadow-sm flex items-center gap-2 hover:bg-muted/80"
+                                >
+                                    <span className="opacity-50">表示:</span>
+                                    <span>{{ value: "評価額", percent: "構成比", pnl: "損益率" }[viewMode]}</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-50">
+                                        <path d="m6 9 6 6 6-6"/>
+                                    </svg>
+                                </button>
                             </div>
                         </div>
                     </div>
