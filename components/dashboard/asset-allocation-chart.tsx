@@ -1,13 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { Label, Pie, PieChart, Cell } from "recharts"
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, ReferenceLine } from "recharts"
 
 import {
     ChartConfig,
     ChartContainer,
-    ChartTooltip,
-    ChartTooltipContent,
 } from "@/components/ui/chart"
 
 import { Category, TagGroup, HistoryPoint } from "@/types/asset"
@@ -45,16 +43,10 @@ export function AssetAllocationChart({
     selectedAssetKey?: string | null,
     onAssetClick?: (key: string | null) => void
 }) {
-    const [isMobile, setIsMobile] = React.useState(false);
-    const [isTooltipActive, setIsTooltipActive] = React.useState<boolean | undefined>(undefined);
+    const [isMounted, setIsMounted] = React.useState(false);
 
     React.useEffect(() => {
-        const checkMobile = () => {
-            setIsMobile(window.innerWidth < 768);
-        };
-        checkMobile();
-        window.addEventListener('resize', checkMobile);
-        return () => window.removeEventListener('resize', checkMobile);
+        setIsMounted(true);
     }, []);
 
     const activeKeys = React.useMemo(() => {
@@ -178,209 +170,160 @@ export function AssetAllocationChart({
         return chartData.filter(d => !d.isLiability)
     }, [chartData])
 
+    const stackedData = React.useMemo(() => {
+        const item: Record<string, number | string> = { name: "Allocation" };
+        displayData.forEach(d => {
+            item[d.name] = d.value;
+        });
+        return [item];
+    }, [displayData]);
+
+    if (!isMounted) return null
+
     return (
-        <div className="flex flex-col h-full px-2 sm:px-4 py-0 w-full">
-            <div className={`flex ${isMobile ? "flex-row items-center" : "flex-col"} w-full h-full`}>
-                <ChartContainer
-                    config={chartConfig}
-                    className="mx-auto h-[350px] sm:h-[400px] w-full min-w-0 flex-1"
-                >
-                    <PieChart margin={{ 
-                        top: 0, 
-                        bottom: 0, 
-                        left: 0, 
-                        right: 0 
-                    }}>
-                        <ChartTooltip
-                            active={isTooltipActive}
-                            cursor={false}
-                            content={
-                                <ChartTooltipContent
-                                    hideLabel
-                                    formatter={(value, name, props) => {
-                                        const val = Number(value);
-                                        const percent = totalValue > 0 ? ((val / totalValue) * 100).toFixed(1) : "0.0";
-                                        return (
-                                            <div className="flex flex-col gap-0.5 min-w-[120px]">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="h-2 w-2 rounded-full" style={{ backgroundColor: props.color || props.payload?.fill }} />
-                                                    <span className="font-bold text-sm">{name}</span>
+        <div className="flex flex-col h-[350px] w-full">
+            <div className="flex-1 flex flex-row min-h-0">
+                <div className="w-[100px] sm:w-[140px] flex items-center justify-center shrink-0">
+                    <ChartContainer
+                        config={chartConfig}
+                        className="w-full h-full min-h-[300px]"
+                    >
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                                data={stackedData}
+                                layout="horizontal"
+                                margin={{ top: 20, right: 10, left: 10, bottom: 20 }}
+                                barSize={40}
+                            >
+                                <XAxis type="category" dataKey="name" hide />
+                                <YAxis 
+                                    type="number" 
+                                    width={0} 
+                                    tick={false} 
+                                    axisLine={false} 
+                                    tickLine={false}
+                                    domain={[0, totalValue || 'auto']} 
+                                />
+
+                                {displayData.slice().reverse().map((entry, index) => {
+                                    const key = mode === "total" ? `category_${entry.id}` : `tag_${selectedTagGroup}_${entry.name}`;
+                                    const isDimmed = selectedAssetKey && selectedAssetKey !== key;
+                                    // 逆順に描画するため、index 0 が一番上（最後）になる
+                                    const isTop = index === displayData.length - 1;
+                                    const isBottom = index === 0;
+                                    return (
+                                        <Bar
+                                            key={entry.name}
+                                            dataKey={entry.name}
+                                            stackId="a"
+                                            fill={entry.fill}
+                                            fillOpacity={isDimmed ? 0.3 : 1}
+                                            radius={isTop ? [4, 4, 0, 0] : isBottom ? [0, 0, 4, 4] : [0, 0, 0, 0]}
+                                            onClick={() => {
+                                                onAssetClick?.(selectedAssetKey === key ? null : key);
+                                            }}
+                                            style={{ cursor: 'pointer', transition: 'all 0.3s ease' }}
+                                        />
+                                    );
+                                })}
+
+                                {/* 0%, 20%, 40%, 60%, 80%, 100% の補助線 (点線で洗練されたデザインに) */}
+                                {totalValue > 0 && [0, 0.2, 0.4, 0.6, 0.8, 1.0].map((percent) => (
+                                    <ReferenceLine
+                                        key={percent}
+                                        y={totalValue * percent}
+                                        stroke="currentColor"
+                                        strokeOpacity={0.2}
+                                        strokeDasharray="3 3"
+                                        isFront={true}
+                                    />
+                                ))}
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </ChartContainer>
+                </div>
+
+                <div className="flex-1 flex flex-col py-4 border-l max-h-full overflow-y-auto overflow-x-hidden scrollbar-hide gap-y-2">
+                    <div className="flex flex-col gap-y-1.5 px-4">
+                        {!activePoint ? (
+                            <span className="text-[10px] text-muted-foreground animate-pulse font-medium">
+                                計算中...
+                            </span>
+                        ) : (
+                            <>
+                                {mode === "total" && categories.filter(c => !c.parentId && !c.isLiability).map((cat) => {
+                                    const val = Number(activePoint[`category_${cat.id}`]) || 0
+                                    if (val === 0) return null
+                                    const key = `category_${cat.id}`
+                                    const isDimmed = selectedAssetKey && selectedAssetKey !== key
+                                    return (
+                                        <div 
+                                            key={cat.id} 
+                                            className={`grid grid-cols-[auto_1fr_auto] items-center gap-x-2 shrink-0 cursor-pointer transition-opacity ${isDimmed ? "opacity-30" : "opacity-100"}`}
+                                            onClick={() => {
+                                                onAssetClick?.(selectedAssetKey === key ? null : key);
+                                            }}
+                                        >
+                                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color || "var(--chart-1)" }} />
+                                            <span className="text-[10px] text-muted-foreground font-bold truncate">{cat.name}</span>
+                                            <div className="flex items-center gap-1.5 ml-auto shrink-0">
+                                                <div className="flex items-baseline gap-0.5">
+                                                    <span className="text-[11px] font-bold tabular-nums">
+                                                        {Math.round(val).toLocaleString()}
+                                                    </span>
+                                                    <span className="text-[7px] font-medium opacity-70">円</span>
                                                 </div>
-                                                <div className="flex flex-col pl-4 text-xs text-muted-foreground">
-                                                    <span>¥{val.toLocaleString()}</span>
-                                                    <span className="font-medium text-foreground">{percent}%</span>
+                                                <div className="flex items-baseline gap-0.5">
+                                                    <span className="text-[11px] font-normal opacity-70">(</span>
+                                                    <span className="text-[11px] font-normal">
+                                                        {totalValue > 0 ? ((val / totalValue) * 100).toFixed(1) : "0.0"}
+                                                    </span>
+                                                    <span className="text-[7px] font-normal opacity-70">%</span>
+                                                    <span className="text-[11px] font-normal opacity-70">)</span>
                                                 </div>
                                             </div>
-                                        );
-                                    }}
-                                />
-                            }
-                        />
-
-                        <Pie
-                            data={displayData}
-                            dataKey="value"
-                            nameKey="name"
-                            startAngle={90}
-                            endAngle={-270}
-                            innerRadius={60}
-                            outerRadius={100}
-                            isAnimationActive={true}
-                            animationBegin={0}
-                            animationDuration={800}
-                            animationEasing="ease-out"
-                            labelLine={false}
-                            label={({ name, value, cx, cy, midAngle, innerRadius, outerRadius }) => {
-                                const percent = (value / totalValue) * 100;
-                                if (percent < 8) return null;
-
-                                const RADIAN = Math.PI / 180;
-                                const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                                const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                                const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-                                return (
-                                    <g style={{ animation: 'fadeIn 0.5s ease-out 0.3s both' }}>
-                                        <text
-                                            x={x}
-                                            y={y}
-                                            className="fill-foreground text-[9px] md:text-[10px] font-bold pointer-events-none"
-                                            textAnchor="middle"
-                                            dominantBaseline="central"
+                                        </div>
+                                    )
+                                })}
+                                {mode === "tag" && activeKeys.map((keyName, i) => {
+                                    const k = `tag_${selectedTagGroup}_${keyName}`
+                                    const val = (activePoint as Record<string, unknown>)[k] || 0
+                                    if (val === 0) return null
+                                    const key = `tag_${selectedTagGroup}_${keyName}`
+                                    const isDimmed = selectedAssetKey && selectedAssetKey !== key
+                                    const color = `var(--chart-${(i % 5) + 1})`
+                                    return (
+                                        <div 
+                                            key={keyName} 
+                                            className={`grid grid-cols-[auto_1fr_auto] items-center gap-x-2 shrink-0 cursor-pointer transition-opacity ${isDimmed ? "opacity-30" : "opacity-100"}`}
+                                            onClick={() => {
+                                                onAssetClick?.(selectedAssetKey === key ? null : key);
+                                            }}
                                         >
-                                            <tspan x={x} dy="-0.6em">{name}</tspan>
-                                            <tspan x={x} dy="1.2em" className="font-medium opacity-90">
-                                                {`${Math.round(value / 10000).toLocaleString()}万`}
-                                            </tspan>
-                                        </text>
-                                    </g>
-                                );
-                            }}
-                            strokeWidth={2}
-                            onClick={(data) => {
-                                if (!onAssetClick) return;
-                                const payload = data.payload as ChartDataItem;
-                                const id = payload.id;
-                                const name = payload.name;
-                                const key = mode === "total" ? `category_${id}` : `tag_${selectedTagGroup}_${name}`;
-                                
-                                // ツールチップを一時的に非表示にして「残り」を防ぐ
-                                setIsTooltipActive(false);
-                                setTimeout(() => setIsTooltipActive(undefined), 50);
-                                
-                                onAssetClick(selectedAssetKey === key ? null : key);
-                            }}
-                        >
-                            {displayData.map((entry: ChartDataItem, index) => {
-                                const key = mode === "total" ? `category_${entry.id}` : `tag_${selectedTagGroup}_${entry.name}`;
-                                const isDimmed = selectedAssetKey && selectedAssetKey !== key;
-                                return (
-                                    <Cell 
-                                        key={`cell-${index}`} 
-                                        fill={entry.fill} 
-                                        fillOpacity={isDimmed ? 0.3 : 1}
-                                        strokeOpacity={isDimmed ? 0.3 : 1}
-                                        style={{ cursor: 'pointer', transition: 'all 0.3s ease' }}
-                                    />
-                                );
-                            })}
-                            <Label
-                                content={({ viewBox }) => {
-                                    if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                                        return (
-                                            <g style={{ animation: 'fadeIn 0.6s ease-out 0.2s both' }}>
-                                                <text
-                                                    x={viewBox.cx}
-                                                    y={viewBox.cy}
-                                                    textAnchor="middle"
-                                                    dominantBaseline="middle"
-                                                >
-                                                    <tspan
-                                                        x={viewBox.cx}
-                                                        y={viewBox.cy}
-                                                        className="fill-foreground text-xl font-bold md:text-2xl"
-                                                    >
-                                                        {`¥${Math.round(totalValue / 10000).toLocaleString()}万`}
-                                                    </tspan>
-                                                    <tspan
-                                                        x={viewBox.cx}
-                                                        y={(viewBox.cy || 0) + 24}
-                                                        className="fill-muted-foreground text-[10px]"
-                                                    >
-                                                        合計資産
-                                                    </tspan>
-                                                </text>
-                                            </g>
-                                        )
-                                    }
-                                }}
-                            />
-                        </Pie>
-                    </PieChart>
-                </ChartContainer>
-
-                {/* カスタム凡例（旧最上部バーの内容） */}
-                <div className={`flex ${isMobile ? "flex-col pl-4 border-l max-h-[350px] overflow-y-auto overflow-x-hidden scrollbar-hide" : "flex-row flex-wrap justify-center py-4 border-t max-h-[120px] overflow-y-auto"} gap-x-4 gap-y-2 shrink-0 min-w-[120px]`}>
-                    {!activePoint ? (
-                        <span className="text-[10px] text-muted-foreground animate-pulse font-medium">
-                            計算中...
-                        </span>
-                    ) : (
-                        <>
-                            {mode === "total" && categories.filter(c => !c.parentId && !c.isLiability).map((cat) => {
-                                const val = Number(activePoint[`category_${cat.id}`]) || 0
-                                if (val === 0) return null
-                                const key = `category_${cat.id}`
-                                const isDimmed = selectedAssetKey && selectedAssetKey !== key
-                                return (
-                                    <div 
-                                        key={cat.id} 
-                                        className={`grid ${isMobile ? "grid-cols-[auto_1fr_80px_auto] w-full items-baseline" : "flex items-baseline"} gap-x-1 shrink-0 cursor-pointer transition-opacity ${isDimmed ? "opacity-30" : "opacity-100"}`}
-                                        onClick={() => {
-                                            // 凡例クリック時もツールチップをクリア
-                                            setIsTooltipActive(false);
-                                            setTimeout(() => setIsTooltipActive(undefined), 50);
-                                            onAssetClick?.(selectedAssetKey === key ? null : key);
-                                        }}
-                                    >
-                                        <div className="w-1.5 h-1.5 rounded-full translate-y-[-1px]" style={{ backgroundColor: cat.color || "var(--chart-1)" }} />
-                                        <span className="text-[9px] text-muted-foreground font-bold whitespace-nowrap">{cat.name}</span>
-                                        <span className="text-[11px] font-bold tabular-nums text-right">
-                                            {Math.round(val).toLocaleString()}
-                                        </span>
-                                        <span className="text-[8px] font-medium opacity-70">円</span>
-                                    </div>
-                                )
-                            })}
-                            {mode === "tag" && activeKeys.map((keyName, i) => {
-                                const k = `tag_${selectedTagGroup}_${keyName}`
-                                const val = (activePoint as Record<string, unknown>)[k] || 0
-                                if (val === 0) return null
-                                const key = `tag_${selectedTagGroup}_${keyName}`
-                                const isDimmed = selectedAssetKey && selectedAssetKey !== key
-                                const color = `var(--chart-${(i % 5) + 1})`
-                                return (
-                                    <div 
-                                        key={keyName} 
-                                        className={`grid ${isMobile ? "grid-cols-[auto_1fr_80px_auto] w-full items-baseline" : "flex items-baseline"} gap-x-1 shrink-0 cursor-pointer transition-opacity ${isDimmed ? "opacity-30" : "opacity-100"}`}
-                                        onClick={() => {
-                                            // 凡例クリック時もツールチップをクリア
-                                            setIsTooltipActive(false);
-                                            setTimeout(() => setIsTooltipActive(undefined), 50);
-                                            onAssetClick?.(selectedAssetKey === key ? null : key);
-                                        }}
-                                    >
-                                        <div className="w-1.5 h-1.5 rounded-full translate-y-[-1px]" style={{ backgroundColor: color }} />
-                                        <span className="text-[9px] text-muted-foreground font-bold whitespace-nowrap">{keyName}</span>
-                                        <span className="text-[11px] font-bold tabular-nums text-right">
-                                            {Math.round(Number(val)).toLocaleString()}
-                                        </span>
-                                        <span className="text-[8px] font-medium opacity-70">円</span>
-                                    </div>
-                                )
-                            })}
-                        </>
-                    )}
+                                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+                                            <span className="text-[10px] text-muted-foreground font-bold truncate">{keyName}</span>
+                                            <div className="flex items-center gap-1.5 ml-auto shrink-0">
+                                                <div className="flex items-baseline gap-0.5">
+                                                    <span className="text-[11px] font-bold tabular-nums">
+                                                        {Math.round(Number(val)).toLocaleString()}
+                                                    </span>
+                                                    <span className="text-[7px] font-medium opacity-70">円</span>
+                                                </div>
+                                                <div className="flex items-baseline gap-0.5">
+                                                    <span className="text-[11px] font-normal opacity-70">(</span>
+                                                    <span className="text-[11px] font-normal">
+                                                        {totalValue > 0 ? ((Number(val) / totalValue) * 100).toFixed(1) : "0.0"}
+                                                    </span>
+                                                    <span className="text-[7px] font-normal opacity-70">%</span>
+                                                    <span className="text-[11px] font-normal opacity-70">)</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
             <style jsx global>{`

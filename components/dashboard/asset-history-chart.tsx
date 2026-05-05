@@ -275,7 +275,8 @@ export function AssetHistoryChart({
                                     stackOffset={showPercent ? "expand" : "none"}
                                     margin={{ top: 25, right: 30, left: 10, bottom: 0 }}
                                 >
-                                    <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#888888" strokeOpacity={0.2} />
+                                    <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.2} />
+                                    
                                     <XAxis
                                         dataKey="timestamp"
                                         type="number"
@@ -322,7 +323,7 @@ export function AssetHistoryChart({
                                         />
                                     )}
 
-                                    {mode === "total" && categories.filter((cat: Category) => !cat.isLiability && (!selectedAssetKey || selectedAssetKey === `category_${cat.id}`)).map((cat: Category, i: number) => (
+                                    {mode === "total" && [...categories].reverse().filter((cat: Category) => !cat.isLiability && (!selectedAssetKey || selectedAssetKey === `category_${cat.id}`)).map((cat: Category, i: number) => (
                                         <Area
                                             key={cat.id}
                                             dataKey={`category_${cat.id}`}
@@ -336,7 +337,7 @@ export function AssetHistoryChart({
                                         />
                                     ))}
 
-                                    {mode === "tag" && activeKeys.filter(key => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key, i) => (
+                                    {mode === "tag" && [...activeKeys].reverse().filter(key => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key, i) => (
                                         <Area
                                             key={key}
                                             dataKey={`tag_${selectedTagGroup}_${key}`}
@@ -356,9 +357,10 @@ export function AssetHistoryChart({
                                         let cumulativeY = 0;
                                         
                                         if (mode === "tag") {
-                                            const sum = activeKeys.reduce((a: number, key: string) => a + Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0), 0) || 1;
+                                            const reversedActiveKeys = [...activeKeys].reverse();
+                                            const sum = reversedActiveKeys.reduce((a: number, key: string) => a + Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0), 0) || 1;
                                             
-                                            return activeKeys.filter((key: string) => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key: string, i: number) => {
+                                            return reversedActiveKeys.filter((key: string) => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key: string, i: number) => {
                                                 const val = Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0);
                                                 if (val === 0) return null;
                                                 const yVal = showPercent ? (val / sum) : val;
@@ -379,9 +381,10 @@ export function AssetHistoryChart({
                                         } else {
                                             // mode === "total"
                                             const displayCats = categories.filter((cat: Category) => !cat.isLiability);
-                                            const sum = displayCats.reduce((a: number, cat: Category) => a + Number((activePoint as Record<string, unknown>)[`category_${cat.id}`] || 0), 0) || 1;
+                                            const reversedCats = [...displayCats].reverse();
+                                            const sum = reversedCats.reduce((a: number, cat: Category) => a + Number((activePoint as Record<string, unknown>)[`category_${cat.id}`] || 0), 0) || 1;
 
-                                            return displayCats.filter((cat: Category) => !selectedAssetKey || selectedAssetKey === `category_${cat.id}`).map((cat: Category, i: number) => {
+                                            return reversedCats.filter((cat: Category) => !selectedAssetKey || selectedAssetKey === `category_${cat.id}`).map((cat: Category, i: number) => {
                                                 const val = Number(activePoint[`category_${cat.id}`] || 0);
                                                 if (val === 0) return null;
                                                 const yVal = showPercent ? (val / sum) : val;
