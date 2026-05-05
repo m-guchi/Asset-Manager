@@ -78,11 +78,11 @@ export function AssetAllocationChart({
             } else {
                 return categories
                     .filter(c => !c.parentId && c.currentValue > 0)
-                    .map(c => ({
+                    .map((c, i) => ({
                         id: c.id,
                         name: c.name,
                         value: c.currentValue,
-                        fill: c.color || "var(--chart-1)",
+                        fill: `var(--chart-${(i % 12) + 1})`,
                         isLiability: false
                     }))
             }
@@ -181,12 +181,12 @@ export function AssetAllocationChart({
     if (!isMounted) return null
 
     return (
-        <div className="flex flex-col h-[350px] w-full">
+        <div className="flex flex-col h-[300px] w-full">
             <div className="flex-1 flex flex-row min-h-0">
                 <div className="w-[100px] sm:w-[140px] flex items-center justify-center shrink-0">
                     <ChartContainer
                         config={chartConfig}
-                        className="w-full h-full min-h-[300px]"
+                        className="w-full h-full min-h-[250px]"
                     >
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart
@@ -256,6 +256,12 @@ export function AssetAllocationChart({
                                     if (val === 0) return null
                                     const key = `category_${cat.id}`
                                     const isDimmed = selectedAssetKey && selectedAssetKey !== key
+                                    
+                                    // グラフ本体と同じロジックで色を決定
+                                    const topLevelCategories = categories.filter(c => !c.parentId);
+                                    const colorIndex = topLevelCategories.findIndex(tc => tc.id === cat.id);
+                                    const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`;
+                                    
                                     return (
                                         <div 
                                             key={cat.id} 
@@ -264,7 +270,7 @@ export function AssetAllocationChart({
                                                 onAssetClick?.(selectedAssetKey === key ? null : key);
                                             }}
                                         >
-                                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color || "var(--chart-1)" }} />
+                                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
                                             <span className="text-[10px] text-muted-foreground font-bold truncate">{cat.name}</span>
                                             <div className="flex items-center gap-1.5 ml-auto shrink-0">
                                                 <div className="flex items-baseline gap-0.5">
@@ -285,13 +291,19 @@ export function AssetAllocationChart({
                                         </div>
                                     )
                                 })}
-                                {mode === "tag" && activeKeys.map((keyName, i) => {
+                                {mode === "tag" && activeKeys.map((keyName) => {
                                     const k = `tag_${selectedTagGroup}_${keyName}`
                                     const val = (activePoint as Record<string, unknown>)[k] || 0
-                                    if (val === 0) return null
+                                    if (Number(val) === 0) return null
                                     const key = `tag_${selectedTagGroup}_${keyName}`
                                     const isDimmed = selectedAssetKey && selectedAssetKey !== key
-                                    const color = `var(--chart-${(i % 5) + 1})`
+                                    
+                                    // グラフ本体と同じロジックで色を決定
+                                    const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
+                                    const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
+                                    const colorIndex = targetTags.indexOf(keyName);
+                                    const color = `var(--chart-${(colorIndex % 12) + 1})`;
+                                    
                                     return (
                                         <div 
                                             key={keyName} 

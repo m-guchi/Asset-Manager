@@ -323,33 +323,44 @@ export function AssetHistoryChart({
                                         />
                                     )}
 
-                                    {mode === "total" && [...categories].reverse().filter((cat: Category) => !cat.isLiability && (!selectedAssetKey || selectedAssetKey === `category_${cat.id}`)).map((cat: Category, i: number) => (
-                                        <Area
-                                            key={cat.id}
-                                            dataKey={`category_${cat.id}`}
-                                            stackId="1"
-                                            type="linear"
-                                            stroke={cat.color || `var(--chart-${(i % 5) + 1})`}
-                                            fill={cat.color || `var(--chart-${(i % 5) + 1})`}
-                                            fillOpacity={0.4}
-                                            isAnimationActive={isAnimating}
-                                            animationDuration={1200}
-                                        />
-                                    ))}
+                                    {mode === "total" && [...categories].reverse().filter((cat: Category) => !cat.isLiability && (!selectedAssetKey || selectedAssetKey === `category_${cat.id}`)).map((cat: Category) => {
+                                        const topLevelCategories = categories.filter(c => !c.parentId);
+                                        const colorIndex = topLevelCategories.findIndex(tc => tc.id === cat.id);
+                                        const color = cat.color || `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`;
+                                        return (
+                                            <Area
+                                                key={cat.id}
+                                                dataKey={`category_${cat.id}`}
+                                                stackId="1"
+                                                type="linear"
+                                                stroke={color}
+                                                fill={color}
+                                                fillOpacity={0.4}
+                                                isAnimationActive={isAnimating}
+                                                animationDuration={1200}
+                                            />
+                                        );
+                                    })}
 
-                                    {mode === "tag" && [...activeKeys].reverse().filter(key => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key, i) => (
-                                        <Area
-                                            key={key}
-                                            dataKey={`tag_${selectedTagGroup}_${key}`}
-                                            stackId="1"
-                                            type="linear"
-                                            stroke={`var(--chart-${(i % 5) + 1})`}
-                                            fill={`var(--chart-${(i % 5) + 1})`}
-                                            fillOpacity={0.4}
-                                            isAnimationActive={isAnimating}
-                                            animationDuration={1200}
-                                        />
-                                    ))}
+                                    {mode === "tag" && [...activeKeys].reverse().filter(key => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key) => {
+                                        const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
+                                        const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
+                                        const colorIndex = targetTags.indexOf(key);
+                                        const color = `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`;
+                                        return (
+                                            <Area
+                                                key={key}
+                                                dataKey={`tag_${selectedTagGroup}_${key}`}
+                                                stackId="1"
+                                                type="linear"
+                                                stroke={color}
+                                                fill={color}
+                                                fillOpacity={0.4}
+                                                isAnimationActive={isAnimating}
+                                                animationDuration={1200}
+                                            />
+                                        );
+                                    })}
 
                                     {/* 交点の丸マーク */}
 
@@ -360,18 +371,24 @@ export function AssetHistoryChart({
                                             const reversedActiveKeys = [...activeKeys].reverse();
                                             const sum = reversedActiveKeys.reduce((a: number, key: string) => a + Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0), 0) || 1;
                                             
-                                            return reversedActiveKeys.filter((key: string) => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key: string, i: number) => {
+                                            return reversedActiveKeys.filter((key: string) => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key: string) => {
                                                 const val = Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0);
                                                 if (val === 0) return null;
                                                 const yVal = showPercent ? (val / sum) : val;
                                                 cumulativeY += yVal;
+                                                
+                                                const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
+                                                const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
+                                                const colorIndex = targetTags.indexOf(key);
+                                                const color = `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`;
+                                                
                                                 return (
                                                     <ReferenceDot
                                                         key={key}
                                                         x={activePoint.timestamp}
                                                         y={cumulativeY}
                                                         r={4}
-                                                        fill={`var(--chart-${(i % 5) + 1})`}
+                                                        fill={color}
                                                         stroke="var(--background)"
                                                         strokeWidth={2}
                                                         isFront={true}
@@ -380,22 +397,27 @@ export function AssetHistoryChart({
                                             })
                                         } else {
                                             // mode === "total"
-                                            const displayCats = categories.filter((cat: Category) => !cat.isLiability);
+                                            const displayCats = categories.filter((cat: Category) => !cat.isLiability && !cat.parentId);
                                             const reversedCats = [...displayCats].reverse();
                                             const sum = reversedCats.reduce((a: number, cat: Category) => a + Number((activePoint as Record<string, unknown>)[`category_${cat.id}`] || 0), 0) || 1;
 
-                                            return reversedCats.filter((cat: Category) => !selectedAssetKey || selectedAssetKey === `category_${cat.id}`).map((cat: Category, i: number) => {
+                                            return reversedCats.filter((cat: Category) => !selectedAssetKey || selectedAssetKey === `category_${cat.id}`).map((cat: Category) => {
                                                 const val = Number(activePoint[`category_${cat.id}`] || 0);
                                                 if (val === 0) return null;
                                                 const yVal = showPercent ? (val / sum) : val;
                                                 cumulativeY += yVal;
+                                                
+                                                const topLevelCategories = categories.filter(c => !c.parentId);
+                                                const colorIndex = topLevelCategories.findIndex(tc => tc.id === cat.id);
+                                                const color = cat.color || `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`;
+                                                
                                                 return (
                                                     <ReferenceDot
                                                         key={cat.id}
                                                         x={activePoint.timestamp}
                                                         y={cumulativeY}
                                                         r={4}
-                                                        fill={cat.color || `var(--chart-${(i % 5) + 1})`}
+                                                        fill={color}
                                                         stroke="var(--background)"
                                                         strokeWidth={2}
                                                         isFront={true}
