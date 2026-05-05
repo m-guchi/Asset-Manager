@@ -266,11 +266,21 @@ export function AssetAllocationChart({
                                         >
                                             <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color || "var(--chart-1)" }} />
                                             <span className="text-[10px] text-muted-foreground font-bold truncate">{cat.name}</span>
-                                            <div className="flex items-baseline gap-0.5 ml-auto">
-                                                <span className="text-[11px] font-bold tabular-nums">
-                                                    {Math.round(val).toLocaleString()}
-                                                </span>
-                                                <span className="text-[7px] font-medium opacity-70">円</span>
+                                            <div className="flex items-center gap-1.5 ml-auto shrink-0">
+                                                <div className="flex items-baseline gap-0.5">
+                                                    <span className="text-[11px] font-bold tabular-nums">
+                                                        {Math.round(val).toLocaleString()}
+                                                    </span>
+                                                    <span className="text-[7px] font-medium opacity-70">円</span>
+                                                </div>
+                                                <div className="flex items-baseline gap-0.5">
+                                                    <span className="text-[11px] font-normal opacity-70">(</span>
+                                                    <span className="text-[11px] font-normal">
+                                                        {totalValue > 0 ? ((val / totalValue) * 100).toFixed(1) : "0.0"}
+                                                    </span>
+                                                    <span className="text-[7px] font-normal opacity-70">%</span>
+                                                    <span className="text-[11px] font-normal opacity-70">)</span>
+                                                </div>
                                             </div>
                                         </div>
                                     )
@@ -292,11 +302,21 @@ export function AssetAllocationChart({
                                         >
                                             <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
                                             <span className="text-[10px] text-muted-foreground font-bold truncate">{keyName}</span>
-                                            <div className="flex items-baseline gap-0.5 ml-auto">
-                                                <span className="text-[11px] font-bold tabular-nums">
-                                                    {Math.round(Number(val)).toLocaleString()}
-                                                </span>
-                                                <span className="text-[7px] font-medium opacity-70">円</span>
+                                            <div className="flex items-center gap-1.5 ml-auto shrink-0">
+                                                <div className="flex items-baseline gap-0.5">
+                                                    <span className="text-[11px] font-bold tabular-nums">
+                                                        {Math.round(Number(val)).toLocaleString()}
+                                                    </span>
+                                                    <span className="text-[7px] font-medium opacity-70">円</span>
+                                                </div>
+                                                <div className="flex items-baseline gap-0.5">
+                                                    <span className="text-[11px] font-normal opacity-70">(</span>
+                                                    <span className="text-[11px] font-normal">
+                                                        {totalValue > 0 ? ((Number(val) / totalValue) * 100).toFixed(1) : "0.0"}
+                                                    </span>
+                                                    <span className="text-[7px] font-normal opacity-70">%</span>
+                                                    <span className="text-[11px] font-normal opacity-70">)</span>
+                                                </div>
                                             </div>
                                         </div>
                                     )
