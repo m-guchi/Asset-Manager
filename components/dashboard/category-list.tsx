@@ -221,10 +221,18 @@ export function CategoryList({
                 <CardContent className={`pl-3 pr-2 ${isChild ? 'pb-0' : 'pb-0.5'} pt-0`}>
                     <div className="flex justify-between gap-1.5">
                         {/* Left: Current Value */}
-                        <div className="flex items-baseline">
+                        <div className="flex flex-col items-start gap-0.5">
                             <span className={`${isChild ? 'text-sm' : 'text-base'} font-bold tracking-tight leading-none`}>
                                 ¥{valueToUse.toLocaleString()}
                             </span>
+                            {category.lastUpdated && (
+                                <span className="text-[8px] text-muted-foreground font-medium opacity-60">
+                                    {(() => {
+                                        const d = new Date(category.lastUpdated);
+                                        return `${d.getFullYear()}年${String(d.getMonth() + 1).padStart(2, '0')}月${String(d.getDate()).padStart(2, '0')}日`;
+                                    })()}
+                                </span>
+                            )}
                         </div>
 
                         {/* Right: Profit & Performance Changes */}
@@ -233,7 +241,8 @@ export function CategoryList({
                             <span className={`${isChild ? 'text-xs' : 'text-sm'} font-bold whitespace-nowrap leading-tight ${category.isCash ? "text-muted-foreground" : (profit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-500")}`}>
                                 {showProfit ? (
                                     <>
-                                        {profit >= 0 ? '+' : ''}¥{profit.toLocaleString()}
+                                        {profit >= 0 ? '+' : ''}{profit.toLocaleString()}
+                                        <span className="text-[10px] font-normal ml-0.5">円</span>
                                         <span className="text-[10px] ml-0.5 opacity-70 font-normal">
                                             ({profit >= 0 ? '+' : ''}{profitPercent.toFixed(1)}%)
                                         </span>

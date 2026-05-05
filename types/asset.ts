@@ -25,6 +25,7 @@ export interface Category {
     monthlyChange?: number
     monthlyChangeRate?: number
     monthlyChangeDays?: number
+    lastUpdated?: Date
     hidden?: boolean
 }
 

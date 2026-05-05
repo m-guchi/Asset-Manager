@@ -141,6 +141,7 @@ export async function getCategories() {
                 monthlyChange: ownMonthlyChange,
                 monthlyChangeRate: ownMonthlyChangeRate,
                 monthlyChangeDays: ownMonthlyChangeDays,
+                lastUpdated: latestAsset?.recordedAt || null,
             };
         });
 
@@ -156,6 +157,9 @@ export async function getCategories() {
                     parent.dailyChange += item.dailyChange;
                     parent.monthlyChange += item.monthlyChange;
                     parent.costBasis += item.costBasis;
+                    if (item.lastUpdated && (!parent.lastUpdated || item.lastUpdated > parent.lastUpdated)) {
+                        parent.lastUpdated = item.lastUpdated;
+                    }
                 }
             }
         });
@@ -189,6 +193,7 @@ export async function getCategories() {
                 monthlyChange: cat.monthlyChange,
                 monthlyChangeRate: cat.monthlyChangeRate,
                 monthlyChangeDays: cat.monthlyChangeDays,
+                lastUpdated: cat.lastUpdated,
                 hidden: !!cat.hidden,
                 isCash: !!cat.isCash,
                 isLiability: false,
