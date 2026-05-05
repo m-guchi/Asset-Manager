@@ -184,12 +184,65 @@ export function AssetHistoryChart({
         );
     }, [allProcessedData, currentDomain]);
 
-    // 損益率モード時のY軸の動的ドメイン計算
+    const visiblePnlDomain = React.useMemo(() => {
+        if (!allProcessedData.length) return [-1, 1] as [number, number]
+
+        const dataMaxTime = allProcessedData[allProcessedData.length - 1].timestamp
+        const rawMinT = currentDomain[0] === "dataMin" ? allProcessedData[0].timestamp : (currentDomain[0] as number)
+        const rawMaxT = currentDomain[1] === "dataMax" ? dataMaxTime : (currentDomain[1] as number)
+        // 右側は未来余白を含むため、実データ最大時刻でクランプ
+        const minT = rawMinT
+        const maxT = Math.min(rawMaxT, dataMaxTime)
+
+        const visiblePoints = allProcessedData.filter((p) => p.timestamp >= minT && p.timestamp <= maxT)
+        if (!visiblePoints.length) return [-1, 1] as [number, number]
+
+        const seriesKeys =
+            mode === "tag"
+                ? activeKeys
+                      .filter((key) => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`)
+                      .map((key) => `tag_pnl_${selectedTagGroup}_${key}`)
+                : categories
+                      .filter((c) => !c.parentId && !c.isLiability)
+                      .filter((c) => !selectedAssetKey || selectedAssetKey === `category_${c.id}`)
+                      .map((c) => `pnl_${c.id}`)
+
+        if (!seriesKeys.length) return [-1, 1] as [number, number]
+
+        let minValue = Number.POSITIVE_INFINITY
+        let maxValue = Number.NEGATIVE_INFINITY
+
+        visiblePoints.forEach((point) => {
+            seriesKeys.forEach((key) => {
+                const value = Number((point as Record<string, unknown>)[key])
+                if (!Number.isFinite(value)) return
+                if (value < minValue) minValue = value
+                if (value > maxValue) maxValue = value
+            })
+        })
+
+        if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) return [-1, 1] as [number, number]
+
+        if (minValue === maxValue) {
+            const pad = Math.max(Math.abs(minValue) * 0.2, 5)
+            const domainMin = Math.min(minValue - pad, 0)
+            const domainMax = Math.max(maxValue + pad, 0)
+            return [domainMin, domainMax] as [number, number]
+        }
+
+        const span = maxValue - minValue
+        const pad = Math.max(span * 0.1, 2)
+        const domainMin = Math.min(minValue - pad, 0)
+        const domainMax = Math.max(maxValue + pad, 0)
+        return [domainMin, domainMax] as [number, number]
+    }, [allProcessedData, currentDomain, mode, activeKeys, selectedTagGroup, categories, selectedAssetKey])
+
+    // Y軸のドメイン計算
     const yAxisDomain = React.useMemo(() => {
         if (viewMode === "percent") return [0, 1] as [number, number]
-        if (viewMode === "pnl") return [-25, 100] as [number, number]
+        if (viewMode === "pnl") return visiblePnlDomain
         return ['auto', 'auto']
-    }, [viewMode])
+    }, [viewMode, visiblePnlDomain])
 
     const [debouncedActivePoint, setDebouncedActivePoint] = React.useState<ChartPoint | null>(null);
 
@@ -283,6 +336,9 @@ export function AssetHistoryChart({
         return `${date.getFullYear()}/${date.getMonth() + 1}`
     }
 
+    const shouldHighlightOnlySelected = viewMode === "value"
+    const isDimmedKey = (key: string) => !shouldHighlightOnlySelected && !!selectedAssetKey && selectedAssetKey !== key
+
     return (
         <div className="flex flex-col h-full min-h-[400px] w-full pt-1">
             <div className="flex flex-col flex-1 p-0 relative min-h-0 overflow-hidden w-full">
@@ -331,6 +387,7 @@ export function AssetHistoryChart({
                                         tick={{ fill: 'currentColor', fontSize: 10, opacity: 0.5 }}
                                         width={40}
                                         domain={yAxisDomain}
+                                        allowDataOverflow={viewMode === "pnl"}
                                     />
                                     {activePoint && (
                                         <ReferenceLine
@@ -360,10 +417,16 @@ export function AssetHistoryChart({
                                     )}
 
                                     {/* 評価額・割合モード時の面グラフ */}
-                                    {viewMode !== "pnl" && mode === "total" && [...categories].reverse().filter((cat: Category) => !cat.isLiability && (!selectedAssetKey || selectedAssetKey === `category_${cat.id}`)).map((cat: Category) => {
+                                    {viewMode !== "pnl" && mode === "total" && [...categories].reverse().filter((cat: Category) => {
+                                        if (cat.isLiability) return false
+                                        if (!shouldHighlightOnlySelected) return true
+                                        return !selectedAssetKey || selectedAssetKey === `category_${cat.id}`
+                                    }).map((cat: Category) => {
                                         const topLevelCategories = categories.filter(c => !c.parentId);
                                         const colorIndex = topLevelCategories.findIndex(tc => tc.id === cat.id);
                                         const color = cat.color || `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`;
+                                        const key = `category_${cat.id}`
+                                        const isDimmed = isDimmedKey(key)
                                         return (
                                             <Area
                                                 key={cat.id}
@@ -372,18 +435,24 @@ export function AssetHistoryChart({
                                                 type="linear"
                                                 stroke={color}
                                                 fill={color}
-                                                fillOpacity={0.4}
+                                                fillOpacity={isDimmed ? 0.15 : 0.4}
+                                                strokeOpacity={isDimmed ? 0.35 : 1}
                                                 isAnimationActive={isAnimating}
                                                 animationDuration={1200}
                                             />
                                         );
                                     })}
 
-                                    {viewMode !== "pnl" && mode === "tag" && [...activeKeys].reverse().filter(key => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key) => {
+                                    {viewMode !== "pnl" && mode === "tag" && [...activeKeys].reverse().filter((key) => {
+                                        if (!shouldHighlightOnlySelected) return true
+                                        return !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`
+                                    }).map((key) => {
                                         const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
                                         const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
                                         const colorIndex = targetTags.indexOf(key);
                                         const color = `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`;
+                                        const keyName = `tag_${selectedTagGroup}_${key}`
+                                        const isDimmed = isDimmedKey(keyName)
                                         return (
                                             <Area
                                                 key={key}
@@ -392,7 +461,8 @@ export function AssetHistoryChart({
                                                 type="linear"
                                                 stroke={color}
                                                 fill={color}
-                                                fillOpacity={0.4}
+                                                fillOpacity={isDimmed ? 0.15 : 0.4}
+                                                strokeOpacity={isDimmed ? 0.35 : 1}
                                                 isAnimationActive={isAnimating}
                                                 animationDuration={1200}
                                             />
@@ -400,10 +470,12 @@ export function AssetHistoryChart({
                                     })}
 
                                     {/* 損益率モード時の折れ線グラフ */}
-                                    {viewMode === "pnl" && mode === "total" && categories.filter(c => !c.parentId).map(cat => {
-                                        const topLevel = categories.filter(c => !c.parentId)
+                                    {viewMode === "pnl" && mode === "total" && categories.filter(c => !c.parentId && !c.isLiability).map(cat => {
+                                        const topLevel = categories.filter(c => !c.parentId && !c.isLiability)
                                         const colorIndex = topLevel.findIndex(c => c.id === cat.id)
                                         const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`
+                                        const key = `category_${cat.id}`
+                                        const isDimmed = isDimmedKey(key)
                                         
                                         return (
                                             <Line
@@ -412,6 +484,7 @@ export function AssetHistoryChart({
                                                 type="linear"
                                                 stroke={color}
                                                 strokeWidth={1.5}
+                                                strokeOpacity={isDimmed ? 0.35 : 1}
                                                 dot={false}
                                                 isAnimationActive={isAnimating}
                                             />
@@ -423,6 +496,8 @@ export function AssetHistoryChart({
                                         const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
                                         const colorIndex = targetTags.indexOf(key)
                                         const color = `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`
+                                        const keyName = `tag_${selectedTagGroup}_${key}`
+                                        const isDimmed = isDimmedKey(keyName)
                                         
                                         return (
                                             <Line
@@ -431,6 +506,7 @@ export function AssetHistoryChart({
                                                 type="linear"
                                                 stroke={color}
                                                 strokeWidth={1.5}
+                                                strokeOpacity={isDimmed ? 0.35 : 1}
                                                 dot={false}
                                                 isAnimationActive={isAnimating}
                                             />
@@ -457,6 +533,8 @@ export function AssetHistoryChart({
                                                     const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
                                                     const colorIndex = targetTags.indexOf(key)
                                                     const color = `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`
+                                                    const keyName = `tag_${selectedTagGroup}_${key}`
+                                                    const isDimmed = isDimmedKey(keyName)
                                                     
                                                     return (
                                                         <ReferenceDot
@@ -465,6 +543,7 @@ export function AssetHistoryChart({
                                                             y={val}
                                                             r={3}
                                                             fill={color}
+                                                            fillOpacity={isDimmed ? 0.35 : 1}
                                                             stroke="var(--background)"
                                                             strokeWidth={2}
                                                             isFront={true}
@@ -472,11 +551,13 @@ export function AssetHistoryChart({
                                                     )
                                                 })
                                             } else {
-                                                return categories.filter(c => !c.parentId).map(cat => {
+                                                return categories.filter(c => !c.parentId && !c.isLiability).map(cat => {
                                                     const val = Number((activePoint as Record<string, unknown>)[`pnl_${cat.id}`] || 0)
-                                                    const topLevel = categories.filter(c => !c.parentId)
+                                                    const topLevel = categories.filter(c => !c.parentId && !c.isLiability)
                                                     const colorIndex = topLevel.findIndex(c => c.id === cat.id)
                                                     const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`
+                                                    const key = `category_${cat.id}`
+                                                    const isDimmed = isDimmedKey(key)
                                                     
                                                     return (
                                                         <ReferenceDot
@@ -485,6 +566,7 @@ export function AssetHistoryChart({
                                                             y={val}
                                                             r={3}
                                                             fill={color}
+                                                            fillOpacity={isDimmed ? 0.35 : 1}
                                                             stroke="var(--background)"
                                                             strokeWidth={2}
                                                             isFront={true}
@@ -500,7 +582,10 @@ export function AssetHistoryChart({
                                             const reversedActiveKeys = [...activeKeys].reverse();
                                             const sum = reversedActiveKeys.reduce((a: number, key: string) => a + Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0), 0) || 1;
                                             
-                                            return reversedActiveKeys.filter((key: string) => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`).map((key: string) => {
+                                            return reversedActiveKeys.filter((key: string) => {
+                                                if (!shouldHighlightOnlySelected) return true
+                                                return !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`
+                                            }).map((key: string) => {
                                                 const val = Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0);
                                                 if (val === 0) return null;
                                                 const yVal = viewMode === "percent" ? (val / sum) : val;
@@ -510,6 +595,8 @@ export function AssetHistoryChart({
                                                 const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
                                                 const colorIndex = targetTags.indexOf(key);
                                                 const color = `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`;
+                                                const keyName = `tag_${selectedTagGroup}_${key}`
+                                                const isDimmed = isDimmedKey(keyName)
                                                 
                                                 return (
                                                     <ReferenceDot
@@ -518,6 +605,7 @@ export function AssetHistoryChart({
                                                         y={cumulativeY}
                                                         r={4}
                                                         fill={color}
+                                                        fillOpacity={isDimmed ? 0.35 : 1}
                                                         stroke="var(--background)"
                                                         strokeWidth={2}
                                                         isFront={true}
@@ -529,7 +617,10 @@ export function AssetHistoryChart({
                                             const reversedCats = [...displayCats].reverse();
                                             const sum = reversedCats.reduce((a: number, cat: Category) => a + Number((activePoint as Record<string, unknown>)[`category_${cat.id}`] || 0), 0) || 1;
 
-                                            return reversedCats.filter((cat: Category) => !selectedAssetKey || selectedAssetKey === `category_${cat.id}`).map((cat: Category) => {
+                                            return reversedCats.filter((cat: Category) => {
+                                                if (!shouldHighlightOnlySelected) return true
+                                                return !selectedAssetKey || selectedAssetKey === `category_${cat.id}`
+                                            }).map((cat: Category) => {
                                                 const val = Number(activePoint[`category_${cat.id}`] || 0);
                                                 if (val === 0) return null;
                                                 const yVal = viewMode === "percent" ? (val / sum) : val;
@@ -538,6 +629,8 @@ export function AssetHistoryChart({
                                                 const topLevelCategories = categories.filter(c => !c.parentId);
                                                 const colorIndex = topLevelCategories.findIndex(tc => tc.id === cat.id);
                                                 const color = cat.color || `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`;
+                                                const key = `category_${cat.id}`
+                                                const isDimmed = isDimmedKey(key)
                                                 
                                                 return (
                                                     <ReferenceDot
@@ -546,6 +639,7 @@ export function AssetHistoryChart({
                                                         y={cumulativeY}
                                                         r={4}
                                                         fill={color}
+                                                        fillOpacity={isDimmed ? 0.35 : 1}
                                                         stroke="var(--background)"
                                                         strokeWidth={2}
                                                         isFront={true}
