@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { AlertCircle, GripVertical, Check, X, ArrowDownUp } from "lucide-react"
@@ -177,7 +176,6 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
                 <CardHeader className={`flex flex-row items-center justify-between space-y-0 pb-0 pl-3 pr-2 pt-1.5 ${isChild ? 'pt-1' : ''}`}>
                     <CardTitle className={`${isChild ? 'text-[10px]' : 'text-xs'} font-medium flex items-center gap-2 text-muted-foreground/80 truncate`}>
                         {category.name}
-                        {category.isLiability && <Badge variant="destructive" className="text-[8px] py-0 h-3.5">負債</Badge>}
                     </CardTitle>
                     {!isChild && category.conflicts && category.conflicts.length > 0 && (
                         <TooltipProvider>
@@ -196,8 +194,8 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
                 <CardContent className={`pl-3 pr-2 ${isChild ? 'pb-1' : 'pb-1.5'} pt-0`}>
                     <div className="flex flex-col gap-0.5">
                         <div className="flex items-baseline justify-between gap-1.5">
-                            <span className={`${isChild ? 'text-sm' : 'text-base'} font-bold tracking-tight leading-none ${category.isLiability ? "text-red-500" : ""}`}>
-                                {category.isLiability ? "-" : ""}¥{valueToUse.toLocaleString()}
+                            <span className={`${isChild ? 'text-sm' : 'text-base'} font-bold tracking-tight leading-none`}>
+                                ¥{valueToUse.toLocaleString()}
                             </span>
 
                             <span className={`${isChild ? 'text-[10px]' : 'text-xs'} font-bold whitespace-nowrap leading-none ${category.isCash ? "text-muted-foreground" : (isPositive ? "text-green-500" : "text-red-500")}`}>
@@ -268,7 +266,6 @@ export function CategoryList({ categories: initialCategories = [] }: { categorie
                 >
                     <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
                         {topLevel.map((parent) => {
-                            const children = categories.filter(c => c.parentId === parent.id)
                             const parentCard = renderCategoryCard(parent);
 
                             return (

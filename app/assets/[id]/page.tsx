@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { ArrowLeft, Plus, History, RefreshCw, Edit2, Trash2, ArrowUpRight, ArrowDownRight, AlertCircle, ChevronRight } from "lucide-react"
+import { Plus, History, RefreshCw, Edit2, Trash2, ArrowUpRight, ArrowDownRight, AlertCircle, ChevronRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -323,7 +323,7 @@ export default function AssetDetailPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">
-                            ¥{((category?.isLiability ? -1 : 1) * (category?.currentValue || 0)).toLocaleString()}
+                            ¥{(category?.currentValue || 0).toLocaleString()}
                         </div>
                         {!category?.isCash && (
                             <div className={`text-sm mt-1 flex items-center gap-2 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
@@ -343,7 +343,7 @@ export default function AssetDetailPage() {
                                             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: child.color }} />
                                             <span className="group-hover:underline">{child.name}</span>
                                         </div>
-                                        <span className="font-mono">¥{((category?.isLiability || child.isLiability ? -1 : 1) * child.currentValue).toLocaleString()}</span>
+                                        <span className="font-mono">¥{child.currentValue.toLocaleString()}</span>
                                     </Link>
                                 ))}
                             </div>
@@ -451,7 +451,7 @@ export default function AssetDetailPage() {
                                         else if (timeRange === "1Y") cutoff.setFullYear(now.getFullYear() - 1)
                                         else isAll = true
 
-                                        const multiplier = category?.isLiability ? -1 : 1;
+                                        const multiplier = 1;
 
                                         interface HistoryRecord {
                                             date: number;

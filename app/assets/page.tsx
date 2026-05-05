@@ -294,8 +294,8 @@ function CategoryManagement({ categories, tagGroups, onRefresh }: { categories: 
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            <Badge variant={cat.isLiability ? "destructive" : cat.isCash ? "outline" : "secondary"} className={isChild ? "opacity-70 scale-90" : ""}>
-                                                {cat.isLiability ? "負債" : cat.isCash ? "現金・預金" : "投資商品"}
+                                            <Badge variant={cat.isCash ? "outline" : "secondary"} className={isChild ? "opacity-70 scale-90" : ""}>
+                                                {cat.isCash ? "現金・預金" : "投資商品"}
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-right">
@@ -368,7 +368,6 @@ function CategoryForm({ initialData, tagGroups, allCategories, onSave, onCancel 
     const [name, setName] = useState(initialData?.name || "")
     const [color, setColor] = useState(initialData?.color || PRESET_COLORS[0])
     const [isCash, setIsCash] = useState(initialData?.isCash || false)
-    const [isLiability, setIsLiability] = useState(initialData?.isLiability || false)
     const [parentId, setParentId] = useState<number | null>(initialData?.parentId || null)
 
     // Manage selected option for each group - simplify to just IDs for local editing
@@ -437,10 +436,6 @@ function CategoryForm({ initialData, tagGroups, allCategories, onSave, onCancel 
                 <Label>現金・預金として扱う</Label>
                 <Switch checked={isCash} onCheckedChange={setIsCash} />
             </div>
-            <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
-                <Label className="text-destructive">負債（マイナス資産）</Label>
-                <Switch checked={isLiability} onCheckedChange={setIsLiability} />
-            </div>
 
             <div className="space-y-3 pt-4 border-t">
                 <Label className="text-base font-semibold">分類設定</Label>
@@ -474,7 +469,7 @@ function CategoryForm({ initialData, tagGroups, allCategories, onSave, onCancel 
                     name,
                     color,
                     isCash,
-                    isLiability,
+                    isLiability: false,
                     parentId: parentId ?? undefined,
                     tagSettings
                 })}>

@@ -108,7 +108,7 @@ export async function exportAllData() {
 export async function getTemplateCsv(targetAssetId?: number) {
     try {
         const category = targetAssetId ? await prisma.category.findUnique({ where: { id: targetAssetId } }) : null;
-        const isSimpleAsset = category?.isCash || category?.isLiability;
+        const isSimpleAsset = category?.isCash;
 
         if (isSimpleAsset) {
             const header = "操作,ID,日付,評価額,メモ";
@@ -264,7 +264,7 @@ export async function importData(csvContent: string, targetAssetId: number) {
 
         const headerLine = lines[0].trim();
         const isSimpleFormat = headerLine.includes("評価額") && !headerLine.includes("入金額");
-        const isSimpleAsset = category.isCash || category.isLiability;
+        const isSimpleAsset = category.isCash;
 
         for (let i = 1; i < lines.length; i++) { // Skip header
             const line = lines[i].trim();
@@ -351,7 +351,7 @@ export async function importData(csvContent: string, targetAssetId: number) {
             const isFuture = date.getTime() > new Date().getTime();
             const futureNote = isFuture ? " [未来日]" : "";
 
-            // For Cash/Liability categories, we ONLY process valuations
+            // For Cash categories, we ONLY process valuations
             if (isSimpleAsset) {
                 if (!valuationStr) {
                     errorCount++;

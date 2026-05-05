@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use server"
 
 import { prisma } from "@/lib/prisma"
@@ -130,7 +131,7 @@ export async function getCategories() {
                 ownCostBasis: cat.ownCostBasis,
                 dailyChange: cat.dailyChange,
                 isCash: !!cat.isCash,
-                isLiability: !!cat.isLiability,
+                isLiability: false,
                 depth: cat.depth,
                 tags: (cat.tags || []).map((t) => t.tagOption?.name || ""),
                 tagSettings: (cat.tags || []).map((t) => ({
@@ -171,7 +172,7 @@ export async function saveCategory(data: SaveCategoryData) {
             color: data.color,
             order: data.order ?? 0,
             isCash: !!data.isCash,
-            isLiability: !!data.isLiability,
+            isLiability: false,
             parentId: data.parentId === 0 ? null : (data.parentId || null),
         }
 
@@ -266,22 +267,6 @@ interface AssetDetail {
     id: number;
 }
 
-interface CategoryWithNested {
-    id: number;
-    name: string;
-    color: string | null;
-    isCash: boolean | null;
-    isLiability: boolean | null;
-    parentId: number | null;
-    transactions: TransactionDetail[];
-    assets: AssetDetail[];
-    children: (CategoryWithRelations & {
-        assets: AssetDetail[];
-        transactions: TransactionDetail[];
-    })[];
-    tags: { tagGroupId: number, tagGroup: { name: string }, tagOptionId: number | null, tagOption: { name: string } | null }[];
-    parent: { id: number, name: string } | null;
-}
 
 export async function getCategoryDetails(id: number) {
     try {
@@ -523,7 +508,7 @@ export async function getCategoryDetails(id: number) {
                     name: c.name,
                     color: c.color || "#ccc",
                     currentValue: getRecursiveCurrentValue(c),
-                    isLiability: !!c.isLiability
+                    isLiability: false
                 };
             });
 
@@ -674,7 +659,7 @@ export async function getCategoryDetails(id: number) {
             name: catWithNested.name,
             color: catWithNested.color || "#ccc",
             isCash: catWithNested.isCash,
-            isLiability: catWithNested.isLiability,
+            isLiability: false,
             currentValue,
             costBasis,
             tags: (catWithNested.tags || []).map((t) => t.tagOption?.name),

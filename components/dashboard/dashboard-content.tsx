@@ -2,8 +2,7 @@
 
 import * as React from "react"
 import { SummaryCards } from "@/components/dashboard/summary-cards"
-import { AssetAllocationChart } from "@/components/dashboard/asset-allocation-chart"
-import { AssetHistoryChart } from "@/components/dashboard/asset-history-chart"
+import { AssetChartsCombined } from "@/components/dashboard/asset-charts-combined"
 import { CategoryList } from "@/components/dashboard/category-list"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -51,15 +50,10 @@ export function DashboardContent({
 
     const topLevelCategories = categories.filter(c => !c.parentId)
     const totalAssets = topLevelCategories
-        .filter(c => !c.isLiability)
-        .reduce((acc, cat) => acc + cat.currentValue, 0)
-    const totalLiabilities = topLevelCategories
-        .filter(c => c.isLiability)
         .reduce((acc, cat) => acc + cat.currentValue, 0)
     const totalCost = topLevelCategories
-        .filter(c => !c.isLiability)
         .reduce((acc, cat) => acc + (cat.isCash ? cat.currentValue : cat.costBasis), 0)
-    const totalProfit = totalAssets - totalLiabilities - (totalCost - totalLiabilities) // Matches previous net profit logic
+    const totalProfit = totalAssets - totalCost
     const profitPercent = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0
 
     return (
@@ -67,24 +61,20 @@ export function DashboardContent({
             <section>
                 <SummaryCards
                     netWorth={totalAssets}
-                    totalAssets={totalAssets}
-                    totalLiabilities={totalLiabilities}
+                    totalCost={totalCost}
                     totalProfit={totalProfit}
                     profitPercent={profitPercent}
                 />
             </section>
 
-            <section className="grid gap-2 md:grid-cols-2 lg:grid-cols-7">
-                <div className="col-span-full md:col-span-1 lg:col-span-4 min-w-0">
-                    <AssetHistoryChart
-                        data={historyData}
-                        tagGroups={tagGroups}
-                        initialTimeRange={defaultTimeRange}
-                    />
-                </div>
-                <div className="col-span-full md:col-span-1 lg:col-span-3 min-w-0">
-                    <AssetAllocationChart categories={topLevelCategories} allCategories={categories} tagGroups={tagGroups} />
-                </div>
+            <section className="mb-2">
+                <AssetChartsCombined
+                    historyData={historyData}
+                    categories={topLevelCategories}
+                    allCategories={categories}
+                    tagGroups={tagGroups}
+                    initialTimeRange={defaultTimeRange}
+                />
             </section>
 
             <section>
