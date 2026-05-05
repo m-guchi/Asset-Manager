@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useTheme } from "next-themes"
-import { Monitor, Moon, Sun, Clock, Info, Check } from "lucide-react"
+import { Monitor, Moon, Sun, Clock, Info, Check, RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -29,6 +29,7 @@ export default function SettingsPage() {
     const [defaultTimeRange, setDefaultTimeRange] = React.useState("1Y")
     // Add mounted state to prevent hydration mismatch
     const [mounted, setMounted] = React.useState(false)
+    const [isUpdating, setIsUpdating] = React.useState(false)
 
     React.useEffect(() => {
         setMounted(true)
@@ -40,6 +41,14 @@ export default function SettingsPage() {
     const handleTimeRangeChange = (value: string) => {
         setDefaultTimeRange(value)
         localStorage.setItem("defaultTimeRange", value)
+    }
+    
+    const handleUpdate = () => {
+        setIsUpdating(true)
+        // Simulate an update check
+        setTimeout(() => {
+            setIsUpdating(false)
+        }, 2000)
     }
 
     // Prevent rendering theme-dependent UI until mounted
@@ -142,11 +151,20 @@ export default function SettingsPage() {
 
                 {/* App Information */}
                 <Card>
-                    <CardHeader>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="flex items-center gap-2">
                             <Info className="h-5 w-5" />
                             アプリケーション情報
                         </CardTitle>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleUpdate}
+                            disabled={isUpdating}
+                            className="h-8 w-8"
+                        >
+                            <RefreshCw className={`h-4 w-4 ${isUpdating ? "animate-spin" : ""}`} />
+                        </Button>
                     </CardHeader>
                     <CardContent className="space-y-2">
                         <div className="flex justify-between py-2 border-b">
