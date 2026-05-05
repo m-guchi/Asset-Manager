@@ -284,22 +284,21 @@ export function AssetAllocationChart({
                     ) : (
                         mode === "total" ? (
                             <>
-                                <div className={`grid ${isMobile ? "grid-cols-[auto_1fr_auto_80px] w-full" : "flex items-center"} gap-1.5 shrink-0`}>
-                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--color-totalAssets)" }} />
-                                    <span className="text-[9px] text-muted-foreground font-bold whitespace-nowrap">評価額</span>
-                                    <span className="text-[10px] font-medium opacity-70 text-right">¥</span>
-                                    <span className="text-[11px] font-bold tabular-nums text-right">
-                                        {Math.round(activePoint.totalAssets || 0).toLocaleString()}
-                                    </span>
-                                </div>
-                                <div className={`grid ${isMobile ? "grid-cols-[auto_1fr_auto_80px] w-full" : "flex items-center"} gap-1.5 shrink-0`}>
-                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#888888" }} />
-                                    <span className="text-[9px] text-muted-foreground font-bold whitespace-nowrap">取得原価</span>
-                                    <span className="text-[10px] font-medium opacity-70 text-right">¥</span>
-                                    <span className="text-[11px] font-bold tabular-nums text-right text-[#888888]">
-                                        {Math.round(activePoint.totalCost || 0).toLocaleString()}
-                                    </span>
-                                </div>
+                                {categories.filter(c => !c.parentId && !c.isLiability).map((cat, i) => {
+                                    const val = Number(activePoint[`category_${cat.id}`]) || 0
+                                    if (val === 0) return null
+                                    const color = cat.color || `var(--chart-${(i % 5) + 1})`
+                                    return (
+                                        <div key={cat.id} className={`grid ${isMobile ? "grid-cols-[auto_1fr_80px_auto] w-full items-baseline" : "flex items-baseline"} gap-x-1 shrink-0`}>
+                                            <div className="w-1.5 h-1.5 rounded-full translate-y-[-1px]" style={{ backgroundColor: color }} />
+                                            <span className="text-[9px] text-muted-foreground font-bold whitespace-nowrap">{cat.name}</span>
+                                            <span className="text-[11px] font-bold tabular-nums text-right">
+                                                {Math.round(val).toLocaleString()}
+                                            </span>
+                                            <span className="text-[8px] font-medium opacity-70">円</span>
+                                        </div>
+                                    )
+                                })}
                             </>
                         ) : (
                             activeKeys.map((key, i) => {
@@ -308,13 +307,13 @@ export function AssetAllocationChart({
                                 if (val === 0) return null
                                 const color = `var(--chart-${(i % 5) + 1})`
                                 return (
-                                    <div key={key} className={`grid ${isMobile ? "grid-cols-[auto_1fr_auto_80px] w-full" : "flex items-center"} gap-1.5 shrink-0`}>
-                                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+                                    <div key={key} className={`grid ${isMobile ? "grid-cols-[auto_1fr_80px_auto] w-full items-baseline" : "flex items-baseline"} gap-x-1 shrink-0`}>
+                                        <div className="w-1.5 h-1.5 rounded-full translate-y-[-1px]" style={{ backgroundColor: color }} />
                                         <span className="text-[9px] text-muted-foreground font-bold whitespace-nowrap">{key}</span>
-                                        <span className="text-[10px] font-medium opacity-70 text-right">¥</span>
                                         <span className="text-[11px] font-bold tabular-nums text-right">
                                             {Math.round(Number(val)).toLocaleString()}
                                         </span>
+                                        <span className="text-[8px] font-medium opacity-70">円</span>
                                     </div>
                                 )
                             })

@@ -24,6 +24,7 @@ interface AssetHistoryChartProps {
     mode: "total" | "tag";
     selectedTagGroup: number;
     onActivePointChange?: (point: ChartPoint | null) => void;
+    categories?: any[];
 }
 
 export function AssetHistoryChart({
@@ -32,7 +33,8 @@ export function AssetHistoryChart({
     initialTimeRange = "1Y",
     mode,
     selectedTagGroup,
-    onActivePointChange
+    onActivePointChange,
+    categories = []
 }: AssetHistoryChartProps) {
     const [isMounted, setIsMounted] = React.useState(false);
     const [timeRange, setTimeRange] = React.useState(initialTimeRange)
@@ -269,7 +271,7 @@ export function AssetHistoryChart({
                                 <ComposedChart
                                     key={`${mode}-${selectedTagGroup}-${showPercent}-${timeRange}`}
                                     data={allProcessedData}
-                                    stackOffset={mode === "tag" && showPercent ? "expand" : "none"}
+                                    stackOffset={showPercent ? "expand" : "none"}
                                     margin={{ top: 25, right: 30, left: 10, bottom: 0 }}
                                 >
                                     <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#888888" strokeOpacity={0.2} />
@@ -319,31 +321,19 @@ export function AssetHistoryChart({
                                         />
                                     )}
 
-                                    {mode === "total" && (
+                                    {mode === "total" && categories.filter(cat => !cat.isLiability).map((cat, i) => (
                                         <Area
-                                            dataKey="totalAssets"
+                                            key={cat.id}
+                                            dataKey={`category_${cat.id}`}
+                                            stackId="1"
                                             type="linear"
-                                            stroke="var(--color-totalAssets)"
-                                            strokeWidth={2}
-                                            fill="var(--color-totalAssets)"
-                                            fillOpacity={0.2}
+                                            stroke={cat.color || `var(--chart-${(i % 5) + 1})`}
+                                            fill={cat.color || `var(--chart-${(i % 5) + 1})`}
+                                            fillOpacity={0.4}
                                             isAnimationActive={isAnimating}
                                             animationDuration={1200}
                                         />
-                                    )}
-                                    {mode === "total" && (
-                                        <Line
-                                            dataKey="totalCost"
-                                            type="stepAfter"
-                                            stroke="#888888"
-                                            strokeWidth={1.5}
-                                            strokeDasharray="5 5"
-                                            dot={false}
-                                            isAnimationActive={isAnimating}
-                                            animationDuration={1200}
-                                            connectNulls
-                                        />
-                                    )}
+                                    ))}
 
                                     {mode === "tag" && activeKeys.map((key, i) => (
                                         <Area
@@ -360,53 +350,55 @@ export function AssetHistoryChart({
                                     ))}
 
                                     {/* 交点の丸マーク */}
-                                    {activePoint && mode === "total" && (
-                                        <ReferenceDot
-                                            x={activePoint.timestamp}
-                                            y={activePoint.totalAssets}
-                                            r={4}
-                                            fill="var(--color-totalAssets)"
-                                            stroke="var(--background)"
-                                            strokeWidth={2}
-                                            isFront={true}
-                                        />
-                                    )}
-                                    {activePoint && mode === "total" && activePoint.totalCost > 0 && (
-                                        <ReferenceDot
-                                            x={activePoint.timestamp}
-                                            y={activePoint.totalCost}
-                                            r={4}
-                                            fill="#888888"
-                                            stroke="var(--background)"
-                                            strokeWidth={2}
-                                            isFront={true}
-                                        />
-                                    )}
-                                    {activePoint && mode === "tag" && (() => {
+
+                                    {activePoint && (() => {
                                         let cumulativeY = 0;
-                                        const sum = activeKeys.reduce((a, key) => a + Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0), 0) || 1;
                                         
-                                        return activeKeys.map((key, i) => {
-                                            const val = Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0);
-                                            if (val === 0) return null;
+                                        if (mode === "tag") {
+                                            const sum = activeKeys.reduce((a, key) => a + Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0), 0) || 1;
                                             
-                                            // showPercent の場合は 100% = 1 の割合
-                                            const yVal = showPercent ? (val / sum) : val;
-                                            cumulativeY += yVal;
-                                            
-                                            return (
-                                                <ReferenceDot
-                                                    key={key}
-                                                    x={activePoint.timestamp}
-                                                    y={cumulativeY}
-                                                    r={4}
-                                                    fill={`var(--chart-${(i % 5) + 1})`}
-                                                    stroke="var(--background)"
-                                                    strokeWidth={2}
-                                                    isFront={true}
-                                                />
-                                            )
-                                        })
+                                            return activeKeys.map((key, i) => {
+                                                const val = Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0);
+                                                if (val === 0) return null;
+                                                const yVal = showPercent ? (val / sum) : val;
+                                                cumulativeY += yVal;
+                                                return (
+                                                    <ReferenceDot
+                                                        key={key}
+                                                        x={activePoint.timestamp}
+                                                        y={cumulativeY}
+                                                        r={4}
+                                                        fill={`var(--chart-${(i % 5) + 1})`}
+                                                        stroke="var(--background)"
+                                                        strokeWidth={2}
+                                                        isFront={true}
+                                                    />
+                                                )
+                                            })
+                                        } else {
+                                            // mode === "total"
+                                            const displayCats = categories.filter(cat => !cat.isLiability);
+                                            const sum = displayCats.reduce((a, cat) => a + Number(activePoint[`category_${cat.id}`] || 0), 0) || 1;
+
+                                            return displayCats.map((cat, i) => {
+                                                const val = Number(activePoint[`category_${cat.id}`] || 0);
+                                                if (val === 0) return null;
+                                                const yVal = showPercent ? (val / sum) : val;
+                                                cumulativeY += yVal;
+                                                return (
+                                                    <ReferenceDot
+                                                        key={cat.id}
+                                                        x={activePoint.timestamp}
+                                                        y={cumulativeY}
+                                                        r={4}
+                                                        fill={cat.color || `var(--chart-${(i % 5) + 1})`}
+                                                        stroke="var(--background)"
+                                                        strokeWidth={2}
+                                                        isFront={true}
+                                                    />
+                                                )
+                                            })
+                                        }
                                     })()}
                                 </ComposedChart>
                             </ResponsiveContainer>
@@ -429,16 +421,14 @@ export function AssetHistoryChart({
                                     )
                                 })}
                             </div>
-                            {mode === "tag" && (
-                                <button
-                                    onClick={() => setShowPercent(!showPercent)}
-                                    className={`px-3 py-1 text-[10px] font-bold rounded-md border transition-all ${showPercent
-                                        ? "bg-foreground text-background"
-                                        : "bg-background text-muted-foreground hover:text-foreground"}`}
-                                >
-                                    100%
-                                </button>
-                            )}
+                            <button
+                                onClick={() => setShowPercent(!showPercent)}
+                                className={`px-3 py-1 text-[10px] font-bold rounded-md border transition-all ${showPercent
+                                    ? "bg-foreground text-background"
+                                    : "bg-background text-muted-foreground hover:text-foreground"}`}
+                            >
+                                100%
+                            </button>
 
                         </div>
                     </div>

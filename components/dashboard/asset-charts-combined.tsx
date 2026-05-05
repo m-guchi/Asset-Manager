@@ -90,6 +90,7 @@ export function AssetChartsCombined({
                 <div className="col-span-1 lg:col-span-4 min-w-0 flex flex-col relative lg:border-l lg:border-t-0 border-t w-full h-full">
                     <AssetHistoryChart 
                         data={historyData} 
+                        categories={categories}
                         tagGroups={tagGroups} 
                         initialTimeRange={initialTimeRange} 
                         mode={mode} 
