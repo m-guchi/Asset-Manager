@@ -80,7 +80,6 @@ export function DashboardContent({
                 <AssetChartsCombined
                     historyData={historyData}
                     categories={topLevelCategories}
-                    allCategories={categories}
                     tagGroups={tagGroups}
                     initialTimeRange={defaultTimeRange}
                 />

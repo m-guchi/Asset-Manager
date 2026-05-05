@@ -170,6 +170,7 @@ export async function getHistoryData() {
             // Tag Aggregation (Per Category Contribution)
             categories.forEach((cat) => {
                 const val = (latestValues.get(cat.id) || 0);
+                const cost = (latestCostBasis.get(cat.id) || 0);
                 const tags = getEffectiveTags(cat.id);
 
                 // Deduplicate based on groupId + name to ensure uniqueness within the category context
@@ -182,7 +183,9 @@ export async function getHistoryData() {
                 uniqueTagsMap.forEach(t => {
                     // Key includes groupId to distinguish identical names in different groups
                     const key = `tag_${t.groupId}_${t.name}`;
+                    const costKey = `tag_cost_${t.groupId}_${t.name}`;
                     point[key] = (Number(point[key]) || 0) + val;
+                    point[costKey] = (Number(point[costKey]) || 0) + cost;
                 });
             });
 
@@ -197,6 +200,8 @@ export async function getHistoryData() {
                     totalCost += Math.max(0, res.cost);
                     // 円グラフ動作用にルートカテゴリの過去の金額を保持
                     point[`category_${cat.id}`] = res.val;
+                    point[`category_cost_${cat.id}`] = Math.max(0, res.cost);
+
                 }
             });
 

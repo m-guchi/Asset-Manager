@@ -8,7 +8,7 @@ import {
     ChartContainer,
 } from "@/components/ui/chart"
 
-import { Category, TagGroup, HistoryPoint } from "@/types/asset"
+import { Category, TagGroup, HistoryPoint, ChartViewMode } from "@/types/asset"
 
 const chartConfigBase = {
     value: {
@@ -31,7 +31,8 @@ export function AssetAllocationChart({
     selectedTagGroup,
     activePoint,
     selectedAssetKey,
-    onAssetClick
+    onAssetClick,
+    viewMode
 }: {
     categories: Category[],
     tagGroups?: TagGroup[],
@@ -39,7 +40,8 @@ export function AssetAllocationChart({
     selectedTagGroup: number,
     activePoint?: HistoryPoint | null,
     selectedAssetKey?: string | null,
-    onAssetClick?: (key: string | null) => void
+    onAssetClick?: (key: string | null) => void,
+    viewMode?: ChartViewMode
 }) {
     const [isMounted, setIsMounted] = React.useState(false);
 
@@ -267,8 +269,13 @@ export function AssetAllocationChart({
                                                 </div>
                                                 <div className="flex items-baseline gap-0.5">
                                                     <span className="text-[11px] font-normal opacity-70">(</span>
-                                                    <span className="text-[11px] font-normal">
-                                                        {totalValue > 0 ? ((val / totalValue) * 100).toFixed(1) : "0.0"}
+                                                    <span className={`text-[11px] font-normal ${viewMode === "pnl" ? (val - Number(activePoint[`category_cost_${cat.id}`] || 0) >= 0 ? "text-emerald-500" : "text-rose-500") : ""}`}>
+                                                        {viewMode === "pnl" ? (() => {
+                                                            const cost = Number(activePoint[`category_cost_${cat.id}`] || 0)
+                                                            if (cost <= 0) return "0.0"
+                                                            const rate = ((val - cost) / cost) * 100
+                                                            return (rate > 0 ? "+" : "") + rate.toFixed(1)
+                                                        })() : (totalValue > 0 ? ((val / totalValue) * 100).toFixed(1) : "0.0")}
                                                     </span>
                                                     <span className="text-[7px] font-normal opacity-70">%</span>
                                                     <span className="text-[11px] font-normal opacity-70">)</span>
@@ -309,8 +316,13 @@ export function AssetAllocationChart({
                                                 </div>
                                                 <div className="flex items-baseline gap-0.5">
                                                     <span className="text-[11px] font-normal opacity-70">(</span>
-                                                    <span className="text-[11px] font-normal">
-                                                        {totalValue > 0 ? ((Number(val) / totalValue) * 100).toFixed(1) : "0.0"}
+                                                    <span className={`text-[11px] font-normal ${viewMode === "pnl" ? (Number(val) - Number((activePoint as Record<string, unknown>)[`tag_cost_${selectedTagGroup}_${keyName}`] || 0) >= 0 ? "text-emerald-500" : "text-rose-500") : ""}`}>
+                                                        {viewMode === "pnl" ? (() => {
+                                                            const cost = Number((activePoint as Record<string, unknown>)[`tag_cost_${selectedTagGroup}_${keyName}`] || 0)
+                                                            if (cost <= 0) return "0.0"
+                                                            const rate = ((Number(val) - cost) / cost) * 100
+                                                            return (rate > 0 ? "+" : "") + rate.toFixed(1)
+                                                        })() : (totalValue > 0 ? ((Number(val) / totalValue) * 100).toFixed(1) : "0.0")}
                                                     </span>
                                                     <span className="text-[7px] font-normal opacity-70">%</span>
                                                     <span className="text-[11px] font-normal opacity-70">)</span>
