@@ -195,6 +195,8 @@ export async function getHistoryData() {
                     const res = getConsolidated(cat.id, latestValues, latestCostBasis);
                     grossAssets += res.val;
                     totalCost += Math.max(0, res.cost);
+                    // 円グラフ動作用にルートカテゴリの過去の金額を保持
+                    point[`category_${cat.id}`] = res.val;
                 }
             });
 

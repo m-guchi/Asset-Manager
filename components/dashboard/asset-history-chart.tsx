@@ -2,7 +2,6 @@
 import * as React from "react"
 import { Area, CartesianGrid, XAxis, ResponsiveContainer, YAxis, ReferenceLine, ReferenceDot, Line, ComposedChart } from "recharts"
 
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { ChartConfig, ChartContainer } from "@/components/ui/chart"
 import { HistoryPoint, TagGroup } from "@/types/asset"
 
@@ -22,16 +21,20 @@ interface AssetHistoryChartProps {
     data?: HistoryPoint[];
     tagGroups?: TagGroup[];
     initialTimeRange?: string;
+    mode: "total" | "tag";
+    selectedTagGroup: number;
+    onActivePointChange?: (point: ChartPoint | null) => void;
 }
 
 export function AssetHistoryChart({
     data = [],
     tagGroups = mockTagGroups,
-    initialTimeRange = "1Y"
+    initialTimeRange = "1Y",
+    mode,
+    selectedTagGroup,
+    onActivePointChange
 }: AssetHistoryChartProps) {
     const [isMounted, setIsMounted] = React.useState(false);
-    const [mode, setMode] = React.useState<"total" | "tag">("total")
-    const [selectedTagGroup, setSelectedTagGroup] = React.useState<number>(1)
     const [timeRange, setTimeRange] = React.useState(initialTimeRange)
     const [showPercent, setShowPercent] = React.useState(false)
     const [isAnimating, setIsAnimating] = React.useState(false)
@@ -54,13 +57,6 @@ export function AssetHistoryChart({
             setTimeRange(savedRange);
         }
     }, []);
-
-    React.useEffect(() => {
-        if (tagGroups && tagGroups.length > 0) {
-            const exists = tagGroups.find(g => g.id === selectedTagGroup)
-            if (!exists) setSelectedTagGroup(tagGroups[0].id)
-        }
-    }, [tagGroups, selectedTagGroup])
 
     const handleTimeRangeChange = (range: string) => {
         setTimeRange(range);
@@ -160,6 +156,25 @@ export function AssetHistoryChart({
         );
     }, [allProcessedData, currentDomain]);
 
+    const [debouncedActivePoint, setDebouncedActivePoint] = React.useState<ChartPoint | null>(null);
+
+    React.useEffect(() => {
+        // ドラッグ中なら何もしない
+        if (dragStartX !== null) return;
+        
+        // ドラッグ停止後、少し遅延を入れてから確定させる（レンダリング負荷軽減）
+        const timer = setTimeout(() => {
+            setDebouncedActivePoint(activePoint);
+        }, 150);
+        return () => clearTimeout(timer);
+    }, [activePoint, dragStartX]);
+
+    React.useEffect(() => {
+        if (onActivePointChange && debouncedActivePoint) {
+            onActivePointChange(debouncedActivePoint);
+        }
+    }, [debouncedActivePoint, onActivePointChange]);
+
     const chartConfig = React.useMemo(() => {
         const config: ChartConfig = {
             totalAssets: { label: "評価額", color: "var(--chart-1)" },
@@ -221,9 +236,9 @@ export function AssetHistoryChart({
 
     if (!isMounted) {
         return (
-            <Card className="h-full min-h-[300px] flex items-center justify-center bg-muted/5 border-dashed">
+            <div className="h-full min-h-[300px] flex items-center justify-center bg-muted/5 border-dashed">
                 <p className="text-xs text-muted-foreground animate-pulse">グラフを構成中...</p>
-            </Card>
+            </div>
         );
     }
 
@@ -234,91 +249,12 @@ export function AssetHistoryChart({
     }
 
     return (
-        <Card className="flex flex-col h-full min-h-[450px]">
-            <CardHeader className="items-center pb-0 pt-1.5">
-                <div className="w-full flex items-center gap-2 overflow-x-auto pb-0.5 mt-0.5 no-scrollbar max-w-full">
-                    <div className="flex bg-muted/50 rounded-md p-0.5 border" onClick={(e) => e.stopPropagation()}>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); setMode("total"); setShowPercent(false); }}
-                            className={`px-2 py-1 text-[10px] rounded-md transition-all whitespace-nowrap ${mode === "total"
-                                ? "bg-background text-foreground shadow-sm font-bold"
-                                : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
-                        >
-                            全体
-                        </button>
-                        {tagGroups && tagGroups.map(grp => (
-                            <button
-                                key={grp.id}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setMode("tag");
-                                    setSelectedTagGroup(grp.id);
-                                }}
-                                className={`px-2 py-1 text-[10px] rounded-md transition-all whitespace-nowrap ${mode === "tag" && selectedTagGroup === grp.id
-                                    ? "bg-background text-foreground shadow-sm font-bold"
-                                    : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
-                            >
-                                {grp.name}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            </CardHeader>
-
-            <CardContent className="flex flex-col flex-1 p-0 relative min-h-0 overflow-hidden">
+        <div className="flex flex-col h-full min-h-[400px] w-full pt-1">
+            <div className="flex flex-col flex-1 p-0 relative min-h-0 overflow-hidden w-full">
                 <ChartContainer config={chartConfig} className="flex-1 min-h-0 w-full text-[10px]">
                     <div className="flex flex-col h-full w-full">
-                        <div className="px-4 border-y border-border/40 bg-muted/10 h-11 flex items-center mt-0 shrink-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                            {!activePoint ? (
-                                <div className="w-full text-center">
-                                    <span className="text-[10px] text-muted-foreground animate-pulse font-medium">
-                                        グラフ情報を計算中...
-                                    </span>
-                                </div>
-                            ) : (
-                                <div className="flex items-center gap-3 w-full overflow-x-auto no-scrollbar">
-
-                                    <div className="flex items-center gap-4 flex-1 pr-2">
-                                        {mode === "total" ? (
-                                            <>
-                                                <div className="flex items-center gap-1.5 shrink-0">
-                                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--color-totalAssets)" }} />
-                                                    <span className="text-[9px] text-muted-foreground font-bold">評価額</span>
-                                                    <span className="text-[11px] font-bold">¥{Math.round(activePoint.totalAssets).toLocaleString()}</span>
-                                                </div>
-                                                <div className="flex items-center gap-1.5 shrink-0 border-l border-border/50 pl-4">
-                                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#888888" }} />
-                                                    <span className="text-[9px] text-muted-foreground font-bold">取得原価</span>
-                                                    <span className="text-[11px] font-bold text-[#888888]">¥{Math.round(activePoint.totalCost).toLocaleString()}</span>
-                                                </div>
-                                            </>
-                                        ) : (
-                                            activeKeys.map((key, i) => {
-                                                const k = `tag_${selectedTagGroup}_${key}`
-                                                const val = (activePoint as any)[k] || 0
-                                                if (val === 0) return null
-                                                const color = `var(--chart-${(i % 5) + 1})`
-                                                return (
-                                                    <div key={key} className={`flex items-center gap-1.5 shrink-0 ${i > 0 ? "border-l border-border/50 pl-4" : ""}`}>
-                                                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-                                                        <span className="text-[9px] text-muted-foreground font-bold">{key}</span>
-                                                        <span className="text-[11px] font-bold">
-                                                            {showPercent
-                                                                ? `${((Number((activePoint as any)[k] || 0) / (activeKeys.reduce((a, sky) => a + Number((activePoint as any)[`tag_${selectedTagGroup}_${sky}`] || 0), 0) || 1)) * 100).toFixed(1)}%`
-                                                                : `¥${Math.round(Number((activePoint as any)[k] || 0)).toLocaleString()}`
-                                                            }
-                                                        </span>
-                                                    </div>
-                                                )
-                                            })
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
                         <div 
-                            className="flex-1 w-full min-h-0 px-2 py-2 select-none" 
+                            className="flex-1 w-full min-h-[250px] px-2 py-2 select-none" 
                             ref={chartRef}
                             onMouseDown={handleMouseDown}
                             onMouseMove={handleMouseMove}
@@ -507,8 +443,8 @@ export function AssetHistoryChart({
                         </div>
                     </div>
                 </ChartContainer>
-            </CardContent>
+            </div>
 
-        </Card>
+        </div>
     )
 }

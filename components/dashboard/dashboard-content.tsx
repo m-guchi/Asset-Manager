@@ -2,8 +2,7 @@
 
 import * as React from "react"
 import { SummaryCards } from "@/components/dashboard/summary-cards"
-import { AssetAllocationChart } from "@/components/dashboard/asset-allocation-chart"
-import { AssetHistoryChart } from "@/components/dashboard/asset-history-chart"
+import { AssetChartsCombined } from "@/components/dashboard/asset-charts-combined"
 import { CategoryList } from "@/components/dashboard/category-list"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -69,17 +68,14 @@ export function DashboardContent({
                 />
             </section>
 
-            <section className="grid gap-2 md:grid-cols-2 lg:grid-cols-7">
-                <div className="col-span-full md:col-span-1 lg:col-span-4 min-w-0">
-                    <AssetHistoryChart
-                        data={historyData}
-                        tagGroups={tagGroups}
-                        initialTimeRange={defaultTimeRange}
-                    />
-                </div>
-                <div className="col-span-full md:col-span-1 lg:col-span-3 min-w-0">
-                    <AssetAllocationChart categories={topLevelCategories} allCategories={categories} tagGroups={tagGroups} />
-                </div>
+            <section className="mb-2">
+                <AssetChartsCombined
+                    historyData={historyData}
+                    categories={topLevelCategories}
+                    allCategories={categories}
+                    tagGroups={tagGroups}
+                    initialTimeRange={defaultTimeRange}
+                />
             </section>
 
             <section>
