@@ -52,13 +52,13 @@ export function DashboardContent({
     const totalCost = topLevelCategories
         .reduce((acc, cat) => acc + (cat.isCash ? cat.currentValue : cat.costBasis), 0)
     const totalProfit = totalAssets - totalCost
-    const profitPercent = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0
+    const totalProfitRate = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0
+    const totalRealizedGain = topLevelCategories
+        .reduce((acc, cat) => acc + (cat.realizedGain || 0), 0)
 
     const {
         dailyChange: totalDailyChange,
-        dailyChangeRate,
         monthlyChange: totalMonthlyChange,
-        monthlyChangeRate,
     } = computePortfolioPerformanceFromHistory(historyData)
 
     return (
@@ -66,12 +66,11 @@ export function DashboardContent({
             <section>
                 <SummaryCards
                     netWorth={totalAssets}
+                    realizedProfit={totalRealizedGain}
                     totalProfit={totalProfit}
-                    profitPercent={profitPercent}
+                    totalProfitRate={totalProfitRate}
                     dailyChange={totalDailyChange}
-                    dailyChangeRate={dailyChangeRate}
                     monthlyChange={totalMonthlyChange}
-                    monthlyChangeRate={monthlyChangeRate}
                 />
             </section>
 

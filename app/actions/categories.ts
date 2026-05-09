@@ -129,6 +129,7 @@ export async function getCategories() {
 
             let ownCostBasis = 0;
             const trxs = cat.transactions || [];
+            const ownRealizedGain = trxs.reduce((acc: number, t) => acc + Number(t.realizedGain || 0), 0);
             if (cat.isCash) {
                 ownCostBasis = ownValue;
             } else {
@@ -142,10 +143,12 @@ export async function getCategories() {
                 ...cat,
                 ownValue,
                 ownCostBasis,
+                ownRealizedGain,
                 ownDailyChange: ownDailyChange ?? 0,
                 // Placeholders for consolidated values
                 currentValue: ownValue,
                 costBasis: ownCostBasis,
+                realizedGain: ownRealizedGain,
                 dailyChange: ownDailyChange ?? 0,
                 dailyChangeRate: ownDailyChangeRate ?? 0,
                 dailyChangeDays: ownDailyChangeDays,
@@ -172,6 +175,8 @@ export async function getCategories() {
                 cat.ownDailyChange = 0;
                 cat.currentValue = 0;
                 cat.costBasis = 0;
+                cat.ownRealizedGain = 0;
+                cat.realizedGain = 0;
                 cat.dailyChange = 0;
                 cat.monthlyChange = 0;
             }
@@ -189,6 +194,7 @@ export async function getCategories() {
                     parent.dailyChange += item.dailyChange;
                     parent.monthlyChange += item.monthlyChange;
                     parent.costBasis += item.costBasis;
+                    parent.realizedGain += item.realizedGain;
                     if (item.lastUpdated && (!parent.lastUpdated || item.lastUpdated > parent.lastUpdated)) {
                         parent.lastUpdated = item.lastUpdated;
                     }
@@ -219,6 +225,7 @@ export async function getCategories() {
                 costBasis: cat.costBasis,
                 ownValue: cat.ownValue,
                 ownCostBasis: cat.ownCostBasis,
+                realizedGain: cat.realizedGain,
                 dailyChange: cat.dailyChange,
                 dailyChangeRate: cat.dailyChangeRate,
                 dailyChangeDays: cat.dailyChangeDays,
