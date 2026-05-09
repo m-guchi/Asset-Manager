@@ -244,6 +244,10 @@ export function AssetAllocationChart({
                                     if (val === 0) return null
                                     const key = `category_${cat.id}`
                                     const isDimmed = selectedAssetKey && selectedAssetKey !== key
+                                    const cost = Number(activePoint[`category_cost_${cat.id}`] || 0)
+                                    const pnlValue = val - cost
+                                    const pnlRate = cost > 0 ? ((pnlValue) / cost) * 100 : 0
+                                    const displayPrimaryValue = viewMode === "pnl" || viewMode === "pnlValue" ? pnlValue : val
                                     
                                     // グラフ本体と同じロジックで色を決定
                                     const topLevelCategories = categories.filter(c => !c.parentId);
@@ -263,19 +267,18 @@ export function AssetAllocationChart({
                                             <div className="flex items-center gap-1.5 ml-auto shrink-0">
                                                 <div className="flex items-baseline gap-0.5">
                                                     <span className="text-[11px] font-bold tabular-nums">
-                                                        {Math.round(val).toLocaleString()}
+                                                        {Math.round(displayPrimaryValue).toLocaleString()}
                                                     </span>
                                                     <span className="text-[7px] font-medium opacity-70">円</span>
                                                 </div>
                                                 <div className="flex items-baseline gap-0.5">
                                                     <span className="text-[11px] font-normal opacity-70">(</span>
-                                                    <span className={`text-[11px] font-normal ${viewMode === "pnl" ? (val - Number(activePoint[`category_cost_${cat.id}`] || 0) >= 0 ? "text-emerald-500" : "text-rose-500") : ""}`}>
+                                                    <span className={`text-[11px] font-normal ${viewMode === "pnl" || viewMode === "pnlValue" ? (pnlValue >= 0 ? "text-emerald-500" : "text-rose-500") : ""}`}>
                                                         {viewMode === "pnl" ? (() => {
-                                                            const cost = Number(activePoint[`category_cost_${cat.id}`] || 0)
-                                                            if (cost <= 0) return "0.0"
-                                                            const rate = ((val - cost) / cost) * 100
-                                                            return (rate > 0 ? "+" : "") + rate.toFixed(1)
-                                                        })() : (totalValue > 0 ? ((val / totalValue) * 100).toFixed(1) : "0.0")}
+                                                            return (pnlRate > 0 ? "+" : "") + pnlRate.toFixed(1)
+                                                        })() : viewMode === "pnlValue" ? (
+                                                            (pnlRate > 0 ? "+" : "") + pnlRate.toFixed(1)
+                                                        ) : (totalValue > 0 ? ((val / totalValue) * 100).toFixed(1) : "0.0")}
                                                     </span>
                                                     <span className="text-[7px] font-normal opacity-70">%</span>
                                                     <span className="text-[11px] font-normal opacity-70">)</span>
@@ -290,6 +293,10 @@ export function AssetAllocationChart({
                                     if (Number(val) === 0) return null
                                     const key = `tag_${selectedTagGroup}_${keyName}`
                                     const isDimmed = selectedAssetKey && selectedAssetKey !== key
+                                    const cost = Number((activePoint as Record<string, unknown>)[`tag_cost_${selectedTagGroup}_${keyName}`] || 0)
+                                    const pnlValue = Number(val) - cost
+                                    const pnlRate = cost > 0 ? (pnlValue / cost) * 100 : 0
+                                    const displayPrimaryValue = viewMode === "pnl" || viewMode === "pnlValue" ? pnlValue : Number(val)
                                     
                                     // グラフ本体と同じロジックで色を決定
                                     const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
@@ -310,19 +317,18 @@ export function AssetAllocationChart({
                                             <div className="flex items-center gap-1.5 ml-auto shrink-0">
                                                 <div className="flex items-baseline gap-0.5">
                                                     <span className="text-[11px] font-bold tabular-nums">
-                                                        {Math.round(Number(val)).toLocaleString()}
+                                                        {Math.round(displayPrimaryValue).toLocaleString()}
                                                     </span>
                                                     <span className="text-[7px] font-medium opacity-70">円</span>
                                                 </div>
                                                 <div className="flex items-baseline gap-0.5">
                                                     <span className="text-[11px] font-normal opacity-70">(</span>
-                                                    <span className={`text-[11px] font-normal ${viewMode === "pnl" ? (Number(val) - Number((activePoint as Record<string, unknown>)[`tag_cost_${selectedTagGroup}_${keyName}`] || 0) >= 0 ? "text-emerald-500" : "text-rose-500") : ""}`}>
+                                                    <span className={`text-[11px] font-normal ${viewMode === "pnl" || viewMode === "pnlValue" ? (pnlValue >= 0 ? "text-emerald-500" : "text-rose-500") : ""}`}>
                                                         {viewMode === "pnl" ? (() => {
-                                                            const cost = Number((activePoint as Record<string, unknown>)[`tag_cost_${selectedTagGroup}_${keyName}`] || 0)
-                                                            if (cost <= 0) return "0.0"
-                                                            const rate = ((Number(val) - cost) / cost) * 100
-                                                            return (rate > 0 ? "+" : "") + rate.toFixed(1)
-                                                        })() : (totalValue > 0 ? ((Number(val) / totalValue) * 100).toFixed(1) : "0.0")}
+                                                            return (pnlRate > 0 ? "+" : "") + pnlRate.toFixed(1)
+                                                        })() : viewMode === "pnlValue" ? (
+                                                            (pnlRate > 0 ? "+" : "") + pnlRate.toFixed(1)
+                                                        ) : (totalValue > 0 ? ((Number(val) / totalValue) * 100).toFixed(1) : "0.0")}
                                                     </span>
                                                     <span className="text-[7px] font-normal opacity-70">%</span>
                                                     <span className="text-[11px] font-normal opacity-70">)</span>

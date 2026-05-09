@@ -77,8 +77,9 @@ export async function getCategories() {
             const ownValue = Number(latestAsset?.currentValue || 0);
 
             // Daily Performance calculation (Value Change - Net Flow)
-            const ownDailyValueChange = latestAsset && prevAsset ? Number(latestAsset.currentValue) - Number(prevAsset.currentValue) : 0;
-            const dailyNetFlow = latestAsset && prevAsset ? (cat.transactions || [])
+            const hasDailyComparison = !!latestAsset && !!prevAsset;
+            const ownDailyValueChange = hasDailyComparison ? Number(latestAsset.currentValue) - Number(prevAsset.currentValue) : 0;
+            const dailyNetFlow = hasDailyComparison ? (cat.transactions || [])
                 .filter(t => t.transactedAt > prevAsset.recordedAt && t.transactedAt <= latestAsset.recordedAt)
                 .reduce((acc, t) => {
                     const amt = Number(t.amount);
@@ -86,21 +87,23 @@ export async function getCategories() {
                     if (t.type === 'WITHDRAW') return acc - amt;
                     return acc;
                 }, 0) : 0;
-            const ownDailyChange = ownDailyValueChange - dailyNetFlow;
+            const ownDailyChange = hasDailyComparison ? (ownDailyValueChange - dailyNetFlow) : undefined;
 
-            const ownDailyChangeDays = latestAsset && prevAsset 
+            const ownDailyChangeDays = hasDailyComparison
                 ? Math.max(1, Math.round((latestAsset.recordedAt.getTime() - prevAsset.recordedAt.getTime()) / (1000 * 60 * 60 * 24))) 
-                : 1;
+                : undefined;
             const prevValue = Number(prevAsset?.currentValue || 0);
-            // Rate should ideally be based on prevValue, but for performance change, it's often against prevValue as well.
-            const ownDailyChangeRate = prevValue > 0 ? (ownDailyChange / prevValue) * 100 : 0;
+            const ownDailyChangeRate = hasDailyComparison
+                ? (prevValue > 0 ? ((ownDailyChange ?? 0) / prevValue) * 100 : 0)
+                : undefined;
 
             // Monthly Performance calculation (~30 days ago)
             const thirtyDaysAgoLimit = latestAsset ? new Date(latestAsset.recordedAt.getTime() - (30 * 24 * 60 * 60 * 1000)) : null;
             const monthAgoAsset = thirtyDaysAgoLimit ? (cat.assets || []).find(a => a.recordedAt <= thirtyDaysAgoLimit) : null;
             
-            const ownMonthlyValueChange = latestAsset && monthAgoAsset ? Number(latestAsset.currentValue) - Number(monthAgoAsset.currentValue) : 0;
-            const monthlyNetFlow = latestAsset && monthAgoAsset ? (cat.transactions || [])
+            const hasMonthlyComparison = !!latestAsset && !!monthAgoAsset;
+            const ownMonthlyValueChange = hasMonthlyComparison ? Number(latestAsset.currentValue) - Number(monthAgoAsset.currentValue) : 0;
+            const monthlyNetFlow = hasMonthlyComparison ? (cat.transactions || [])
                 .filter(t => t.transactedAt > monthAgoAsset.recordedAt && t.transactedAt <= latestAsset.recordedAt)
                 .reduce((acc, t) => {
                     const amt = Number(t.amount);
@@ -108,16 +111,25 @@ export async function getCategories() {
                     if (t.type === 'WITHDRAW') return acc - amt;
                     return acc;
                 }, 0) : 0;
-            const ownMonthlyChange = ownMonthlyValueChange - monthlyNetFlow;
+            const ownMonthlyChange = hasMonthlyComparison ? (ownMonthlyValueChange - monthlyNetFlow) : undefined;
 
-            const ownMonthlyChangeDays = latestAsset && monthAgoAsset 
+            const ownMonthlyChangeDays = hasMonthlyComparison
                 ? Math.max(1, Math.round((latestAsset.recordedAt.getTime() - monthAgoAsset.recordedAt.getTime()) / (1000 * 60 * 60 * 24))) 
-                : 30;
+                : undefined;
             const monthAgoValue = Number(monthAgoAsset?.currentValue || 0);
-            const ownMonthlyChangeRate = monthAgoValue > 0 ? (ownMonthlyChange / monthAgoValue) * 100 : 0;
+            const ownMonthlyChangeRate = hasMonthlyComparison
+                ? (monthAgoValue > 0 ? ((ownMonthlyChange ?? 0) / monthAgoValue) * 100 : 0)
+                : undefined;
+
+            // 1つ前の比較点が30日以上前なら30日前比は重複表示しない
+            const shouldHideMonthlyBecauseOverlap = (ownDailyChangeDays ?? 0) >= 30;
+            const finalMonthlyChange = shouldHideMonthlyBecauseOverlap ? undefined : ownMonthlyChange;
+            const finalMonthlyChangeDays = shouldHideMonthlyBecauseOverlap ? undefined : ownMonthlyChangeDays;
+            const finalMonthlyChangeRate = shouldHideMonthlyBecauseOverlap ? undefined : ownMonthlyChangeRate;
 
             let ownCostBasis = 0;
             const trxs = cat.transactions || [];
+            const ownRealizedGain = trxs.reduce((acc: number, t) => acc + Number(t.realizedGain || 0), 0);
             if (cat.isCash) {
                 ownCostBasis = ownValue;
             } else {
@@ -131,16 +143,18 @@ export async function getCategories() {
                 ...cat,
                 ownValue,
                 ownCostBasis,
-                ownDailyChange,
+                ownRealizedGain,
+                ownDailyChange: ownDailyChange ?? 0,
                 // Placeholders for consolidated values
                 currentValue: ownValue,
                 costBasis: ownCostBasis,
-                dailyChange: ownDailyChange,
-                dailyChangeRate: ownDailyChangeRate,
+                realizedGain: ownRealizedGain,
+                dailyChange: ownDailyChange ?? 0,
+                dailyChangeRate: ownDailyChangeRate ?? 0,
                 dailyChangeDays: ownDailyChangeDays,
-                monthlyChange: ownMonthlyChange,
-                monthlyChangeRate: ownMonthlyChangeRate,
-                monthlyChangeDays: ownMonthlyChangeDays,
+                monthlyChange: finalMonthlyChange ?? 0,
+                monthlyChangeRate: finalMonthlyChangeRate ?? 0,
+                monthlyChangeDays: finalMonthlyChangeDays,
                 lastUpdated: latestAsset?.recordedAt || undefined,
             };
         });
@@ -161,6 +175,8 @@ export async function getCategories() {
                 cat.ownDailyChange = 0;
                 cat.currentValue = 0;
                 cat.costBasis = 0;
+                cat.ownRealizedGain = 0;
+                cat.realizedGain = 0;
                 cat.dailyChange = 0;
                 cat.monthlyChange = 0;
             }
@@ -178,6 +194,7 @@ export async function getCategories() {
                     parent.dailyChange += item.dailyChange;
                     parent.monthlyChange += item.monthlyChange;
                     parent.costBasis += item.costBasis;
+                    parent.realizedGain += item.realizedGain;
                     if (item.lastUpdated && (!parent.lastUpdated || item.lastUpdated > parent.lastUpdated)) {
                         parent.lastUpdated = item.lastUpdated;
                     }
@@ -208,6 +225,7 @@ export async function getCategories() {
                 costBasis: cat.costBasis,
                 ownValue: cat.ownValue,
                 ownCostBasis: cat.ownCostBasis,
+                realizedGain: cat.realizedGain,
                 dailyChange: cat.dailyChange,
                 dailyChangeRate: cat.dailyChangeRate,
                 dailyChangeDays: cat.dailyChangeDays,

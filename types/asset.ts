@@ -25,6 +25,7 @@ export interface Category {
     monthlyChange?: number
     monthlyChangeRate?: number
     monthlyChangeDays?: number
+    realizedGain?: number
     lastUpdated?: Date
     hidden?: boolean
 }
@@ -44,4 +45,4 @@ export interface TagGroup {
     options?: { id: number, name: string }[]
 }
 
-export type ChartViewMode = "value" | "percent" | "pnl"
+export type ChartViewMode = "value" | "percent" | "pnl" | "pnlValue"

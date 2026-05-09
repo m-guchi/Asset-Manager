@@ -8,6 +8,7 @@ import { getCategories } from "@/app/actions/categories"
 import { getTagGroups } from "@/app/actions/tags"
 import { getHistoryData } from "@/app/actions/history"
 import { Category, HistoryPoint, TagGroup } from "@/types/asset"
+import { computePortfolioPerformanceFromHistory } from "@/lib/summary-from-history"
 
 interface DashboardContentProps {
     initialCategories: Category[];
@@ -51,28 +52,25 @@ export function DashboardContent({
     const totalCost = topLevelCategories
         .reduce((acc, cat) => acc + (cat.isCash ? cat.currentValue : cat.costBasis), 0)
     const totalProfit = totalAssets - totalCost
-    const profitPercent = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0
+    const totalProfitRate = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0
+    const totalRealizedGain = topLevelCategories
+        .reduce((acc, cat) => acc + (cat.realizedGain || 0), 0)
 
-    // Portfolio Performance Aggregation
-    const totalDailyChange = topLevelCategories.reduce((acc, cat) => acc + (cat.dailyChange || 0), 0)
-    const prevDayTotal = totalAssets - totalDailyChange
-    const dailyChangeRate = prevDayTotal > 0 ? (totalDailyChange / prevDayTotal) * 100 : 0
-
-    const totalMonthlyChange = topLevelCategories.reduce((acc, cat) => acc + (cat.monthlyChange || 0), 0)
-    const prevMonthTotal = totalAssets - totalMonthlyChange
-    const monthlyChangeRate = prevMonthTotal > 0 ? (totalMonthlyChange / prevMonthTotal) * 100 : 0
+    const {
+        dailyChange: totalDailyChange,
+        monthlyChange: totalMonthlyChange,
+    } = computePortfolioPerformanceFromHistory(historyData)
 
     return (
         <div className="flex flex-col gap-2 px-1 py-2 md:px-2 md:py-4">
             <section>
                 <SummaryCards
                     netWorth={totalAssets}
+                    realizedProfit={totalRealizedGain}
                     totalProfit={totalProfit}
-                    profitPercent={profitPercent}
+                    totalProfitRate={totalProfitRate}
                     dailyChange={totalDailyChange}
-                    dailyChangeRate={dailyChangeRate}
                     monthlyChange={totalMonthlyChange}
-                    monthlyChangeRate={monthlyChangeRate}
                 />
             </section>
 
