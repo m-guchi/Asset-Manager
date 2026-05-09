@@ -178,13 +178,20 @@ export function CategoryList({
         setIsEditing(false);
     };
 
+    const formatSigned = (value: number, digits?: number) => {
+        if (value === 0) return digits !== undefined ? `±${value.toFixed(digits)}` : "±0"
+        if (digits !== undefined) return `${value > 0 ? "+" : ""}${value.toFixed(digits)}`
+        return `${value > 0 ? "+" : ""}${value.toLocaleString()}`
+    }
+
     const renderCategoryCard = (category: Category, isChild = false) => {
         const valueToUse = (isChild ? category.ownValue : category.currentValue) ?? 0
         const costToUse = (category.isCash ? valueToUse : (isChild ? category.ownCostBasis : category.costBasis)) ?? 0
         const profit = valueToUse - costToUse
         const profitPercent = costToUse > 0 ? (profit / costToUse) * 100 : 0
 
-        const showProfit = !category.isCash;
+        const hasActiveValuation = valueToUse > 0
+        const showProfit = !category.isCash && hasActiveValuation;
 
         const cardContent = (
             <Card className={`overflow-hidden h-full cursor-pointer hover:shadow-md transition-all border-l-0 relative group ${isChild ? 'bg-muted/30' : ''} ${!isChild && isEditing ? 'select-none pointer-events-none' : ''}`}>
@@ -240,28 +247,28 @@ export function CategoryList({
                             </span>
 
                             {/* Comparisons - SMALLER */}
-                            {(!category.isCash && category.dailyChange !== undefined && category.dailyChange !== 0) && (
-                                <div className={`text-[10px] font-medium flex items-baseline gap-1 mt-0.5 ${category.dailyChange > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                            {(showProfit && category.dailyChangeDays !== undefined) && (
+                                <div className={`text-[10px] font-medium flex items-baseline gap-1 mt-0.5 ${(category.dailyChange || 0) > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
                                     <div className="w-[38px] shrink-0 text-right">
                                         <span className="opacity-70 text-[8px]">{category.dailyChangeDays || 1}日前比</span>
                                     </div>
-                                    <span className="text-[10px] font-bold">{category.dailyChange > 0 ? '+' : ''}{category.dailyChange.toLocaleString()}</span>
+                                    <span className="text-[10px] font-bold">{formatSigned(category.dailyChange || 0)}</span>
                                     <span className="text-[8px] opacity-80 font-normal">円</span>
                                     {category.dailyChangeRate !== undefined && (
-                                        <span className="text-[8px] opacity-70 ml-0.5">({category.dailyChange > 0 ? '+' : ''}{category.dailyChangeRate.toFixed(1)}%)</span>
+                                        <span className="text-[8px] opacity-70 ml-0.5">({formatSigned(category.dailyChangeRate, 1)}%)</span>
                                     )}
                                 </div>
                             )}
 
-                            {(!category.isCash && category.monthlyChange !== undefined && category.monthlyChange !== 0) && (
-                                <div className={`text-[10px] font-medium flex items-baseline gap-1 mt-0 ${category.monthlyChange > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                            {(showProfit && category.monthlyChangeDays !== undefined) && (
+                                <div className={`text-[10px] font-medium flex items-baseline gap-1 mt-0 ${(category.monthlyChange || 0) > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
                                     <div className="w-[38px] shrink-0 text-right">
                                         <span className="opacity-70 text-[8px]">{category.monthlyChangeDays || 30}日前比</span>
                                     </div>
-                                    <span className="text-[10px] font-bold">{category.monthlyChange > 0 ? '+' : ''}{category.monthlyChange.toLocaleString()}</span>
+                                    <span className="text-[10px] font-bold">{formatSigned(category.monthlyChange || 0)}</span>
                                     <span className="text-[8px] opacity-80 font-normal">円</span>
                                     {category.monthlyChangeRate !== undefined && (
-                                        <span className="text-[8px] opacity-70 ml-0.5">({category.monthlyChange > 0 ? '+' : ''}{category.monthlyChangeRate.toFixed(1)}%)</span>
+                                        <span className="text-[8px] opacity-70 ml-0.5">({formatSigned(category.monthlyChangeRate, 1)}%)</span>
                                     )}
                                 </div>
                             )}

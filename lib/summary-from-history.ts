@@ -7,9 +7,10 @@ export interface PortfolioHistoryPerformance {
     monthlyChangeRate: number
 }
 
-function pointTotal(p: HistoryPoint): number {
-    const v = p.totalAssets ?? p.netWorth
-    return Number(v ?? 0)
+function pointProfitAmount(p: HistoryPoint): number {
+    const assets = Number((p.totalAssets ?? p.netWorth) ?? 0)
+    const cost = Number(p.totalCost ?? 0)
+    return assets - cost
 }
 
 function pointDateKey(p: HistoryPoint): string {
@@ -61,7 +62,7 @@ function findLastIndexOnOrBeforeDate(sorted: HistoryPoint[], threshold: string):
 
 /**
  * ダッシュボード上部「1日前比」「30日前比」用。
- * 履歴時系列の totalAssets（ポートフォリオ合計）を、暦日ベースで揃えた参照日と比較する。
+ * 履歴時系列の損益額（totalAssets - totalCost）を、暦日ベースで揃えた参照日と比較する。
  */
 export function computePortfolioPerformanceFromHistory(
     historyData: HistoryPoint[] | undefined | null
@@ -80,26 +81,26 @@ export function computePortfolioPerformanceFromHistory(
     const latestDate = pointDateKey(latest)
     if (!latestDate) return empty
 
-    const latestTotal = pointTotal(latest)
+    const latestProfit = pointProfitAmount(latest)
 
     const dayThreshold = addCalendarDaysUtc(latestDate, -1)
     let dailyRefIdx = findLastIndexOnOrBeforeDate(sorted, dayThreshold)
     if (dailyRefIdx < 0 || dailyRefIdx >= lastIdx) {
         dailyRefIdx = lastIdx >= 1 ? lastIdx - 1 : -1
     }
-    const dailyRefTotal = dailyRefIdx >= 0 ? pointTotal(sorted[dailyRefIdx]) : latestTotal
-    const dailyChange = dailyRefIdx >= 0 ? latestTotal - dailyRefTotal : 0
+    const dailyRefProfit = dailyRefIdx >= 0 ? pointProfitAmount(sorted[dailyRefIdx]) : latestProfit
+    const dailyChange = dailyRefIdx >= 0 ? latestProfit - dailyRefProfit : 0
     const dailyChangeRate =
-        dailyRefIdx >= 0 && dailyRefTotal > 0 ? (dailyChange / dailyRefTotal) * 100 : 0
+        dailyRefIdx >= 0 && dailyRefProfit !== 0 ? (dailyChange / Math.abs(dailyRefProfit)) * 100 : 0
 
     const monthThreshold = addCalendarDaysUtc(latestDate, -30)
     const monthRefIdx = findLastIndexOnOrBeforeDate(sorted, monthThreshold)
     let monthlyChange = 0
     let monthlyChangeRate = 0
     if (monthRefIdx >= 0 && monthRefIdx < lastIdx) {
-        const monthRefTotal = pointTotal(sorted[monthRefIdx])
-        monthlyChange = latestTotal - monthRefTotal
-        monthlyChangeRate = monthRefTotal > 0 ? (monthlyChange / monthRefTotal) * 100 : 0
+        const monthRefProfit = pointProfitAmount(sorted[monthRefIdx])
+        monthlyChange = latestProfit - monthRefProfit
+        monthlyChangeRate = monthRefProfit !== 0 ? (monthlyChange / Math.abs(monthRefProfit)) * 100 : 0
     }
 
     return { dailyChange, dailyChangeRate, monthlyChange, monthlyChangeRate }
