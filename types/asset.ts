@@ -44,4 +44,4 @@ export interface TagGroup {
     options?: { id: number, name: string }[]
 }
 
-export type ChartViewMode = "value" | "percent" | "pnl"
+export type ChartViewMode = "value" | "percent" | "pnl" | "pnlValue"

@@ -45,6 +45,9 @@ export function AssetHistoryChart({
     const [isMounted, setIsMounted] = React.useState(false);
     const [timeRange, setTimeRange] = React.useState(initialTimeRange)
     const showPercent = viewMode === "percent"
+    const isPnlRateMode = viewMode === "pnl"
+    const isPnlValueMode = viewMode === "pnlValue"
+    const isAnyPnlMode = isPnlRateMode || isPnlValueMode
     const [isAnimating, setIsAnimating] = React.useState(false)
 
     // ドラッグ(スワイプ)用ステート
@@ -110,6 +113,7 @@ export function AssetHistoryChart({
                     const val = Number((point as Record<string, unknown>)[`category_${cat.id}`] || 0)
                     const cost = Number((point as Record<string, unknown>)[`category_cost_${cat.id}`] || 0)
                     ;(point as Record<string, unknown>)[`pnl_${cat.id}`] = cost > 0 ? ((val - cost) / cost) * 100 : 0
+                    ;(point as Record<string, unknown>)[`pnl_value_${cat.id}`] = val - cost
                 })
 
                 // タグ別損益率を計算
@@ -120,6 +124,7 @@ export function AssetHistoryChart({
                         const val = Number((point as Record<string, unknown>)[valKey] || 0)
                         const cost = Number((point as Record<string, unknown>)[costKey] || 0)
                         ;(point as Record<string, unknown>)[`tag_pnl_${selectedTagGroup}_${key}`] = cost > 0 ? ((val - cost) / cost) * 100 : 0
+                        ;(point as Record<string, unknown>)[`tag_pnl_value_${selectedTagGroup}_${key}`] = val - cost
                     })
                 }
 
@@ -237,12 +242,61 @@ export function AssetHistoryChart({
         return [domainMin, domainMax] as [number, number]
     }, [allProcessedData, currentDomain, mode, activeKeys, selectedTagGroup, categories, selectedAssetKey])
 
+    const visiblePnlValueDomain = React.useMemo(() => {
+        if (!allProcessedData.length) return [-10000, 10000] as [number, number]
+
+        const dataMaxTime = allProcessedData[allProcessedData.length - 1].timestamp
+        const rawMinT = currentDomain[0] === "dataMin" ? allProcessedData[0].timestamp : (currentDomain[0] as number)
+        const rawMaxT = currentDomain[1] === "dataMax" ? dataMaxTime : (currentDomain[1] as number)
+        const minT = rawMinT
+        const maxT = Math.min(rawMaxT, dataMaxTime)
+
+        const visiblePoints = allProcessedData.filter((p) => p.timestamp >= minT && p.timestamp <= maxT)
+        if (!visiblePoints.length) return [-10000, 10000] as [number, number]
+
+        const seriesKeys =
+            mode === "tag"
+                ? activeKeys
+                      .filter((key) => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`)
+                      .map((key) => `tag_pnl_value_${selectedTagGroup}_${key}`)
+                : categories
+                      .filter((c) => !c.parentId && !c.isLiability)
+                      .filter((c) => !selectedAssetKey || selectedAssetKey === `category_${c.id}`)
+                      .map((c) => `pnl_value_${c.id}`)
+
+        if (!seriesKeys.length) return [-10000, 10000] as [number, number]
+
+        let minValue = Number.POSITIVE_INFINITY
+        let maxValue = Number.NEGATIVE_INFINITY
+
+        visiblePoints.forEach((point) => {
+            seriesKeys.forEach((key) => {
+                const value = Number((point as Record<string, unknown>)[key])
+                if (!Number.isFinite(value)) return
+                if (value < minValue) minValue = value
+                if (value > maxValue) maxValue = value
+            })
+        })
+
+        if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) return [-10000, 10000] as [number, number]
+
+        if (minValue === maxValue) {
+            const pad = Math.max(Math.abs(minValue) * 0.2, 10000)
+            return [minValue - pad, maxValue + pad] as [number, number]
+        }
+
+        const span = maxValue - minValue
+        const pad = Math.max(span * 0.1, 10000)
+        return [minValue - pad, maxValue + pad] as [number, number]
+    }, [allProcessedData, currentDomain, mode, activeKeys, selectedTagGroup, categories, selectedAssetKey])
+
     // Y軸のドメイン計算
     const yAxisDomain = React.useMemo(() => {
         if (viewMode === "percent") return [0, 1] as [number, number]
         if (viewMode === "pnl") return visiblePnlDomain
+        if (viewMode === "pnlValue") return visiblePnlValueDomain
         return ['auto', 'auto']
-    }, [viewMode, visiblePnlDomain])
+    }, [viewMode, visiblePnlDomain, visiblePnlValueDomain])
 
     const [debouncedActivePoint, setDebouncedActivePoint] = React.useState<ChartPoint | null>(null);
 
@@ -380,6 +434,7 @@ export function AssetHistoryChart({
                                         tickFormatter={(val) => {
                                             if (viewMode === "percent") return `${(val * 100).toFixed(0)}%`
                                             if (viewMode === "pnl") return `${val.toFixed(1)}%`
+                                            if (viewMode === "pnlValue") return `${Math.round(val / 10000)}万`
                                             return `${Math.round(val / 10000)}万`
                                         }}
                                         tickLine={false}
@@ -387,7 +442,7 @@ export function AssetHistoryChart({
                                         tick={{ fill: 'currentColor', fontSize: 10, opacity: 0.5 }}
                                         width={40}
                                         domain={yAxisDomain}
-                                        allowDataOverflow={viewMode === "pnl"}
+                                        allowDataOverflow={isAnyPnlMode}
                                     />
                                     {activePoint && (
                                         <ReferenceLine
@@ -417,7 +472,7 @@ export function AssetHistoryChart({
                                     )}
 
                                     {/* 評価額・割合モード時の面グラフ */}
-                                    {viewMode !== "pnl" && mode === "total" && [...categories].reverse().filter((cat: Category) => {
+                                    {!isAnyPnlMode && mode === "total" && [...categories].reverse().filter((cat: Category) => {
                                         if (cat.isLiability) return false
                                         if (!shouldHighlightOnlySelected) return true
                                         return !selectedAssetKey || selectedAssetKey === `category_${cat.id}`
@@ -443,7 +498,7 @@ export function AssetHistoryChart({
                                         );
                                     })}
 
-                                    {viewMode !== "pnl" && mode === "tag" && [...activeKeys].reverse().filter((key) => {
+                                    {!isAnyPnlMode && mode === "tag" && [...activeKeys].reverse().filter((key) => {
                                         if (!shouldHighlightOnlySelected) return true
                                         return !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`
                                     }).map((key) => {
@@ -470,7 +525,7 @@ export function AssetHistoryChart({
                                     })}
 
                                     {/* 損益率モード時の折れ線グラフ */}
-                                    {viewMode === "pnl" && mode === "total" && categories.filter(c => !c.parentId && !c.isLiability).map(cat => {
+                                    {isAnyPnlMode && mode === "total" && categories.filter(c => !c.parentId && !c.isLiability).map(cat => {
                                         const topLevel = categories.filter(c => !c.parentId && !c.isLiability)
                                         const colorIndex = topLevel.findIndex(c => c.id === cat.id)
                                         const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`
@@ -480,7 +535,7 @@ export function AssetHistoryChart({
                                         return (
                                             <Line
                                                 key={cat.id}
-                                                dataKey={`pnl_${cat.id}`}
+                                                dataKey={isPnlRateMode ? `pnl_${cat.id}` : `pnl_value_${cat.id}`}
                                                 type="linear"
                                                 stroke={color}
                                                 strokeWidth={1.5}
@@ -491,7 +546,7 @@ export function AssetHistoryChart({
                                         )
                                     })}
 
-                                    {viewMode === "pnl" && mode === "tag" && activeKeys.map(key => {
+                                    {isAnyPnlMode && mode === "tag" && activeKeys.map(key => {
                                         const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
                                         const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
                                         const colorIndex = targetTags.indexOf(key)
@@ -502,7 +557,7 @@ export function AssetHistoryChart({
                                         return (
                                             <Line
                                                 key={key}
-                                                dataKey={`tag_pnl_${selectedTagGroup}_${key}`}
+                                                dataKey={isPnlRateMode ? `tag_pnl_${selectedTagGroup}_${key}` : `tag_pnl_value_${selectedTagGroup}_${key}`}
                                                 type="linear"
                                                 stroke={color}
                                                 strokeWidth={1.5}
@@ -513,7 +568,7 @@ export function AssetHistoryChart({
                                         )
                                     })}
 
-                                    {viewMode === "pnl" && (
+                                    {isAnyPnlMode && (
                                         <ReferenceLine 
                                             y={0} 
                                             stroke="currentColor" 
@@ -524,11 +579,12 @@ export function AssetHistoryChart({
 
                                     {/* 交点の丸マーク */}
                                     {activePoint && (() => {
-                                        if (viewMode === "pnl") {
+                                        if (isAnyPnlMode) {
                                             // 損益率モード: 各カテゴリ/タグ独立
                                             if (mode === "tag") {
                                                 return activeKeys.map(key => {
-                                                    const val = Number((activePoint as Record<string, unknown>)[`tag_pnl_${selectedTagGroup}_${key}`] || 0)
+                                                    const dataKey = isPnlRateMode ? `tag_pnl_${selectedTagGroup}_${key}` : `tag_pnl_value_${selectedTagGroup}_${key}`
+                                                    const val = Number((activePoint as Record<string, unknown>)[dataKey] || 0)
                                                     const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
                                                     const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
                                                     const colorIndex = targetTags.indexOf(key)
@@ -552,7 +608,8 @@ export function AssetHistoryChart({
                                                 })
                                             } else {
                                                 return categories.filter(c => !c.parentId && !c.isLiability).map(cat => {
-                                                    const val = Number((activePoint as Record<string, unknown>)[`pnl_${cat.id}`] || 0)
+                                                    const dataKey = isPnlRateMode ? `pnl_${cat.id}` : `pnl_value_${cat.id}`
+                                                    const val = Number((activePoint as Record<string, unknown>)[dataKey] || 0)
                                                     const topLevel = categories.filter(c => !c.parentId && !c.isLiability)
                                                     const colorIndex = topLevel.findIndex(c => c.id === cat.id)
                                                     const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`
@@ -673,7 +730,7 @@ export function AssetHistoryChart({
                             <div className="flex bg-muted/50 rounded-md p-0.5 border shrink-0">
                                 <button
                                     onClick={() => {
-                                        const modes: ChartViewMode[] = ["value", "percent", "pnl"];
+                                        const modes: ChartViewMode[] = ["value", "percent", "pnl", "pnlValue"];
                                         const currentIndex = modes.indexOf(viewMode);
                                         const nextIndex = (currentIndex + 1) % modes.length;
                                         onViewModeChange(modes[nextIndex]);
@@ -681,7 +738,7 @@ export function AssetHistoryChart({
                                     className="px-4 py-1.5 text-[11px] font-bold rounded-md transition-all whitespace-nowrap bg-background text-foreground shadow-sm flex items-center gap-2 hover:bg-muted/80"
                                 >
                                     <span className="opacity-50">表示:</span>
-                                    <span>{{ value: "評価額", percent: "構成比", pnl: "損益率" }[viewMode]}</span>
+                                    <span>{{ value: "評価額", percent: "構成比", pnl: "損益率", pnlValue: "損益額" }[viewMode]}</span>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-50">
                                         <path d="m6 9 6 6 6-6"/>
                                     </svg>
