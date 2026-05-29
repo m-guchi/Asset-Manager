@@ -589,12 +589,14 @@ export async function getCategoryDetails(id: number) {
 
                 // For chart series: sum each direct child + its descendants
                 catWithNested.children.forEach((directChild: any) => {
-                    const getRecursiveValue = (pid: number): number => {
-                        const selfVal = runningValues[pid] || 0;
+                    const getRecursiveSum = (pid: number, field: "value" | "cost"): number => {
+                        const source = field === "value" ? runningValues : runningCosts;
+                        const self = source[pid] || 0;
                         const subChildren = allHistories.filter((h: any) => h.parentId === pid);
-                        return selfVal + subChildren.reduce((sum: number, c: any) => sum + getRecursiveValue(c.id), 0);
+                        return self + subChildren.reduce((sum: number, c: any) => sum + getRecursiveSum(c.id, field), 0);
                     };
-                    point[`child_${directChild.id}`] = getRecursiveValue(directChild.id);
+                    point[`child_${directChild.id}`] = getRecursiveSum(directChild.id, "value");
+                    point[`child_cost_${directChild.id}`] = getRecursiveSum(directChild.id, "cost");
                 });
 
                 return point;
@@ -608,12 +610,24 @@ export async function getCategoryDetails(id: number) {
                     const subDescendants = (catWithNested as any).allDescendants.filter((d: any) => d.parentId === catObj.id);
                     return val + subDescendants.reduce((sum: number, sd: any) => sum + getRecursiveCurrentValue(sd), 0);
                 };
+                const getRecursiveCostBasis = (catObj: any): number => {
+                    const cost = (catObj.transactions || [])
+                        .reduce((sum: number, t: { type: string; amount: number }) => {
+                            const amt = Number(t.amount);
+                            if (t.type === "DEPOSIT") return sum + amt;
+                            if (t.type === "WITHDRAW") return sum - amt;
+                            return sum;
+                        }, 0);
+                    const subDescendants = (catWithNested as any).allDescendants.filter((d: any) => d.parentId === catObj.id);
+                    return Math.max(0, cost + subDescendants.reduce((sum: number, sd: any) => sum + getRecursiveCostBasis(sd), 0));
+                };
 
                 return {
                     id: c.id,
                     name: c.name,
                     color: c.color || "#ccc",
                     currentValue: getRecursiveCurrentValue(c),
+                    costBasis: getRecursiveCostBasis(c),
                     isLiability: false
                 };
             });

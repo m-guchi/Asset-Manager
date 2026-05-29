@@ -6,6 +6,7 @@ import { Check, ChevronDown } from "lucide-react"
 import { ChartConfig, ChartContainer } from "@/components/ui/chart"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { HistoryPoint, TagGroup, Category, ChartViewMode } from "@/types/asset"
+import { applyPnlWithZeroTransitions, isPlottablePnlValue } from "@/lib/chart-pnl"
 
 const VIEW_MODE_OPTIONS = [
     { value: "value", label: "評価額" },
@@ -145,7 +146,7 @@ export function AssetHistoryChart({
     const allProcessedData = React.useMemo(() => {
         if (!data || data.length === 0) return []
         const topLevelCategories = categories.filter(c => !c.parentId)
-        return data
+        const points = data
             .map((p: HistoryPoint) => {
                 const d = new Date(p.date)
                 const point: ChartPoint = {
@@ -166,25 +167,7 @@ export function AssetHistoryChart({
                     })
                 }
 
-                // カテゴリ別損益率を計算
-                topLevelCategories.forEach(cat => {
-                    const val = Number((point as Record<string, unknown>)[`category_${cat.id}`] || 0)
-                    const cost = Number((point as Record<string, unknown>)[`category_cost_${cat.id}`] || 0)
-                    ;(point as Record<string, unknown>)[`pnl_${cat.id}`] = cost > 0 ? ((val - cost) / cost) * 100 : 0
-                    ;(point as Record<string, unknown>)[`pnl_value_${cat.id}`] = val - cost
-                })
-
-                // タグ別損益率を計算
-                if (mode === "tag") {
-                    activeKeys.forEach((key: string) => {
-                        const valKey = `tag_${selectedTagGroup}_${key}`
-                        const costKey = `tag_cost_${selectedTagGroup}_${key}`
-                        const val = Number((point as Record<string, unknown>)[valKey] || 0)
-                        const cost = Number((point as Record<string, unknown>)[costKey] || 0)
-                        ;(point as Record<string, unknown>)[`tag_pnl_${selectedTagGroup}_${key}`] = cost > 0 ? ((val - cost) / cost) * 100 : 0
-                        ;(point as Record<string, unknown>)[`tag_pnl_value_${selectedTagGroup}_${key}`] = val - cost
-                    })
-                }
+                // カテゴリ別・タグ別の損益は applyPnlWithZeroTransitions で後処理
 
                 point.overlayCost = getOverlayCost(
                     point as Record<string, unknown>,
@@ -198,6 +181,26 @@ export function AssetHistoryChart({
             })
             .filter(p => p.timestamp > 0)
             .sort((a, b) => a.timestamp - b.timestamp)
+
+        const pnlSeries =
+            mode === "tag"
+                ? activeKeys.map((key) => ({
+                    valKey: `tag_${selectedTagGroup}_${key}`,
+                    costKey: `tag_cost_${selectedTagGroup}_${key}`,
+                    pnlRateKey: `tag_pnl_${selectedTagGroup}_${key}`,
+                    pnlValueKey: `tag_pnl_value_${selectedTagGroup}_${key}`,
+                }))
+                : topLevelCategories
+                    .filter((c) => !c.isLiability)
+                    .map((cat) => ({
+                        valKey: `category_${cat.id}`,
+                        costKey: `category_cost_${cat.id}`,
+                        pnlRateKey: `pnl_${cat.id}`,
+                        pnlValueKey: `pnl_value_${cat.id}`,
+                    }))
+
+        applyPnlWithZeroTransitions(points as unknown as Array<Record<string, number | null>>, pnlSeries)
+        return points
     }, [data, activeKeys, mode, selectedTagGroup, categories, selectedAssetKey])
 
     const baseWindowMs = React.useMemo(() => {
@@ -285,8 +288,9 @@ export function AssetHistoryChart({
 
         visiblePoints.forEach((point) => {
             seriesKeys.forEach((key) => {
-                const value = Number((point as Record<string, unknown>)[key])
-                if (!Number.isFinite(value)) return
+                const raw = (point as Record<string, unknown>)[key]
+                if (!isPlottablePnlValue(raw)) return
+                const value = Number(raw)
                 if (value < minValue) minValue = value
                 if (value > maxValue) maxValue = value
             })
@@ -337,8 +341,9 @@ export function AssetHistoryChart({
 
         visiblePoints.forEach((point) => {
             seriesKeys.forEach((key) => {
-                const value = Number((point as Record<string, unknown>)[key])
-                if (!Number.isFinite(value)) return
+                const raw = (point as Record<string, unknown>)[key]
+                if (!isPlottablePnlValue(raw)) return
+                const value = Number(raw)
                 if (value < minValue) minValue = value
                 if (value > maxValue) maxValue = value
             })
@@ -619,6 +624,7 @@ export function AssetHistoryChart({
                                                 strokeWidth={1.5}
                                                 strokeOpacity={isDimmed ? 0.35 : 1}
                                                 dot={false}
+                                                connectNulls={false}
                                                 isAnimationActive={isAnimating}
                                             />
                                         )
@@ -641,6 +647,7 @@ export function AssetHistoryChart({
                                                 strokeWidth={1.5}
                                                 strokeOpacity={isDimmed ? 0.35 : 1}
                                                 dot={false}
+                                                connectNulls={false}
                                                 isAnimationActive={isAnimating}
                                             />
                                         )
@@ -662,7 +669,9 @@ export function AssetHistoryChart({
                                             if (mode === "tag") {
                                                 return activeKeys.map(key => {
                                                     const dataKey = isPnlRateMode ? `tag_pnl_${selectedTagGroup}_${key}` : `tag_pnl_value_${selectedTagGroup}_${key}`
-                                                    const val = Number((activePoint as Record<string, unknown>)[dataKey] || 0)
+                                                    const raw = (activePoint as Record<string, unknown>)[dataKey]
+                                                    if (!isPlottablePnlValue(raw)) return null
+                                                    const val = Number(raw)
                                                     const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
                                                     const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
                                                     const colorIndex = targetTags.indexOf(key)
@@ -687,7 +696,9 @@ export function AssetHistoryChart({
                                             } else {
                                                 return categories.filter(c => !c.parentId && !c.isLiability).map(cat => {
                                                     const dataKey = isPnlRateMode ? `pnl_${cat.id}` : `pnl_value_${cat.id}`
-                                                    const val = Number((activePoint as Record<string, unknown>)[dataKey] || 0)
+                                                    const raw = (activePoint as Record<string, unknown>)[dataKey]
+                                                    if (!isPlottablePnlValue(raw)) return null
+                                                    const val = Number(raw)
                                                     const topLevel = categories.filter(c => !c.parentId && !c.isLiability)
                                                     const colorIndex = topLevel.findIndex(c => c.id === cat.id)
                                                     const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`
