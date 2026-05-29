@@ -14,6 +14,7 @@ const VIEW_MODE_OPTIONS = [
     { value: "cost", label: "取得額" },
     { value: "pnl", label: "損益率" },
     { value: "pnlValue", label: "損益額" },
+    { value: "realizedGain", label: "実現益" },
 ] as const satisfies readonly { value: ChartViewMode; label: string }[]
 
 const VIEW_MODE_LABELS = Object.fromEntries(
@@ -89,8 +90,10 @@ export function AssetHistoryChart({
     const isCostMode = viewMode === "cost"
     const isPnlRateMode = viewMode === "pnl"
     const isPnlValueMode = viewMode === "pnlValue"
+    const isRealizedGainMode = viewMode === "realizedGain"
     const isAnyPnlMode = isPnlRateMode || isPnlValueMode
-    const isStackedAreaMode = !isAnyPnlMode
+    const isLineChartMode = isAnyPnlMode || isRealizedGainMode
+    const isStackedAreaMode = !isLineChartMode
     const isValueMode = viewMode === "value"
     const [isAnimating, setIsAnimating] = React.useState(false)
     const [viewModeOpen, setViewModeOpen] = React.useState(false)
@@ -361,13 +364,65 @@ export function AssetHistoryChart({
         return [minValue - pad, maxValue + pad] as [number, number]
     }, [allProcessedData, currentDomain, mode, activeKeys, selectedTagGroup, categories, selectedAssetKey])
 
+    const visibleRealizedGainDomain = React.useMemo(() => {
+        if (!allProcessedData.length) return [-10000, 10000] as [number, number]
+
+        const dataMaxTime = allProcessedData[allProcessedData.length - 1].timestamp
+        const rawMinT = currentDomain[0] === "dataMin" ? allProcessedData[0].timestamp : (currentDomain[0] as number)
+        const rawMaxT = currentDomain[1] === "dataMax" ? dataMaxTime : (currentDomain[1] as number)
+        const minT = rawMinT
+        const maxT = Math.min(rawMaxT, dataMaxTime)
+
+        const visiblePoints = allProcessedData.filter((p) => p.timestamp >= minT && p.timestamp <= maxT)
+        if (!visiblePoints.length) return [-10000, 10000] as [number, number]
+
+        const seriesKeys =
+            mode === "tag"
+                ? activeKeys
+                      .filter((key) => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`)
+                      .map((key) => `tag_realized_gain_${selectedTagGroup}_${key}`)
+                : categories
+                      .filter((c) => !c.parentId && !c.isLiability)
+                      .filter((c) => !selectedAssetKey || selectedAssetKey === `category_${c.id}`)
+                      .map((c) => `realized_gain_${c.id}`)
+
+        if (!seriesKeys.length) return [-10000, 10000] as [number, number]
+
+        let minValue = Number.POSITIVE_INFINITY
+        let maxValue = Number.NEGATIVE_INFINITY
+
+        visiblePoints.forEach((point) => {
+            seriesKeys.forEach((key) => {
+                const value = Number((point as Record<string, unknown>)[key] || 0)
+                if (value < minValue) minValue = value
+                if (value > maxValue) maxValue = value
+            })
+        })
+
+        if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) return [-10000, 10000] as [number, number]
+
+        if (minValue === maxValue) {
+            const pad = Math.max(Math.abs(minValue) * 0.2, 10000)
+            const domainMin = Math.min(minValue - pad, 0)
+            const domainMax = Math.max(maxValue + pad, 0)
+            return [domainMin, domainMax] as [number, number]
+        }
+
+        const span = maxValue - minValue
+        const pad = Math.max(span * 0.1, 10000)
+        const domainMin = Math.min(minValue - pad, 0)
+        const domainMax = Math.max(maxValue + pad, 0)
+        return [domainMin, domainMax] as [number, number]
+    }, [allProcessedData, currentDomain, mode, activeKeys, selectedTagGroup, categories, selectedAssetKey])
+
     // Y軸のドメイン計算
     const yAxisDomain = React.useMemo(() => {
         if (viewMode === "percent") return [0, 1] as [number, number]
         if (viewMode === "pnl") return visiblePnlDomain
         if (viewMode === "pnlValue") return visiblePnlValueDomain
+        if (viewMode === "realizedGain") return visibleRealizedGainDomain
         return ['auto', 'auto']
-    }, [viewMode, visiblePnlDomain, visiblePnlValueDomain])
+    }, [viewMode, visiblePnlDomain, visiblePnlValueDomain, visibleRealizedGainDomain])
 
     const [debouncedActivePoint, setDebouncedActivePoint] = React.useState<ChartPoint | null>(null);
 
@@ -503,7 +558,7 @@ export function AssetHistoryChart({
                                         tickFormatter={(val) => {
                                             if (viewMode === "percent") return `${(val * 100).toFixed(0)}%`
                                             if (viewMode === "pnl") return `${val.toFixed(1)}%`
-                                            if (viewMode === "pnlValue") return `${Math.round(val / 10000)}万`
+                                            if (viewMode === "pnlValue" || viewMode === "realizedGain") return `${Math.round(val / 10000)}万`
                                             return `${Math.round(val / 10000)}万`
                                         }}
                                         tickLine={false}
@@ -511,7 +566,7 @@ export function AssetHistoryChart({
                                         tick={{ fill: 'currentColor', fontSize: 10, opacity: 0.5 }}
                                         width={40}
                                         domain={yAxisDomain}
-                                        allowDataOverflow={isAnyPnlMode}
+                                        allowDataOverflow={isLineChartMode}
                                     />
                                     {activePoint && (
                                         <ReferenceLine
@@ -607,53 +662,63 @@ export function AssetHistoryChart({
                                         />
                                     )}
 
-                                    {/* 損益率モード時の折れ線グラフ */}
-                                    {isAnyPnlMode && mode === "total" && categories.filter(c => !c.parentId && !c.isLiability).map(cat => {
+                                    {/* 損益率・損益額・実現益モード時の折れ線グラフ */}
+                                    {isLineChartMode && mode === "total" && categories.filter(c => !c.parentId && !c.isLiability).map(cat => {
                                         const topLevel = categories.filter(c => !c.parentId && !c.isLiability)
                                         const colorIndex = topLevel.findIndex(c => c.id === cat.id)
                                         const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`
                                         const key = `category_${cat.id}`
                                         const isDimmed = isDimmedKey(key)
+                                        const dataKey = isRealizedGainMode
+                                            ? `realized_gain_${cat.id}`
+                                            : isPnlRateMode
+                                                ? `pnl_${cat.id}`
+                                                : `pnl_value_${cat.id}`
                                         
                                         return (
                                             <Line
                                                 key={cat.id}
-                                                dataKey={isPnlRateMode ? `pnl_${cat.id}` : `pnl_value_${cat.id}`}
+                                                dataKey={dataKey}
                                                 type="linear"
                                                 stroke={color}
                                                 strokeWidth={1.5}
                                                 strokeOpacity={isDimmed ? 0.35 : 1}
                                                 dot={false}
-                                                connectNulls={false}
+                                                connectNulls={isRealizedGainMode}
                                                 isAnimationActive={isAnimating}
                                             />
                                         )
                                     })}
 
-                                    {isAnyPnlMode && mode === "tag" && activeKeys.map(key => {
+                                    {isLineChartMode && mode === "tag" && activeKeys.map(key => {
                                         const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
                                         const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
                                         const colorIndex = targetTags.indexOf(key)
                                         const color = `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`
                                         const keyName = `tag_${selectedTagGroup}_${key}`
                                         const isDimmed = isDimmedKey(keyName)
+                                        const dataKey = isRealizedGainMode
+                                            ? `tag_realized_gain_${selectedTagGroup}_${key}`
+                                            : isPnlRateMode
+                                                ? `tag_pnl_${selectedTagGroup}_${key}`
+                                                : `tag_pnl_value_${selectedTagGroup}_${key}`
                                         
                                         return (
                                             <Line
                                                 key={key}
-                                                dataKey={isPnlRateMode ? `tag_pnl_${selectedTagGroup}_${key}` : `tag_pnl_value_${selectedTagGroup}_${key}`}
+                                                dataKey={dataKey}
                                                 type="linear"
                                                 stroke={color}
                                                 strokeWidth={1.5}
                                                 strokeOpacity={isDimmed ? 0.35 : 1}
                                                 dot={false}
-                                                connectNulls={false}
+                                                connectNulls={isRealizedGainMode}
                                                 isAnimationActive={isAnimating}
                                             />
                                         )
                                     })}
 
-                                    {isAnyPnlMode && (
+                                    {isLineChartMode && (
                                         <ReferenceLine 
                                             y={0} 
                                             stroke="currentColor" 
@@ -664,14 +729,17 @@ export function AssetHistoryChart({
 
                                     {/* 交点の丸マーク */}
                                     {activePoint && (() => {
-                                        if (isAnyPnlMode) {
-                                            // 損益率モード: 各カテゴリ/タグ独立
+                                        if (isLineChartMode) {
                                             if (mode === "tag") {
                                                 return activeKeys.map(key => {
-                                                    const dataKey = isPnlRateMode ? `tag_pnl_${selectedTagGroup}_${key}` : `tag_pnl_value_${selectedTagGroup}_${key}`
+                                                    const dataKey = isRealizedGainMode
+                                                        ? `tag_realized_gain_${selectedTagGroup}_${key}`
+                                                        : isPnlRateMode
+                                                            ? `tag_pnl_${selectedTagGroup}_${key}`
+                                                            : `tag_pnl_value_${selectedTagGroup}_${key}`
                                                     const raw = (activePoint as Record<string, unknown>)[dataKey]
-                                                    if (!isPlottablePnlValue(raw)) return null
-                                                    const val = Number(raw)
+                                                    if (!isRealizedGainMode && !isPlottablePnlValue(raw)) return null
+                                                    const val = Number(raw || 0)
                                                     const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
                                                     const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
                                                     const colorIndex = targetTags.indexOf(key)
@@ -695,10 +763,14 @@ export function AssetHistoryChart({
                                                 })
                                             } else {
                                                 return categories.filter(c => !c.parentId && !c.isLiability).map(cat => {
-                                                    const dataKey = isPnlRateMode ? `pnl_${cat.id}` : `pnl_value_${cat.id}`
+                                                    const dataKey = isRealizedGainMode
+                                                        ? `realized_gain_${cat.id}`
+                                                        : isPnlRateMode
+                                                            ? `pnl_${cat.id}`
+                                                            : `pnl_value_${cat.id}`
                                                     const raw = (activePoint as Record<string, unknown>)[dataKey]
-                                                    if (!isPlottablePnlValue(raw)) return null
-                                                    const val = Number(raw)
+                                                    if (!isRealizedGainMode && !isPlottablePnlValue(raw)) return null
+                                                    const val = Number(raw || 0)
                                                     const topLevel = categories.filter(c => !c.parentId && !c.isLiability)
                                                     const colorIndex = topLevel.findIndex(c => c.id === cat.id)
                                                     const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`

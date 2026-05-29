@@ -8,12 +8,13 @@ import { ChartConfig, ChartContainer } from "@/components/ui/chart"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { applyPnlWithZeroTransitions, isPlottablePnlValue } from "@/lib/chart-pnl"
 
-type AssetDetailViewMode = "value" | "pnl" | "pnlValue"
+type AssetDetailViewMode = "value" | "pnl" | "pnlValue" | "realizedGain"
 
 const VIEW_MODE_OPTIONS = [
     { value: "value", label: "評価額" },
     { value: "pnl", label: "損益率" },
     { value: "pnlValue", label: "損益額" },
+    { value: "realizedGain", label: "実現益" },
 ] as const satisfies readonly { value: AssetDetailViewMode; label: string }[]
 
 const VIEW_MODE_LABELS = Object.fromEntries(
@@ -71,6 +72,8 @@ function processAllHistory(
                 }
             })
 
+            point.realizedGain = Number(record.realizedGain || 0)
+
             return point
         })
         .filter((p) => p.timestamp > 0)
@@ -111,7 +114,9 @@ export function AssetDetailHistoryChart({
     const isValueMode = viewMode === "value"
     const isPnlRateMode = viewMode === "pnl"
     const isPnlValueMode = viewMode === "pnlValue"
+    const isRealizedGainMode = viewMode === "realizedGain"
     const isAnyPnlMode = isPnlRateMode || isPnlValueMode
+    const isLineChartMode = isAnyPnlMode || isRealizedGainMode
 
     React.useEffect(() => {
         setIsMounted(true)
@@ -219,6 +224,36 @@ export function AssetDetailHistoryChart({
     }, [allProcessedData, currentDomain])
 
     const yAxisDomain = React.useMemo((): [number, number] | ["auto", "auto"] => {
+        if (isRealizedGainMode && visiblePoints.length) {
+            const keys = hasChildren
+                ? children.map((c) => `child_realized_gain_${c.id}`)
+                : ["realizedGain"]
+
+            let minValue = Number.POSITIVE_INFINITY
+            let maxValue = Number.NEGATIVE_INFINITY
+
+            visiblePoints.forEach((point) => {
+                keys.forEach((key) => {
+                    const value = Number(point[key] || 0)
+                    if (value < minValue) minValue = value
+                    if (value > maxValue) maxValue = value
+                })
+            })
+
+            if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
+                return [-10000, 10000]
+            }
+
+            if (minValue === maxValue) {
+                const pad = Math.max(Math.abs(minValue) * 0.2, 10000)
+                return [Math.min(minValue - pad, 0), Math.max(maxValue + pad, 0)]
+            }
+
+            const span = maxValue - minValue
+            const pad = Math.max(span * 0.1, 10000)
+            return [Math.min(minValue - pad, 0), Math.max(maxValue + pad, 0)]
+        }
+
         if (!isAnyPnlMode || !visiblePoints.length) return ["auto", "auto"]
 
         const keys = hasChildren
@@ -254,7 +289,7 @@ export function AssetDetailHistoryChart({
         const domainMin = isPnlRateMode ? Math.min(minValue - pad, 0) : minValue - pad
         const domainMax = isPnlRateMode ? Math.max(maxValue + pad, 0) : maxValue + pad
         return [domainMin, domainMax]
-    }, [visiblePoints, isAnyPnlMode, isPnlRateMode, hasChildren, children])
+    }, [visiblePoints, isAnyPnlMode, isRealizedGainMode, isPnlRateMode, hasChildren, children])
 
     const chartConfig = React.useMemo((): ChartConfig => {
         const config: ChartConfig = {
@@ -366,7 +401,7 @@ export function AssetDetailHistoryChart({
                         <YAxis
                             tickFormatter={(val) => {
                                 if (isPnlRateMode) return `${val.toFixed(1)}%`
-                                if (isPnlValueMode) return `${Math.round(val / 10000)}万`
+                                if (isPnlValueMode || isRealizedGainMode) return `${Math.round(val / 10000)}万`
                                 return `${Math.round(val / 10000)}万`
                             }}
                             tickLine={false}
@@ -374,7 +409,7 @@ export function AssetDetailHistoryChart({
                             tick={{ fill: "currentColor", fontSize: 10, opacity: 0.5 }}
                             width={40}
                             domain={yAxisDomain}
-                            allowDataOverflow={isAnyPnlMode}
+                            allowDataOverflow={isLineChartMode}
                         />
 
                         {activePoint && (
@@ -443,31 +478,37 @@ export function AssetDetailHistoryChart({
                             />
                         )}
 
-                        {isAnyPnlMode && hasChildren && children.map((child) => (
+                        {isLineChartMode && hasChildren && children.map((child) => (
                             <Line
                                 key={child.id}
-                                dataKey={isPnlRateMode ? `pnl_${child.id}` : `pnl_value_${child.id}`}
+                                dataKey={
+                                    isRealizedGainMode
+                                        ? `child_realized_gain_${child.id}`
+                                        : isPnlRateMode
+                                            ? `pnl_${child.id}`
+                                            : `pnl_value_${child.id}`
+                                }
                                 name={child.name}
                                 type="linear"
                                 stroke={child.color || "#cccccc"}
                                 strokeWidth={1.5}
                                 dot={false}
-                                connectNulls={false}
+                                connectNulls={isRealizedGainMode}
                             />
                         ))}
 
-                        {isAnyPnlMode && !hasChildren && (
+                        {isLineChartMode && !hasChildren && (
                             <Line
-                                dataKey={isPnlRateMode ? "pnl" : "pnlValue"}
+                                dataKey={isRealizedGainMode ? "realizedGain" : isPnlRateMode ? "pnl" : "pnlValue"}
                                 type="linear"
                                 stroke={color || "var(--chart-1)"}
                                 strokeWidth={1.5}
                                 dot={false}
-                                connectNulls={false}
+                                connectNulls={isRealizedGainMode}
                             />
                         )}
 
-                        {isAnyPnlMode && (
+                        {isLineChartMode && (
                             <ReferenceLine
                                 y={0}
                                 stroke="currentColor"
@@ -477,17 +518,21 @@ export function AssetDetailHistoryChart({
                         )}
 
                         {activePoint && (() => {
-                            if (isAnyPnlMode) {
+                            if (isLineChartMode) {
                                 if (hasChildren) {
                                     return children.map((child) => {
-                                        const dataKey = isPnlRateMode ? `pnl_${child.id}` : `pnl_value_${child.id}`
+                                        const dataKey = isRealizedGainMode
+                                            ? `child_realized_gain_${child.id}`
+                                            : isPnlRateMode
+                                                ? `pnl_${child.id}`
+                                                : `pnl_value_${child.id}`
                                         const val = activePoint[dataKey]
-                                        if (!isPlottablePnlValue(val)) return null
+                                        if (!isRealizedGainMode && !isPlottablePnlValue(val)) return null
                                         return (
                                             <ReferenceDot
                                                 key={child.id}
                                                 x={activePoint.timestamp}
-                                                y={Number(val)}
+                                                y={Number(val || 0)}
                                                 r={3}
                                                 fill={child.color || "#cccccc"}
                                                 stroke="var(--background)"
@@ -497,13 +542,13 @@ export function AssetDetailHistoryChart({
                                         )
                                     })
                                 }
-                                const dataKey = isPnlRateMode ? "pnl" : "pnlValue"
+                                const dataKey = isRealizedGainMode ? "realizedGain" : isPnlRateMode ? "pnl" : "pnlValue"
                                 const val = activePoint[dataKey]
-                                if (!isPlottablePnlValue(val)) return null
+                                if (!isRealizedGainMode && !isPlottablePnlValue(val)) return null
                                 return (
                                     <ReferenceDot
                                         x={activePoint.timestamp}
-                                        y={Number(val)}
+                                        y={Number(val || 0)}
                                         r={3}
                                         fill={color || "var(--chart-1)"}
                                         stroke="var(--background)"

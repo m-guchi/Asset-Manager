@@ -535,18 +535,24 @@ export async function getCategoryDetails(id: number) {
                 });
             }
 
-            return processed.map(p => ({
-                date: p.date,
-                value: p.value,
-                cost: p.cost
-            }));
+            return processed.map(p => {
+                const realizedGain = (c.transactions || [])
+                    .filter((t) => t.transactedAt <= p.date)
+                    .reduce((acc: number, t) => acc + Number(t.realizedGain || 0), 0);
+                return {
+                    date: p.date,
+                    value: p.value,
+                    cost: p.cost,
+                    realizedGain,
+                };
+            });
         };
 
         const hasChildren = catWithNested.children && catWithNested.children.length > 0;
         let history: Record<string, number | string>[] = [];
         let currentValue = 0;
         let costBasis = 0;
-        let childrenInfo: { id: number, name: string, color: string, currentValue: number, isLiability: boolean }[] = [];
+        let childrenInfo: { id: number, name: string, color: string, currentValue: number, costBasis: number, isLiability: boolean }[] = [];
 
         if (hasChildren) {
             // Include parent itself + all descendants for merging history
@@ -566,20 +572,23 @@ export async function getCategoryDetails(id: number) {
 
             const runningValues: Record<number, number> = {};
             const runningCosts: Record<number, number> = {};
+            const runningRealizedGains: Record<number, number> = {};
 
             history = sortedDates.map(dateStr => {
-                const point: Record<string, number | string> = { date: dateStr, value: 0, cost: 0, childrenValue: 0 };
+                const point: Record<string, number | string> = { date: dateStr, value: 0, cost: 0, childrenValue: 0, realizedGain: 0 };
 
                 allHistories.forEach((ch: any) => {
                     const entry = ch.items.find((i: { date: Date }) => i.date.toISOString().split('T')[0] === dateStr);
                     if (entry) {
                         runningValues[ch.id] = (entry as { value: number }).value;
                         runningCosts[ch.id] = (entry as { cost: number }).cost;
+                        runningRealizedGains[ch.id] = (entry as { realizedGain: number }).realizedGain;
                     }
 
                     const val = runningValues[ch.id] || 0;
                     point.value = (point.value as number) + val;
                     point.cost = (point.cost as number) + (runningCosts[ch.id] || 0);
+                    point.realizedGain = (point.realizedGain as number) + (runningRealizedGains[ch.id] || 0);
 
                     // If it's a descendant
                     if (ch.id !== catWithNested.id) {
@@ -589,14 +598,19 @@ export async function getCategoryDetails(id: number) {
 
                 // For chart series: sum each direct child + its descendants
                 catWithNested.children.forEach((directChild: any) => {
-                    const getRecursiveSum = (pid: number, field: "value" | "cost"): number => {
-                        const source = field === "value" ? runningValues : runningCosts;
+                    const getRecursiveSum = (pid: number, field: "value" | "cost" | "realizedGain"): number => {
+                        const source = field === "value"
+                            ? runningValues
+                            : field === "cost"
+                                ? runningCosts
+                                : runningRealizedGains;
                         const self = source[pid] || 0;
                         const subChildren = allHistories.filter((h: any) => h.parentId === pid);
                         return self + subChildren.reduce((sum: number, c: any) => sum + getRecursiveSum(c.id, field), 0);
                     };
                     point[`child_${directChild.id}`] = getRecursiveSum(directChild.id, "value");
                     point[`child_cost_${directChild.id}`] = getRecursiveSum(directChild.id, "cost");
+                    point[`child_realized_gain_${directChild.id}`] = getRecursiveSum(directChild.id, "realizedGain");
                 });
 
                 return point;
@@ -645,7 +659,8 @@ export async function getCategoryDetails(id: number) {
             history = rawHistory.map(h => ({
                 date: h.date.toISOString(),
                 value: h.value as number,
-                cost: h.cost
+                cost: h.cost,
+                realizedGain: h.realizedGain,
             }));
 
             const latestAsset = catWithNested.assets.length > 0 ? catWithNested.assets[catWithNested.assets.length - 1] : null;
@@ -658,7 +673,8 @@ export async function getCategoryDetails(id: number) {
                 history.push({
                     date: new Date().toISOString(),
                     value: currentValue,
-                    cost: costBasis
+                    cost: costBasis,
+                    realizedGain: 0,
                 });
             }
         }

@@ -247,13 +247,21 @@ export function AssetAllocationChart({
                                 {mode === "total" && categories.filter(c => !c.parentId && !c.isLiability).map((cat) => {
                                     const val = Number(activePoint[`category_${cat.id}`]) || 0
                                     const cost = Number(activePoint[`category_cost_${cat.id}`] || 0)
+                                    const realizedGain = Number(activePoint[`realized_gain_${cat.id}`] || 0)
                                     const displayVal = viewMode === "cost" ? cost : val
-                                    if (displayVal === 0) return null
+                                    if (viewMode === "realizedGain" ? realizedGain === 0 : displayVal === 0) return null
                                     const key = `category_${cat.id}`
                                     const isDimmed = selectedAssetKey && selectedAssetKey !== key
                                     const pnlValue = val - cost
                                     const pnlRate = cost > 0 ? ((pnlValue) / cost) * 100 : 0
-                                    const displayPrimaryValue = viewMode === "pnl" || viewMode === "pnlValue" ? pnlValue : displayVal
+                                    const displayPrimaryValue = viewMode === "realizedGain"
+                                        ? realizedGain
+                                        : viewMode === "pnl" || viewMode === "pnlValue"
+                                            ? pnlValue
+                                            : displayVal
+                                    const totalRealizedGain = categories
+                                        .filter(c => !c.parentId && !c.isLiability)
+                                        .reduce((sum, c) => sum + Number(activePoint[`realized_gain_${c.id}`] || 0), 0)
                                     
                                     // グラフ本体と同じロジックで色を決定
                                     const topLevelCategories = categories.filter(c => !c.parentId);
@@ -279,11 +287,13 @@ export function AssetAllocationChart({
                                                 </div>
                                                 <div className="flex items-baseline gap-0.5">
                                                     <span className="text-[11px] font-normal opacity-70">(</span>
-                                                    <span className={`text-[11px] font-normal ${viewMode === "pnl" || viewMode === "pnlValue" ? (pnlValue >= 0 ? "text-emerald-500" : "text-rose-500") : ""}`}>
+                                                    <span className={`text-[11px] font-normal ${viewMode === "pnl" || viewMode === "pnlValue" ? (pnlValue >= 0 ? "text-emerald-500" : "text-rose-500") : viewMode === "realizedGain" ? (realizedGain >= 0 ? "text-emerald-500" : "text-rose-500") : ""}`}>
                                                         {viewMode === "pnl" ? (() => {
                                                             return (pnlRate > 0 ? "+" : "") + pnlRate.toFixed(1)
                                                         })() : viewMode === "pnlValue" ? (
                                                             (pnlRate > 0 ? "+" : "") + pnlRate.toFixed(1)
+                                                        ) : viewMode === "realizedGain" ? (
+                                                            totalRealizedGain > 0 ? ((realizedGain / totalRealizedGain) * 100).toFixed(1) : "0.0"
                                                         ) : (totalValue > 0 ? ((displayVal / totalValue) * 100).toFixed(1) : "0.0")}
                                                     </span>
                                                     <span className="text-[7px] font-normal opacity-70">%</span>
@@ -297,13 +307,22 @@ export function AssetAllocationChart({
                                     const k = `tag_${selectedTagGroup}_${keyName}`
                                     const val = (activePoint as Record<string, unknown>)[k] || 0
                                     const cost = Number((activePoint as Record<string, unknown>)[`tag_cost_${selectedTagGroup}_${keyName}`] || 0)
+                                    const realizedGain = Number((activePoint as Record<string, unknown>)[`tag_realized_gain_${selectedTagGroup}_${keyName}`] || 0)
                                     const displayVal = viewMode === "cost" ? cost : Number(val)
-                                    if (displayVal === 0) return null
+                                    if (viewMode === "realizedGain" ? realizedGain === 0 : displayVal === 0) return null
                                     const key = `tag_${selectedTagGroup}_${keyName}`
                                     const isDimmed = selectedAssetKey && selectedAssetKey !== key
                                     const pnlValue = Number(val) - cost
                                     const pnlRate = cost > 0 ? (pnlValue / cost) * 100 : 0
-                                    const displayPrimaryValue = viewMode === "pnl" || viewMode === "pnlValue" ? pnlValue : displayVal
+                                    const displayPrimaryValue = viewMode === "realizedGain"
+                                        ? realizedGain
+                                        : viewMode === "pnl" || viewMode === "pnlValue"
+                                            ? pnlValue
+                                            : displayVal
+                                    const totalRealizedGain = activeKeys.reduce(
+                                        (sum, name) => sum + Number((activePoint as Record<string, unknown>)[`tag_realized_gain_${selectedTagGroup}_${name}`] || 0),
+                                        0
+                                    )
                                     
                                     // グラフ本体と同じロジックで色を決定
                                     const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
@@ -330,11 +349,13 @@ export function AssetAllocationChart({
                                                 </div>
                                                 <div className="flex items-baseline gap-0.5">
                                                     <span className="text-[11px] font-normal opacity-70">(</span>
-                                                    <span className={`text-[11px] font-normal ${viewMode === "pnl" || viewMode === "pnlValue" ? (pnlValue >= 0 ? "text-emerald-500" : "text-rose-500") : ""}`}>
+                                                    <span className={`text-[11px] font-normal ${viewMode === "pnl" || viewMode === "pnlValue" ? (pnlValue >= 0 ? "text-emerald-500" : "text-rose-500") : viewMode === "realizedGain" ? (realizedGain >= 0 ? "text-emerald-500" : "text-rose-500") : ""}`}>
                                                         {viewMode === "pnl" ? (() => {
                                                             return (pnlRate > 0 ? "+" : "") + pnlRate.toFixed(1)
                                                         })() : viewMode === "pnlValue" ? (
                                                             (pnlRate > 0 ? "+" : "") + pnlRate.toFixed(1)
+                                                        ) : viewMode === "realizedGain" ? (
+                                                            totalRealizedGain > 0 ? ((realizedGain / totalRealizedGain) * 100).toFixed(1) : "0.0"
                                                         ) : (totalValue > 0 ? ((displayVal / totalValue) * 100).toFixed(1) : "0.0")}
                                                     </span>
                                                     <span className="text-[7px] font-normal opacity-70">%</span>
