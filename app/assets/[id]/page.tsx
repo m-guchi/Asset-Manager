@@ -307,7 +307,7 @@ export default function AssetDetailPage() {
                     history={category.history}
                     color={category.color}
                     isCash={category.isCash}
-                    children={category.children?.map((child) => ({
+                    childAssets={category.children?.map((child) => ({
                         id: child.id,
                         name: child.name,
                         color: child.color,

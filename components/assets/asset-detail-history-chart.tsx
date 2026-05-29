@@ -31,7 +31,7 @@ interface AssetDetailHistoryChartProps {
     history: Record<string, string | number>[]
     color: string
     isCash?: boolean | null
-    children?: ChildInfo[]
+    childAssets?: ChildInfo[]
     initialTimeRange?: string
     onActivePointChange?: (point: AssetDetailChartPoint | null) => void
 }
@@ -46,7 +46,7 @@ export interface AssetDetailChartPoint {
     [key: string]: number | null
 }
 
-interface ProcessedPoint extends AssetDetailChartPoint {}
+type ProcessedPoint = AssetDetailChartPoint
 
 function processAllHistory(
     history: Record<string, string | number>[],
@@ -97,7 +97,7 @@ export function AssetDetailHistoryChart({
     history,
     color,
     isCash,
-    children = [],
+    childAssets = [],
     initialTimeRange = "1Y",
     onActivePointChange,
 }: AssetDetailHistoryChartProps) {
@@ -110,7 +110,7 @@ export function AssetDetailHistoryChart({
     const [domainOffset, setDomainOffset] = React.useState(0)
     const chartRef = React.useRef<HTMLDivElement>(null)
 
-    const hasChildren = children.length > 0
+    const hasChildren = childAssets.length > 0
     const isValueMode = viewMode === "value"
     const isPnlRateMode = viewMode === "pnl"
     const isPnlValueMode = viewMode === "pnlValue"
@@ -143,8 +143,8 @@ export function AssetDetailHistoryChart({
     }
 
     const allProcessedData = React.useMemo(
-        () => processAllHistory(history, children),
-        [history, children]
+        () => processAllHistory(history, childAssets),
+        [history, childAssets]
     )
 
     const baseWindowMs = React.useMemo(() => {
@@ -226,7 +226,7 @@ export function AssetDetailHistoryChart({
     const yAxisDomain = React.useMemo((): [number, number] | ["auto", "auto"] => {
         if (isRealizedGainMode && visiblePoints.length) {
             const keys = hasChildren
-                ? children.map((c) => `child_realized_gain_${c.id}`)
+                ? childAssets.map((c) => `child_realized_gain_${c.id}`)
                 : ["realizedGain"]
 
             let minValue = Number.POSITIVE_INFINITY
@@ -257,7 +257,7 @@ export function AssetDetailHistoryChart({
         if (!isAnyPnlMode || !visiblePoints.length) return ["auto", "auto"]
 
         const keys = hasChildren
-            ? children.map((c) => (isPnlRateMode ? `pnl_${c.id}` : `pnl_value_${c.id}`))
+            ? childAssets.map((c) => (isPnlRateMode ? `pnl_${c.id}` : `pnl_value_${c.id}`))
             : [isPnlRateMode ? "pnl" : "pnlValue"]
 
         let minValue = Number.POSITIVE_INFINITY
@@ -289,18 +289,18 @@ export function AssetDetailHistoryChart({
         const domainMin = isPnlRateMode ? Math.min(minValue - pad, 0) : minValue - pad
         const domainMax = isPnlRateMode ? Math.max(maxValue + pad, 0) : maxValue + pad
         return [domainMin, domainMax]
-    }, [visiblePoints, isAnyPnlMode, isRealizedGainMode, isPnlRateMode, hasChildren, children])
+    }, [visiblePoints, isAnyPnlMode, isRealizedGainMode, isPnlRateMode, hasChildren, childAssets])
 
     const chartConfig = React.useMemo((): ChartConfig => {
         const config: ChartConfig = {
             value: { label: "評価額", color: color || "var(--chart-1)" },
             overlayCost: { label: "取得額", color: "#888888" },
         }
-        children.forEach((child) => {
+        childAssets.forEach((child) => {
             config[`child_${child.id}`] = { label: child.name, color: child.color || "#cccccc" }
         })
         return config
-    }, [color, children])
+    }, [color, childAssets])
 
     const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
         const clientX = "touches" in e ? e.touches[0].clientX : e.clientX
@@ -439,7 +439,7 @@ export function AssetDetailHistoryChart({
                             />
                         )}
 
-                        {isValueMode && hasChildren && [...children].reverse().map((child) => (
+                        {isValueMode && hasChildren && [...childAssets].reverse().map((child) => (
                             <Area
                                 key={child.id}
                                 type="linear"
@@ -478,7 +478,7 @@ export function AssetDetailHistoryChart({
                             />
                         )}
 
-                        {isLineChartMode && hasChildren && children.map((child) => (
+                        {isLineChartMode && hasChildren && childAssets.map((child) => (
                             <Line
                                 key={child.id}
                                 dataKey={
@@ -520,7 +520,7 @@ export function AssetDetailHistoryChart({
                         {activePoint && (() => {
                             if (isLineChartMode) {
                                 if (hasChildren) {
-                                    return children.map((child) => {
+                                    return childAssets.map((child) => {
                                         const dataKey = isRealizedGainMode
                                             ? `child_realized_gain_${child.id}`
                                             : isPnlRateMode
@@ -560,7 +560,7 @@ export function AssetDetailHistoryChart({
 
                             let cumulativeY = 0
                             if (hasChildren) {
-                                const reversedChildren = [...children].reverse()
+                                const reversedChildren = [...childAssets].reverse()
                                 return (
                                     <>
                                         {reversedChildren.map((child) => {
