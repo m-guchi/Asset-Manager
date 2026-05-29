@@ -30,6 +30,7 @@ import {
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { formatValuationDiff } from "@/lib/valuation-diff"
 
 interface ValuationCategory {
     id: number;
@@ -116,6 +117,7 @@ export default function BulkValuationPage() {
                         id: c.id,
                         name: c.name,
                         valuationAlias: c.valuationAlias,
+                        currentValue: Number(c.currentValue),
                     }))}
                     zaimImportCount={zaimImportCategories.length}
                     onApply={(imported) =>
@@ -149,11 +151,16 @@ export default function BulkValuationPage() {
                             <TableRow>
                                 <TableHead className="px-1 w-[80px]">項目</TableHead>
                                 <TableHead className="text-right px-1">現在評価額</TableHead>
-                                <TableHead className="text-right px-1 w-16">前回</TableHead>
+                                <TableHead className="text-right px-1 w-20">前回</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {displayedCategories.map((cat) => (
+                            {displayedCategories.map((cat) => {
+                                const inputVal = valuations[cat.id]
+                                const hasInput = inputVal !== undefined && !Number.isNaN(inputVal)
+                                const diff = hasInput ? inputVal - Number(cat.currentValue) : null
+
+                                return (
                                 <TableRow key={cat.id}>
                                     <TableCell className="font-medium text-xs break-words w-[80px] px-1 py-1 leading-tight">{cat.name}</TableCell>
                                     <TableCell className="px-1 py-1">
@@ -165,15 +172,34 @@ export default function BulkValuationPage() {
                                             onChange={(e) => setValuations({ ...valuations, [cat.id]: parseFloat(e.target.value) })}
                                         />
                                     </TableCell>
-                                    <TableCell
-                                        className="text-right px-1 py-1 opacity-50 text-[10px] text-muted-foreground w-16 whitespace-nowrap cursor-pointer hover:opacity-100 hover:text-primary transition-all underline decoration-dotted"
-                                        onClick={() => setValuations({ ...valuations, [cat.id]: Number(cat.currentValue) })}
-                                        title="前回値をコピー"
-                                    >
-                                        ¥{Number(cat.currentValue).toLocaleString()}
+                                    <TableCell className="text-right px-1 py-1 w-20 h-10 align-middle">
+                                        <div className="h-full flex flex-col items-end justify-center leading-tight">
+                                            <button
+                                                type="button"
+                                                className="opacity-50 text-[10px] text-muted-foreground whitespace-nowrap cursor-pointer hover:opacity-100 hover:text-primary transition-all underline decoration-dotted tabular-nums leading-none"
+                                                onClick={() => setValuations({ ...valuations, [cat.id]: Number(cat.currentValue) })}
+                                                title="前回値をコピー"
+                                            >
+                                                ¥{Number(cat.currentValue).toLocaleString()}
+                                            </button>
+                                            {diff !== null && (
+                                                <span
+                                                    className={`text-[9px] leading-none tabular-nums mt-0.5 ${
+                                                        diff > 0
+                                                            ? "text-emerald-600 dark:text-emerald-400"
+                                                            : diff < 0
+                                                              ? "text-red-600 dark:text-red-400"
+                                                              : "text-muted-foreground"
+                                                    }`}
+                                                >
+                                                    {formatValuationDiff(diff)}
+                                                </span>
+                                            )}
+                                        </div>
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                                )
+                            })}
                             {displayedCategories.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
