@@ -99,6 +99,8 @@ export function matchHoldingsToCategories(
                 valuation: holding.valuation,
                 confidence: "none",
                 selected: false,
+                source: holding.source,
+                amountCandidates: holding.amountCandidates,
             })
             continue
         }
@@ -113,10 +115,68 @@ export function matchHoldingsToCategories(
             valuation: holding.valuation,
             confidence,
             selected: true,
+            source: holding.source,
+            amountCandidates: holding.amountCandidates,
         })
     }
 
     return results
+}
+
+function matchResultToHolding(result: MatchResult): ParsedHolding {
+    return {
+        name: result.ocrName,
+        valuation: result.valuation,
+        source: result.source,
+        amountCandidates: result.amountCandidates,
+        valuationBbox: result.source?.valuationBbox,
+    }
+}
+
+/**
+ * 採用解除（imageDismissedCandidate）の行を除き、残りを上から順に categories と 1:1 で再割当する。
+ * 非採用行は categoryId なしのまま元の位置に残す。
+ */
+export function rematchResultsToCategories(
+    results: MatchResult[],
+    categories: ValuationCategoryRef[]
+): MatchResult[] {
+    const activeHoldings: ParsedHolding[] = []
+
+    for (const result of results) {
+        if (!result.imageDismissedCandidate) {
+            activeHoldings.push(matchResultToHolding(result))
+        }
+    }
+
+    const matched = matchHoldingsToCategories(activeHoldings, categories)
+    const next: MatchResult[] = []
+    let matchIndex = 0
+
+    for (const prev of results) {
+        if (prev.imageDismissedCandidate) {
+            next.push({
+                ...prev,
+                categoryId: null,
+                categoryName: null,
+                confidence: "none",
+                selected: false,
+            })
+            continue
+        }
+
+        const assignment = matched[matchIndex++]
+        next.push({
+            ...prev,
+            categoryId: assignment.categoryId,
+            categoryName: assignment.categoryName,
+            ocrName: assignment.ocrName,
+            confidence: assignment.confidence,
+            selected: assignment.categoryId !== null ? assignment.selected : false,
+        })
+    }
+
+    return next
 }
 
 export function mergeMatchResults(
@@ -126,17 +186,19 @@ export function mergeMatchResults(
     const usedCategoryIds = new Set(
         existing.filter((r) => r.categoryId !== null).map((r) => r.categoryId as number)
     )
-    const usedOcrKeys = new Set(existing.map((r) => normalizeName(r.ocrName)))
+    const usedOcrKeys = new Set(
+        existing.map((r) => `${normalizeName(r.ocrName)}\0${r.valuation}`)
+    )
 
     const merged = [...existing]
 
     for (const item of incoming) {
-        const ocrKey = normalizeName(item.ocrName)
-        if (ocrKey && usedOcrKeys.has(ocrKey)) continue
+        const ocrKey = `${normalizeName(item.ocrName)}\0${item.valuation}`
+        if (normalizeName(item.ocrName) && usedOcrKeys.has(ocrKey)) continue
         if (item.categoryId !== null && usedCategoryIds.has(item.categoryId)) continue
 
         merged.push(item)
-        if (ocrKey) usedOcrKeys.add(ocrKey)
+        if (normalizeName(item.ocrName)) usedOcrKeys.add(ocrKey)
         if (item.categoryId !== null) usedCategoryIds.add(item.categoryId)
     }
 

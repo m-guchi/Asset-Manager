@@ -26,7 +26,10 @@ describe("parseZaimHoldings", () => {
 
         const result = parseZaimHoldings(words, imageWidth)
 
-        assert.deepEqual(result, [{ name: "NTT", valuation: 14950 }])
+        assert.equal(result.length, 1)
+        assert.equal(result[0].name, "NTT")
+        assert.equal(result[0].valuation, 14950)
+        assert.equal(result[0].valuationBbox?.x, 280)
     })
 
     it("ignores broker account header rows", () => {
@@ -56,6 +59,44 @@ describe("parseZaimHoldings", () => {
         assert.equal(result[0].name, "NTT")
     })
 
+    it("records valuation bbox from ocr words", () => {
+        const words: OcrWord[] = [
+            word("NTT", 20, 100),
+            word("¥14,950", 280, 100, 60, 16),
+        ]
+
+        const result = parseZaimHoldings(words, imageWidth)
+
+        assert.equal(result[0].valuation, 14950)
+        assert.deepEqual(result[0].valuationBbox, { x: 280, y: 100, width: 60, height: 16 })
+    })
+
+    it("picks valuation column not profit-loss on the same row", () => {
+        const words: OcrWord[] = [
+            word("楽天", 20, 200),
+            word("¥74,530", 260, 200),
+            word("-¥2,670", 330, 200),
+        ]
+
+        const result = parseZaimHoldings(words, imageWidth)
+
+        assert.equal(result[0].valuation, 74530)
+        assert.equal(result[0].valuationBbox?.x, 260)
+        assert.equal(result[0].amountCandidates?.length, 2)
+        assert.equal(result[0].amountCandidates?.[1].kind, "profit_loss")
+    })
+
+    it("skips row when only profit-loss amounts are detected", () => {
+        const words: OcrWord[] = [
+            word("NTT", 20, 100),
+            word("+¥450", 340, 100),
+        ]
+
+        const result = parseZaimHoldings(words, imageWidth)
+
+        assert.equal(result.length, 0)
+    })
+
     it("picks the largest yen amount when multiple exist on a row", () => {
         const words: OcrWord[] = [
             word("楽天", 20, 200),
@@ -66,6 +107,7 @@ describe("parseZaimHoldings", () => {
         const result = parseZaimHoldings(words, imageWidth)
 
         assert.equal(result[0].valuation, 74530)
+        assert.equal(result[0].valuationBbox?.x, 260)
     })
 
     it("handles multiple holdings", () => {
@@ -79,8 +121,10 @@ describe("parseZaimHoldings", () => {
         const result = parseZaimHoldings(words, imageWidth)
 
         assert.equal(result.length, 2)
-        assert.deepEqual(result[0], { name: "NTT", valuation: 14950 })
-        assert.deepEqual(result[1], { name: "三菱重", valuation: 38060 })
+        assert.equal(result[0].name, "NTT")
+        assert.equal(result[0].valuation, 14950)
+        assert.equal(result[1].name, "三菱重")
+        assert.equal(result[1].valuation, 38060)
     })
 
     it("strips trailing ellipsis from fund names", () => {
@@ -105,7 +149,9 @@ describe("parseZaimHoldings", () => {
 
         const result = parseZaimHoldings(words, imageWidth)
 
-        assert.deepEqual(result, [{ name: "NTT", valuation: 14950 }])
+        assert.equal(result.length, 1)
+        assert.equal(result[0].name, "NTT")
+        assert.equal(result[0].valuation, 14950)
     })
 
     it("skips profit-loss-only rows", () => {

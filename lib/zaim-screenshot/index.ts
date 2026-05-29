@@ -1,13 +1,26 @@
 import { preprocessScreenshot } from "./preprocess"
 import { createOcrWorker, terminateOcrWorker, type OcrWorker } from "./ocr"
-import { parseZaimHoldings, mergeParsedHoldings } from "./parser"
+import { parseZaimHoldings } from "./parser"
 import { matchHoldingsToCategories } from "./matcher"
-import type { MatchResult, ParsedHolding, ValuationCategoryRef } from "./types"
+import { concatenateHoldingsInOrder } from "./stitch-holdings"
+import type { MatchResult, ParsedHolding, ValuationCategoryRef, OcrValuationSource } from "./types"
 
 export { filterZaimImportCategories } from "./filter-categories"
-export type { OcrWord, ParsedHolding, MatchConfidence, MatchResult, ValuationCategoryRef } from "./types"
-export { normalizeName, levenshteinDistance, matchHoldingsToCategories, mergeMatchResults } from "./matcher"
-export { parseZaimHoldings, mergeParsedHoldings } from "./parser"
+export type { OcrWord, OcrBoundingBox, OcrValuationSource, YenAmountCandidate, YenAmountKind, ParsedHolding, MatchConfidence, MatchResult, ValuationCategoryRef } from "./types"
+export {
+    normalizeName,
+    levenshteinDistance,
+    matchHoldingsToCategories,
+    rematchResultsToCategories,
+    mergeMatchResults,
+} from "./matcher"
+export { parseZaimHoldings, mergeParsedHoldings, classifyYenAmountKind, extractYenAmountCandidates } from "./parser"
+export {
+    concatenateHoldingsInOrder,
+    mergeTwoHoldingsSequences,
+    findOverlapLength,
+    holdingsAreSameItem,
+} from "./stitch-holdings"
 
 export type ProcessProgressCallback = (
     progress: number,
@@ -16,36 +29,67 @@ export type ProcessProgressCallback = (
     fileCount: number
 ) => void
 
+async function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => reject(new Error("Failed to read image file"))
+        reader.readAsDataURL(file)
+    })
+}
+
+function attachSourceToHoldings(
+    holdings: ParsedHolding[],
+    imageDataUrl: string,
+    ocrImageWidth: number,
+    ocrImageHeight: number
+): ParsedHolding[] {
+    return holdings.map((holding) => {
+        if (!holding.valuationBbox) return holding
+        const source: OcrValuationSource = {
+            imageDataUrl,
+            ocrImageWidth,
+            ocrImageHeight,
+            valuationBbox: holding.valuationBbox,
+            amountCandidates: holding.amountCandidates,
+        }
+        const { valuationBbox: _, ...rest } = holding
+        return { ...rest, source }
+    })
+}
+
 async function extractHoldingsFromFile(
     file: File,
     worker: OcrWorker,
     onFileProgress?: (progress: number, stage: "preprocess" | "ocr" | "parse") => void
 ): Promise<ParsedHolding[]> {
     onFileProgress?.(0, "preprocess")
-    const canvas = await preprocessScreenshot(file)
+    const [canvas, imageDataUrl] = await Promise.all([
+        preprocessScreenshot(file),
+        fileToDataUrl(file),
+    ])
 
     onFileProgress?.(0.1, "ocr")
-    const { words, imageWidth } = await worker.recognize(canvas, (p) => {
+    const { words, imageWidth, imageHeight } = await worker.recognize(canvas, (p) => {
         onFileProgress?.(0.1 + p * 0.85, "ocr")
     })
 
     onFileProgress?.(0.98, "parse")
     const holdings = parseZaimHoldings(words, imageWidth)
     onFileProgress?.(1, "parse")
-    return holdings
+    return attachSourceToHoldings(holdings, imageDataUrl, imageWidth, imageHeight)
 }
 
-export async function processZaimScreenshots(
+export async function extractHoldingsSequencesFromFiles(
     files: File[],
-    categories: ValuationCategoryRef[],
     onProgress?: ProcessProgressCallback
-): Promise<MatchResult[]> {
+): Promise<ParsedHolding[][]> {
     if (files.length === 0) return []
 
     const worker = await createOcrWorker()
 
     try {
-        const allHoldings: ParsedHolding[] = []
+        const sequences: ParsedHolding[][] = []
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i]
@@ -53,15 +97,31 @@ export async function processZaimScreenshots(
                 const overall = (i + p) / files.length
                 onProgress?.(overall, stage, i + 1, files.length)
             })
-            allHoldings.push(...holdings)
+            sequences.push(holdings)
         }
 
         onProgress?.(1, "parse", files.length, files.length)
-        const merged = mergeParsedHoldings(allHoldings)
-        return matchHoldingsToCategories(merged, categories)
+        return sequences
     } finally {
         await terminateOcrWorker(worker)
     }
+}
+
+export function combineAndMatchHoldings(
+    sequences: ParsedHolding[][],
+    categories: ValuationCategoryRef[]
+): MatchResult[] {
+    const merged = concatenateHoldingsInOrder(sequences)
+    return matchHoldingsToCategories(merged, categories)
+}
+
+export async function processZaimScreenshots(
+    files: File[],
+    categories: ValuationCategoryRef[],
+    onProgress?: ProcessProgressCallback
+): Promise<MatchResult[]> {
+    const sequences = await extractHoldingsSequencesFromFiles(files, onProgress)
+    return combineAndMatchHoldings(sequences, categories)
 }
 
 export async function processZaimScreenshot(

@@ -5,20 +5,30 @@ import { mergeParsedHoldings } from "./parser"
 import type { MatchResult, ParsedHolding } from "./types"
 
 describe("mergeParsedHoldings", () => {
-    it("deduplicates holdings by name keeping higher valuation", () => {
+    it("keeps same name with different valuations as separate items", () => {
         const holdings: ParsedHolding[] = [
-            { name: "NTT", valuation: 14950 },
-            { name: "NTT", valuation: 15000 },
+            { name: "eMAXIS Slim 国内株式", valuation: 180983 },
+            { name: "eMAXIS Slim 国内株式", valuation: 63433 },
             { name: "楽天", valuation: 74530 },
         ]
 
         const merged = mergeParsedHoldings(holdings)
 
+        assert.equal(merged.length, 3)
+    })
+
+    it("deduplicates when name and valuation both match", () => {
+        const holdings: ParsedHolding[] = [
+            { name: "NTT", valuation: 14950 },
+            { name: "NTT", valuation: 14950 },
+            { name: "NTT", valuation: 15000 },
+        ]
+
+        const merged = mergeParsedHoldings(holdings)
+
         assert.equal(merged.length, 2)
-        assert.deepEqual(
-            merged.find((h) => h.name === "NTT"),
-            { name: "NTT", valuation: 15000 }
-        )
+        assert.ok(merged.some((h) => h.name === "NTT" && h.valuation === 14950))
+        assert.ok(merged.some((h) => h.name === "NTT" && h.valuation === 15000))
     })
 })
 
@@ -51,13 +61,13 @@ describe("mergeMatchResults", () => {
         assert.equal(merged.length, 2)
     })
 
-    it("skips duplicate ocr names across overlapping screenshots", () => {
+    it("skips duplicate when ocr name and valuation both match", () => {
         const incoming: MatchResult[] = [
             {
                 categoryId: 1,
                 categoryName: "NTT",
                 ocrName: "NTT",
-                valuation: 15000,
+                valuation: 14950,
                 confidence: "high",
                 selected: true,
             },
@@ -66,7 +76,33 @@ describe("mergeMatchResults", () => {
         const merged = mergeMatchResults(base, incoming)
 
         assert.equal(merged.length, 1)
-        assert.equal(merged[0].valuation, 14950)
+    })
+
+    it("keeps same ocr name when valuation differs", () => {
+        const incoming: MatchResult[] = [
+            {
+                categoryId: 2,
+                categoryName: "eMAXIS国内1",
+                ocrName: "eMAXIS Slim 国内株式",
+                valuation: 63433,
+                confidence: "order",
+                selected: true,
+            },
+        ]
+        const existing: MatchResult[] = [
+            {
+                categoryId: 1,
+                categoryName: "eMAXIS国内2",
+                ocrName: "eMAXIS Slim 国内株式",
+                valuation: 180983,
+                confidence: "order",
+                selected: true,
+            },
+        ]
+
+        const merged = mergeMatchResults(existing, incoming)
+
+        assert.equal(merged.length, 2)
     })
 
     it("skips when category is already matched", () => {

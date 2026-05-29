@@ -1,4 +1,4 @@
-import type { OcrWord, ParsedHolding } from "./types"
+import type { OcrWord, ParsedHolding, OcrBoundingBox, YenAmountCandidate, YenAmountKind } from "./types"
 
 /** Zaim 証券口座詳細画面の非銘柄行（ヘッダー・セクション・UI要素） */
 const HEADER_PATTERNS = [
@@ -57,18 +57,20 @@ export function parseZaimHoldings(
         const rightWords = sortedWords.filter((w) => w.x >= nameThresholdX - 20)
 
         const name = nameWords.map((w) => w.text).join(" ")
-        const valuation = extractPrimaryValuation(rightWords.length > 0 ? rightWords : sortedWords)
+        const valuationResult = extractPrimaryValuation(rightWords.length > 0 ? rightWords : sortedWords)
 
-        if (valuation === null) continue
+        if (valuationResult === null) continue
+
+        const { value: valuation, bbox: valuationBbox, candidates } = valuationResult
 
         const cleanedName = cleanAssetName(name)
         if (/^\([^)]+\)$/.test(cleanedName)) continue // 投信名の続き行 e.g. (TOPIX)
         if (!cleanedName) {
-            holdings.push({ name: "", valuation })
+            holdings.push({ name: "", valuation, valuationBbox, amountCandidates: candidates })
             continue
         }
 
-        holdings.push({ name: cleanedName, valuation })
+        holdings.push({ name: cleanedName, valuation, valuationBbox, amountCandidates: candidates })
     }
 
     return dedupeHoldings(holdings)
@@ -139,51 +141,119 @@ function medianWordHeight(words: OcrWord[]): number {
     return heights[Math.floor(heights.length / 2)]
 }
 
-function extractPrimaryValuation(words: OcrWord[]): number | null {
-    const amounts: number[] = []
+function mergeWordBboxes(words: OcrWord[]): OcrBoundingBox {
+    const x0 = Math.min(...words.map((w) => w.x))
+    const y0 = Math.min(...words.map((w) => w.y))
+    const x1 = Math.max(...words.map((w) => w.x + w.width))
+    const y1 = Math.max(...words.map((w) => w.y + w.height))
+    return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 }
+}
+
+/** 損益（+¥450 / -¥2,670 など）かどうか */
+export function classifyYenAmountKind(ocrText: string): YenAmountKind {
+    const compact = ocrText.replace(/\s+/g, "")
+    if (/^[+\-−]/.test(compact)) return "profit_loss"
+    if (/[¥￥\\Y][+\-−]/.test(compact)) return "profit_loss"
+    return "valuation"
+}
+
+export function extractYenAmountCandidates(words: OcrWord[]): YenAmountCandidate[] {
+    const candidates: YenAmountCandidate[] = []
 
     for (const word of words) {
         const match = word.text.match(YEN_PATTERN)
-        if (match) {
-            const value = parseInt(match[1].replace(/,/g, ""), 10)
-            if (!isNaN(value) && value > 0) {
-                amounts.push(value)
+        if (!match) continue
+        const value = parseInt(match[1].replace(/,/g, ""), 10)
+        if (isNaN(value) || value <= 0) continue
+
+        candidates.push({
+            value,
+            bbox: {
+                x: word.x,
+                y: word.y,
+                width: word.width,
+                height: word.height,
+            },
+            ocrText: word.text,
+            kind: classifyYenAmountKind(word.text),
+        })
+    }
+
+    return candidates.sort((a, b) => a.bbox.x - b.bbox.x)
+}
+
+function pickPrimaryValuation(candidates: YenAmountCandidate[]): YenAmountCandidate | null {
+    if (candidates.length === 0) return null
+
+    const valuationLike = candidates.filter((c) => c.kind === "valuation")
+    if (valuationLike.length > 0) {
+        return valuationLike[0]
+    }
+
+    return null
+}
+
+function extractPrimaryValuation(
+    words: OcrWord[]
+): { value: number; bbox: OcrBoundingBox; candidates: YenAmountCandidate[] } | null {
+    const candidates = extractYenAmountCandidates(words)
+    const primary = pickPrimaryValuation(candidates)
+
+    if (primary) {
+        return {
+            value: primary.value,
+            bbox: primary.bbox,
+            candidates,
+        }
+    }
+
+    if (candidates.length > 0) {
+        return null
+    }
+
+    const combined = words.map((w) => w.text).join(" ")
+    const globalMatch = combined.match(YEN_PATTERN)
+    if (globalMatch) {
+        const value = parseInt(globalMatch[1].replace(/,/g, ""), 10)
+        if (!isNaN(value) && value > 0) {
+            const matchingWords = words.filter((w) => YEN_PATTERN.test(w.text))
+            return {
+                value,
+                bbox: mergeWordBboxes(matchingWords.length > 0 ? matchingWords : words),
+                candidates,
             }
         }
     }
 
-    if (amounts.length === 0) {
-        const combined = words.map((w) => w.text).join(" ")
-        const globalMatch = combined.match(YEN_PATTERN)
-        if (globalMatch) {
-            const value = parseInt(globalMatch[1].replace(/,/g, ""), 10)
-            if (!isNaN(value) && value > 0) return value
-        }
-        return null
-    }
-
-    return Math.max(...amounts)
+    return null
 }
 
-/** 複数画像から得た銘柄リストを統合（同名は評価額が大きい方を採用） */
+/** 複数画像から得た銘柄リストを統合（名前と評価額が両方一致する場合のみ重複除外） */
 export function mergeParsedHoldings(holdings: ParsedHolding[]): ParsedHolding[] {
     return dedupeHoldings(holdings)
 }
 
+function holdingDedupeKey(holding: ParsedHolding, anonIndex: number): string {
+    const normalized = normalizeKey(holding.name)
+    if (normalized) {
+        return `${normalized}\0${holding.valuation}`
+    }
+    return `__anon_${anonIndex}\0${holding.valuation}`
+}
+
 function dedupeHoldings(holdings: ParsedHolding[]): ParsedHolding[] {
-    const seen = new Map<string, ParsedHolding>()
+    const seen = new Set<string>()
+    const result: ParsedHolding[] = []
     let anonCounter = 0
 
     for (const holding of holdings) {
-        const normalized = normalizeKey(holding.name)
-        const key = normalized || `__anon_${anonCounter++}_${holding.valuation}`
-        const existing = seen.get(key)
-        if (!existing || holding.valuation > existing.valuation) {
-            seen.set(key, holding)
-        }
+        const key = holdingDedupeKey(holding, anonCounter++)
+        if (seen.has(key)) continue
+        seen.add(key)
+        result.push(holding)
     }
 
-    return Array.from(seen.values())
+    return result
 }
 
 function normalizeKey(name: string): string {

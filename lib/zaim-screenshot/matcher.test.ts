@@ -4,8 +4,9 @@ import {
     levenshteinDistance,
     matchHoldingsToCategories,
     normalizeName,
+    rematchResultsToCategories,
 } from "./matcher"
-import type { ParsedHolding, ValuationCategoryRef } from "./types"
+import type { MatchResult, ParsedHolding, ValuationCategoryRef, YenAmountCandidate } from "./types"
 
 const zaimCategories: ValuationCategoryRef[] = [
     { id: 1, name: "NTT株", valuationAlias: "NTT" },
@@ -69,5 +70,59 @@ describe("matchHoldingsToCategories", () => {
         const results = matchHoldingsToCategories(holdings, zaimCategories.slice(0, 1))
 
         assert.equal(results[0].categoryName, "NTT株")
+    })
+})
+
+describe("rematchResultsToCategories", () => {
+    const dismissedMarker: YenAmountCandidate = {
+        value: 38060,
+        bbox: { x: 10, y: 20, width: 30, height: 10 },
+        ocrText: "¥38,060",
+        kind: "valuation",
+    }
+
+    function baseResult(
+        partial: Partial<MatchResult> & Pick<MatchResult, "ocrName" | "valuation">
+    ): MatchResult {
+        return {
+            categoryId: null,
+            categoryName: null,
+            confidence: "order",
+            selected: true,
+            ...partial,
+        }
+    }
+
+    it("reassigns categories skipping dismissed rows", () => {
+        const results: MatchResult[] = [
+            baseResult({
+                ocrName: "NTT",
+                valuation: 14950,
+                categoryId: 1,
+                categoryName: "NTT株",
+            }),
+            baseResult({
+                ocrName: "三菱重",
+                valuation: 38060,
+                categoryId: 2,
+                categoryName: "三菱重工",
+                imageDismissedCandidate: dismissedMarker,
+            }),
+            baseResult({
+                ocrName: "eMAXIS Slim 全世界",
+                valuation: 84797,
+                categoryId: 3,
+                categoryName: "全世界株",
+            }),
+        ]
+
+        const rematched = rematchResultsToCategories(results, zaimCategories)
+
+        assert.equal(rematched[0].categoryId, 1)
+        assert.equal(rematched[1].categoryId, null)
+        assert.equal(rematched[1].selected, false)
+        assert.ok(rematched[1].imageDismissedCandidate)
+        assert.equal(rematched[2].categoryId, 2)
+        assert.equal(rematched[2].categoryName, "三菱重工")
     })
 })

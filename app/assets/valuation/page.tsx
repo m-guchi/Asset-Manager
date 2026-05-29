@@ -30,12 +30,7 @@ import {
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-
-function formatValuationDiff(diff: number): string {
-    const prefix = diff > 0 ? "+" : diff < 0 ? "−" : "±"
-    const abs = Math.abs(diff)
-    return `${prefix}¥${abs.toLocaleString()}`
-}
+import { formatValuationDiff } from "@/lib/valuation-diff"
 
 interface ValuationCategory {
     id: number;
@@ -122,6 +117,7 @@ export default function BulkValuationPage() {
                         id: c.id,
                         name: c.name,
                         valuationAlias: c.valuationAlias,
+                        currentValue: Number(c.currentValue),
                     }))}
                     zaimImportCount={zaimImportCategories.length}
                     onApply={(imported) =>
