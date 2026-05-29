@@ -165,6 +165,13 @@ export function AssetAllocationChart({
 
     if (!isMounted) return null
 
+    const getParensColorClass = (pnlValue: number) => {
+        if (viewMode === "pnl" || viewMode === "pnlValue") {
+            return pnlValue >= 0 ? "text-emerald-500" : "text-rose-500"
+        }
+        return ""
+    }
+
     return (
         <div className="flex flex-col h-[300px] w-full">
             <div className="flex-1 flex flex-row min-h-0">
@@ -287,7 +294,7 @@ export function AssetAllocationChart({
                                                 </div>
                                                 <div className="flex items-baseline gap-0.5">
                                                     <span className="text-[11px] font-normal opacity-70">(</span>
-                                                    <span className={`text-[11px] font-normal ${viewMode === "pnl" || viewMode === "pnlValue" ? (pnlValue >= 0 ? "text-emerald-500" : "text-rose-500") : viewMode === "realizedGain" ? (realizedGain >= 0 ? "text-emerald-500" : "text-rose-500") : ""}`}>
+                                                    <span className={`text-[11px] font-normal ${getParensColorClass(pnlValue)}`}>
                                                         {viewMode === "pnl" ? (() => {
                                                             return (pnlRate > 0 ? "+" : "") + pnlRate.toFixed(1)
                                                         })() : viewMode === "pnlValue" ? (
@@ -349,7 +356,7 @@ export function AssetAllocationChart({
                                                 </div>
                                                 <div className="flex items-baseline gap-0.5">
                                                     <span className="text-[11px] font-normal opacity-70">(</span>
-                                                    <span className={`text-[11px] font-normal ${viewMode === "pnl" || viewMode === "pnlValue" ? (pnlValue >= 0 ? "text-emerald-500" : "text-rose-500") : viewMode === "realizedGain" ? (realizedGain >= 0 ? "text-emerald-500" : "text-rose-500") : ""}`}>
+                                                    <span className={`text-[11px] font-normal ${getParensColorClass(pnlValue)}`}>
                                                         {viewMode === "pnl" ? (() => {
                                                             return (pnlRate > 0 ? "+" : "") + pnlRate.toFixed(1)
                                                         })() : viewMode === "pnlValue" ? (
