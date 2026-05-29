@@ -12,6 +12,7 @@ interface CategoryWithRelations {
     order: number;
     valuationOrder: number | null;
     isValuationTarget: boolean | null;
+    valuationAlias: string | null;
     hidden: boolean;
     parentId: number | null;
     isCash: boolean | null;
@@ -220,6 +221,7 @@ export async function getCategories() {
                 order: cat.order || 0,
                 valuationOrder: cat.valuationOrder ?? 0,
                 isValuationTarget: cat.isValuationTarget ?? true,
+                valuationAlias: cat.valuationAlias ?? null,
                 parentId: cat.parentId,
                 currentValue: cat.currentValue,
                 costBasis: cat.costBasis,
@@ -816,7 +818,12 @@ export async function getCategoryDetails(id: number) {
 
 
 
-export async function updateValuationSettingsAction(settings: { id: number, valuationOrder: number, isValuationTarget: boolean }[]) {
+export async function updateValuationSettingsAction(settings: {
+    id: number
+    valuationOrder: number
+    isValuationTarget: boolean
+    valuationAlias?: string | null
+}[]) {
     try {
         await prisma.$transaction(
             settings.map(s =>
@@ -824,7 +831,8 @@ export async function updateValuationSettingsAction(settings: { id: number, valu
                     where: { id: s.id },
                     data: {
                         valuationOrder: s.valuationOrder,
-                        isValuationTarget: s.isValuationTarget
+                        isValuationTarget: s.isValuationTarget,
+                        valuationAlias: s.valuationAlias?.trim() || null,
                     }
                 })
             )
