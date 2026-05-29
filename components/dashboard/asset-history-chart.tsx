@@ -1,9 +1,22 @@
 "use client"
 import * as React from "react"
 import { Area, CartesianGrid, XAxis, ResponsiveContainer, YAxis, ReferenceLine, ReferenceDot, ComposedChart, Line } from "recharts"
+import { Check, ChevronDown } from "lucide-react"
 
 import { ChartConfig, ChartContainer } from "@/components/ui/chart"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { HistoryPoint, TagGroup, Category, ChartViewMode } from "@/types/asset"
+
+const VIEW_MODE_OPTIONS = [
+    { value: "value", label: "評価額" },
+    { value: "percent", label: "構成比" },
+    { value: "pnl", label: "損益率" },
+    { value: "pnlValue", label: "損益額" },
+] as const satisfies readonly { value: ChartViewMode; label: string }[]
+
+const VIEW_MODE_LABELS = Object.fromEntries(
+    VIEW_MODE_OPTIONS.map(({ value, label }) => [value, label])
+) as Record<ChartViewMode, string>
 
 const mockTagGroups: TagGroup[] = [
     { id: 1, name: "目的別", tags: ["投資資金", "生活防衛費", "代替通貨"] },
@@ -49,6 +62,7 @@ export function AssetHistoryChart({
     const isPnlValueMode = viewMode === "pnlValue"
     const isAnyPnlMode = isPnlRateMode || isPnlValueMode
     const [isAnimating, setIsAnimating] = React.useState(false)
+    const [viewModeOpen, setViewModeOpen] = React.useState(false)
 
     // ドラッグ(スワイプ)用ステート
     const [dragStartX, setDragStartX] = React.useState<number | null>(null)
@@ -728,21 +742,38 @@ export function AssetHistoryChart({
                             </div>
 
                             <div className="flex bg-muted/50 rounded-md p-0.5 border shrink-0">
-                                <button
-                                    onClick={() => {
-                                        const modes: ChartViewMode[] = ["value", "percent", "pnl", "pnlValue"];
-                                        const currentIndex = modes.indexOf(viewMode);
-                                        const nextIndex = (currentIndex + 1) % modes.length;
-                                        onViewModeChange(modes[nextIndex]);
-                                    }}
-                                    className="px-4 py-1.5 text-[11px] font-bold rounded-md transition-all whitespace-nowrap bg-background text-foreground shadow-sm flex items-center gap-2 hover:bg-muted/80"
-                                >
-                                    <span className="opacity-50">表示:</span>
-                                    <span>{{ value: "評価額", percent: "構成比", pnl: "損益率", pnlValue: "損益額" }[viewMode]}</span>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-50">
-                                        <path d="m6 9 6 6 6-6"/>
-                                    </svg>
-                                </button>
+                                <Popover open={viewModeOpen} onOpenChange={setViewModeOpen}>
+                                    <PopoverTrigger asChild>
+                                        <button
+                                            type="button"
+                                            className="px-4 py-1.5 text-[11px] font-bold rounded-md transition-all whitespace-nowrap bg-background text-foreground shadow-sm flex items-center gap-2 hover:bg-muted/80"
+                                        >
+                                            <span className="opacity-50">表示:</span>
+                                            <span>{VIEW_MODE_LABELS[viewMode]}</span>
+                                            <ChevronDown className="h-2.5 w-2.5 opacity-50" />
+                                        </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent side="top" align="end" className="w-auto min-w-[7rem] p-1">
+                                        <div className="flex flex-col gap-0.5">
+                                            {VIEW_MODE_OPTIONS.map(({ value, label }) => (
+                                                <button
+                                                    key={value}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        onViewModeChange(value)
+                                                        setViewModeOpen(false)
+                                                    }}
+                                                    className={`flex w-full items-center justify-between gap-4 rounded-sm px-3 py-1.5 text-left text-[11px] font-medium transition-colors ${viewMode === value
+                                                        ? "bg-accent font-bold text-accent-foreground"
+                                                        : "text-foreground hover:bg-muted"}`}
+                                                >
+                                                    {label}
+                                                    {viewMode === value && <Check className="h-3 w-3 shrink-0" />}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </PopoverContent>
+                                </Popover>
                             </div>
                         </div>
                     </div>
