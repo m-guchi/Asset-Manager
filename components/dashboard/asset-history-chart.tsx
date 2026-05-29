@@ -10,6 +10,7 @@ import { HistoryPoint, TagGroup, Category, ChartViewMode } from "@/types/asset"
 const VIEW_MODE_OPTIONS = [
     { value: "value", label: "評価額" },
     { value: "percent", label: "構成比" },
+    { value: "cost", label: "取得額" },
     { value: "pnl", label: "損益率" },
     { value: "pnlValue", label: "損益額" },
 ] as const satisfies readonly { value: ChartViewMode; label: string }[]
@@ -58,9 +59,11 @@ export function AssetHistoryChart({
     const [isMounted, setIsMounted] = React.useState(false);
     const [timeRange, setTimeRange] = React.useState(initialTimeRange)
     const showPercent = viewMode === "percent"
+    const isCostMode = viewMode === "cost"
     const isPnlRateMode = viewMode === "pnl"
     const isPnlValueMode = viewMode === "pnlValue"
     const isAnyPnlMode = isPnlRateMode || isPnlValueMode
+    const isStackedAreaMode = !isAnyPnlMode
     const [isAnimating, setIsAnimating] = React.useState(false)
     const [viewModeOpen, setViewModeOpen] = React.useState(false)
 
@@ -73,7 +76,7 @@ export function AssetHistoryChart({
         setIsAnimating(true)
         const timer = setTimeout(() => setIsAnimating(false), 1500)
         return () => clearTimeout(timer)
-    }, [mode, selectedTagGroup, showPercent, timeRange])
+    }, [mode, selectedTagGroup, viewMode, timeRange])
 
     React.useEffect(() => {
         setIsMounted(true);
@@ -334,7 +337,7 @@ export function AssetHistoryChart({
     const chartConfig = React.useMemo(() => {
         const config: ChartConfig = {
             totalAssets: { label: "評価額", color: "var(--chart-1)" },
-            totalCost: { label: "取得原価", color: "#888888" },
+            totalCost: { label: "取得額", color: "#888888" },
         }
         activeKeys.forEach((key) => {
             config[`tag_${selectedTagGroup}_${key}`] = { label: key }
@@ -404,7 +407,7 @@ export function AssetHistoryChart({
         return `${date.getFullYear()}/${date.getMonth() + 1}`
     }
 
-    const shouldHighlightOnlySelected = viewMode === "value"
+    const shouldHighlightOnlySelected = viewMode === "value" || viewMode === "cost"
     const isDimmedKey = (key: string) => !shouldHighlightOnlySelected && !!selectedAssetKey && selectedAssetKey !== key
 
     return (
@@ -426,7 +429,7 @@ export function AssetHistoryChart({
                         >
                             <ResponsiveContainer width="100%" height="100%" style={{ pointerEvents: "none" }}>
                                 <ComposedChart
-                                    key={`${mode}-${selectedTagGroup}-${showPercent}-${timeRange}`}
+                                    key={`${mode}-${selectedTagGroup}-${viewMode}-${timeRange}`}
                                     data={allProcessedData}
                                     stackOffset={showPercent ? "expand" : "none"}
                                     margin={{ top: 25, right: 30, left: 10, bottom: 0 }}
@@ -485,8 +488,8 @@ export function AssetHistoryChart({
                                         />
                                     )}
 
-                                    {/* 評価額・割合モード時の面グラフ */}
-                                    {!isAnyPnlMode && mode === "total" && [...categories].reverse().filter((cat: Category) => {
+                                    {/* 評価額・取得額・構成比モード時の面グラフ */}
+                                    {isStackedAreaMode && mode === "total" && [...categories].reverse().filter((cat: Category) => {
                                         if (cat.isLiability) return false
                                         if (!shouldHighlightOnlySelected) return true
                                         return !selectedAssetKey || selectedAssetKey === `category_${cat.id}`
@@ -499,7 +502,7 @@ export function AssetHistoryChart({
                                         return (
                                             <Area
                                                 key={cat.id}
-                                                dataKey={`category_${cat.id}`}
+                                                dataKey={isCostMode ? `category_cost_${cat.id}` : `category_${cat.id}`}
                                                 stackId="1"
                                                 type="linear"
                                                 stroke={color}
@@ -512,7 +515,7 @@ export function AssetHistoryChart({
                                         );
                                     })}
 
-                                    {!isAnyPnlMode && mode === "tag" && [...activeKeys].reverse().filter((key) => {
+                                    {isStackedAreaMode && mode === "tag" && [...activeKeys].reverse().filter((key) => {
                                         if (!shouldHighlightOnlySelected) return true
                                         return !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`
                                     }).map((key) => {
@@ -525,7 +528,7 @@ export function AssetHistoryChart({
                                         return (
                                             <Area
                                                 key={key}
-                                                dataKey={`tag_${selectedTagGroup}_${key}`}
+                                                dataKey={isCostMode ? `tag_cost_${selectedTagGroup}_${key}` : `tag_${selectedTagGroup}_${key}`}
                                                 stackId="1"
                                                 type="linear"
                                                 stroke={color}
@@ -647,17 +650,20 @@ export function AssetHistoryChart({
                                             }
                                         }
 
-                                        // 評価額・割合モード: 積み上げ
+                                        // 評価額・取得額・構成比モード: 積み上げ
                                         let cumulativeY = 0;
                                         if (mode === "tag") {
                                             const reversedActiveKeys = [...activeKeys].reverse();
-                                            const sum = reversedActiveKeys.reduce((a: number, key: string) => a + Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0), 0) || 1;
+                                            const valueKey = (key: string) => isCostMode
+                                                ? `tag_cost_${selectedTagGroup}_${key}`
+                                                : `tag_${selectedTagGroup}_${key}`
+                                            const sum = reversedActiveKeys.reduce((a: number, key: string) => a + Number((activePoint as Record<string, unknown>)[valueKey(key)] || 0), 0) || 1;
                                             
                                             return reversedActiveKeys.filter((key: string) => {
                                                 if (!shouldHighlightOnlySelected) return true
                                                 return !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`
                                             }).map((key: string) => {
-                                                const val = Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0);
+                                                const val = Number((activePoint as Record<string, unknown>)[valueKey(key)] || 0);
                                                 if (val === 0) return null;
                                                 const yVal = viewMode === "percent" ? (val / sum) : val;
                                                 cumulativeY += yVal;
@@ -686,13 +692,16 @@ export function AssetHistoryChart({
                                         } else {
                                             const displayCats = categories.filter((cat: Category) => !cat.isLiability && !cat.parentId);
                                             const reversedCats = [...displayCats].reverse();
-                                            const sum = reversedCats.reduce((a: number, cat: Category) => a + Number((activePoint as Record<string, unknown>)[`category_${cat.id}`] || 0), 0) || 1;
+                                            const valueKey = (cat: Category) => isCostMode
+                                                ? `category_cost_${cat.id}`
+                                                : `category_${cat.id}`
+                                            const sum = reversedCats.reduce((a: number, cat: Category) => a + Number((activePoint as Record<string, unknown>)[valueKey(cat)] || 0), 0) || 1;
 
                                             return reversedCats.filter((cat: Category) => {
                                                 if (!shouldHighlightOnlySelected) return true
                                                 return !selectedAssetKey || selectedAssetKey === `category_${cat.id}`
                                             }).map((cat: Category) => {
-                                                const val = Number(activePoint[`category_${cat.id}`] || 0);
+                                                const val = Number(activePoint[valueKey(cat)] || 0);
                                                 if (val === 0) return null;
                                                 const yVal = viewMode === "percent" ? (val / sum) : val;
                                                 cumulativeY += yVal;
