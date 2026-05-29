@@ -1,9 +1,25 @@
 "use client"
 import * as React from "react"
-import { Area, CartesianGrid, XAxis, ResponsiveContainer, YAxis, ReferenceLine, ReferenceDot, ComposedChart, Line } from "recharts"
+import { Area, CartesianGrid, XAxis, YAxis, ReferenceLine, ReferenceDot, ComposedChart, Line } from "recharts"
+import { Check, ChevronDown } from "lucide-react"
 
 import { ChartConfig, ChartContainer } from "@/components/ui/chart"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { HistoryPoint, TagGroup, Category, ChartViewMode } from "@/types/asset"
+import { applyPnlWithZeroTransitions, isPlottablePnlValue } from "@/lib/chart-pnl"
+
+const VIEW_MODE_OPTIONS = [
+    { value: "value", label: "評価額" },
+    { value: "percent", label: "構成比" },
+    { value: "cost", label: "取得額" },
+    { value: "pnl", label: "損益率" },
+    { value: "pnlValue", label: "損益額" },
+    { value: "realizedGain", label: "実現益" },
+] as const satisfies readonly { value: ChartViewMode; label: string }[]
+
+const VIEW_MODE_LABELS = Object.fromEntries(
+    VIEW_MODE_OPTIONS.map(({ value, label }) => [value, label])
+) as Record<ChartViewMode, string>
 
 const mockTagGroups: TagGroup[] = [
     { id: 1, name: "目的別", tags: ["投資資金", "生活防衛費", "代替通貨"] },
@@ -15,6 +31,32 @@ interface ChartPoint extends HistoryPoint {
     totalAssets: number;
     totalCost: number;
     netWorth: number;
+    overlayCost: number;
+}
+
+function getOverlayCost(
+    point: Record<string, unknown>,
+    mode: "total" | "tag",
+    selectedTagGroup: number,
+    activeKeys: string[],
+    selectedAssetKey?: string | null
+): number {
+    if (mode === "tag") {
+        const tagPrefix = `tag_${selectedTagGroup}_`
+        if (selectedAssetKey?.startsWith(tagPrefix)) {
+            const key = selectedAssetKey.slice(tagPrefix.length)
+            return Number(point[`tag_cost_${selectedTagGroup}_${key}`] || 0)
+        }
+        return activeKeys.reduce(
+            (sum, key) => sum + Number(point[`tag_cost_${selectedTagGroup}_${key}`] || 0),
+            0
+        )
+    }
+    if (selectedAssetKey?.startsWith("category_")) {
+        const catId = selectedAssetKey.slice("category_".length)
+        return Number(point[`category_cost_${catId}`] || 0)
+    }
+    return Number(point.totalCost || 0)
 }
 
 interface AssetHistoryChartProps {
@@ -45,10 +87,17 @@ export function AssetHistoryChart({
     const [isMounted, setIsMounted] = React.useState(false);
     const [timeRange, setTimeRange] = React.useState(initialTimeRange)
     const showPercent = viewMode === "percent"
+    const isCostMode = viewMode === "cost"
     const isPnlRateMode = viewMode === "pnl"
     const isPnlValueMode = viewMode === "pnlValue"
+    const isRealizedGainMode = viewMode === "realizedGain"
     const isAnyPnlMode = isPnlRateMode || isPnlValueMode
+    const isLineChartMode = isAnyPnlMode || isRealizedGainMode
+    const isStackedAreaMode = !isLineChartMode
+    const isValueMode = viewMode === "value"
     const [isAnimating, setIsAnimating] = React.useState(false)
+    const [viewModeOpen, setViewModeOpen] = React.useState(false)
+    const [showCostOverlay, setShowCostOverlay] = React.useState(true)
 
     // ドラッグ(スワイプ)用ステート
     const [dragStartX, setDragStartX] = React.useState<number | null>(null)
@@ -59,7 +108,7 @@ export function AssetHistoryChart({
         setIsAnimating(true)
         const timer = setTimeout(() => setIsAnimating(false), 1500)
         return () => clearTimeout(timer)
-    }, [mode, selectedTagGroup, showPercent, timeRange])
+    }, [mode, selectedTagGroup, viewMode, timeRange])
 
     React.useEffect(() => {
         setIsMounted(true);
@@ -67,7 +116,19 @@ export function AssetHistoryChart({
         if (savedRange) {
             setTimeRange(savedRange);
         }
+        const savedCostOverlay = localStorage.getItem("showCostOverlay");
+        if (savedCostOverlay !== null) {
+            setShowCostOverlay(savedCostOverlay === "true");
+        }
     }, []);
+
+    const toggleShowCostOverlay = () => {
+        setShowCostOverlay((prev) => {
+            const next = !prev;
+            localStorage.setItem("showCostOverlay", String(next));
+            return next;
+        });
+    };
 
     const handleTimeRangeChange = (range: string) => {
         setTimeRange(range);
@@ -88,7 +149,7 @@ export function AssetHistoryChart({
     const allProcessedData = React.useMemo(() => {
         if (!data || data.length === 0) return []
         const topLevelCategories = categories.filter(c => !c.parentId)
-        return data
+        const points = data
             .map((p: HistoryPoint) => {
                 const d = new Date(p.date)
                 const point: ChartPoint = {
@@ -96,7 +157,8 @@ export function AssetHistoryChart({
                     totalAssets: Number(p.totalAssets || 0),
                     totalCost: Number(p.totalCost || 0),
                     netWorth: Number(p.netWorth ?? p.totalAssets ?? 0),
-                    timestamp: isNaN(d.getTime()) ? 0 : d.getTime()
+                    timestamp: isNaN(d.getTime()) ? 0 : d.getTime(),
+                    overlayCost: 0,
                 }
 
                 if (mode === "tag") {
@@ -108,31 +170,41 @@ export function AssetHistoryChart({
                     })
                 }
 
-                // カテゴリ別損益率を計算
-                topLevelCategories.forEach(cat => {
-                    const val = Number((point as Record<string, unknown>)[`category_${cat.id}`] || 0)
-                    const cost = Number((point as Record<string, unknown>)[`category_cost_${cat.id}`] || 0)
-                    ;(point as Record<string, unknown>)[`pnl_${cat.id}`] = cost > 0 ? ((val - cost) / cost) * 100 : 0
-                    ;(point as Record<string, unknown>)[`pnl_value_${cat.id}`] = val - cost
-                })
+                // カテゴリ別・タグ別の損益は applyPnlWithZeroTransitions で後処理
 
-                // タグ別損益率を計算
-                if (mode === "tag") {
-                    activeKeys.forEach((key: string) => {
-                        const valKey = `tag_${selectedTagGroup}_${key}`
-                        const costKey = `tag_cost_${selectedTagGroup}_${key}`
-                        const val = Number((point as Record<string, unknown>)[valKey] || 0)
-                        const cost = Number((point as Record<string, unknown>)[costKey] || 0)
-                        ;(point as Record<string, unknown>)[`tag_pnl_${selectedTagGroup}_${key}`] = cost > 0 ? ((val - cost) / cost) * 100 : 0
-                        ;(point as Record<string, unknown>)[`tag_pnl_value_${selectedTagGroup}_${key}`] = val - cost
-                    })
-                }
+                point.overlayCost = getOverlayCost(
+                    point as Record<string, unknown>,
+                    mode,
+                    selectedTagGroup,
+                    activeKeys,
+                    selectedAssetKey
+                )
 
                 return point
             })
             .filter(p => p.timestamp > 0)
             .sort((a, b) => a.timestamp - b.timestamp)
-    }, [data, activeKeys, mode, selectedTagGroup, categories])
+
+        const pnlSeries =
+            mode === "tag"
+                ? activeKeys.map((key) => ({
+                    valKey: `tag_${selectedTagGroup}_${key}`,
+                    costKey: `tag_cost_${selectedTagGroup}_${key}`,
+                    pnlRateKey: `tag_pnl_${selectedTagGroup}_${key}`,
+                    pnlValueKey: `tag_pnl_value_${selectedTagGroup}_${key}`,
+                }))
+                : topLevelCategories
+                    .filter((c) => !c.isLiability)
+                    .map((cat) => ({
+                        valKey: `category_${cat.id}`,
+                        costKey: `category_cost_${cat.id}`,
+                        pnlRateKey: `pnl_${cat.id}`,
+                        pnlValueKey: `pnl_value_${cat.id}`,
+                    }))
+
+        applyPnlWithZeroTransitions(points as unknown as Array<Record<string, number | null>>, pnlSeries)
+        return points
+    }, [data, activeKeys, mode, selectedTagGroup, categories, selectedAssetKey])
 
     const baseWindowMs = React.useMemo(() => {
         if (timeRange === "ALL") return null;
@@ -219,8 +291,9 @@ export function AssetHistoryChart({
 
         visiblePoints.forEach((point) => {
             seriesKeys.forEach((key) => {
-                const value = Number((point as Record<string, unknown>)[key])
-                if (!Number.isFinite(value)) return
+                const raw = (point as Record<string, unknown>)[key]
+                if (!isPlottablePnlValue(raw)) return
+                const value = Number(raw)
                 if (value < minValue) minValue = value
                 if (value > maxValue) maxValue = value
             })
@@ -271,8 +344,9 @@ export function AssetHistoryChart({
 
         visiblePoints.forEach((point) => {
             seriesKeys.forEach((key) => {
-                const value = Number((point as Record<string, unknown>)[key])
-                if (!Number.isFinite(value)) return
+                const raw = (point as Record<string, unknown>)[key]
+                if (!isPlottablePnlValue(raw)) return
+                const value = Number(raw)
                 if (value < minValue) minValue = value
                 if (value > maxValue) maxValue = value
             })
@@ -290,13 +364,65 @@ export function AssetHistoryChart({
         return [minValue - pad, maxValue + pad] as [number, number]
     }, [allProcessedData, currentDomain, mode, activeKeys, selectedTagGroup, categories, selectedAssetKey])
 
+    const visibleRealizedGainDomain = React.useMemo(() => {
+        if (!allProcessedData.length) return [-10000, 10000] as [number, number]
+
+        const dataMaxTime = allProcessedData[allProcessedData.length - 1].timestamp
+        const rawMinT = currentDomain[0] === "dataMin" ? allProcessedData[0].timestamp : (currentDomain[0] as number)
+        const rawMaxT = currentDomain[1] === "dataMax" ? dataMaxTime : (currentDomain[1] as number)
+        const minT = rawMinT
+        const maxT = Math.min(rawMaxT, dataMaxTime)
+
+        const visiblePoints = allProcessedData.filter((p) => p.timestamp >= minT && p.timestamp <= maxT)
+        if (!visiblePoints.length) return [-10000, 10000] as [number, number]
+
+        const seriesKeys =
+            mode === "tag"
+                ? activeKeys
+                      .filter((key) => !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`)
+                      .map((key) => `tag_realized_gain_${selectedTagGroup}_${key}`)
+                : categories
+                      .filter((c) => !c.parentId && !c.isLiability)
+                      .filter((c) => !selectedAssetKey || selectedAssetKey === `category_${c.id}`)
+                      .map((c) => `realized_gain_${c.id}`)
+
+        if (!seriesKeys.length) return [-10000, 10000] as [number, number]
+
+        let minValue = Number.POSITIVE_INFINITY
+        let maxValue = Number.NEGATIVE_INFINITY
+
+        visiblePoints.forEach((point) => {
+            seriesKeys.forEach((key) => {
+                const value = Number((point as Record<string, unknown>)[key] || 0)
+                if (value < minValue) minValue = value
+                if (value > maxValue) maxValue = value
+            })
+        })
+
+        if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) return [-10000, 10000] as [number, number]
+
+        if (minValue === maxValue) {
+            const pad = Math.max(Math.abs(minValue) * 0.2, 10000)
+            const domainMin = Math.min(minValue - pad, 0)
+            const domainMax = Math.max(maxValue + pad, 0)
+            return [domainMin, domainMax] as [number, number]
+        }
+
+        const span = maxValue - minValue
+        const pad = Math.max(span * 0.1, 10000)
+        const domainMin = Math.min(minValue - pad, 0)
+        const domainMax = Math.max(maxValue + pad, 0)
+        return [domainMin, domainMax] as [number, number]
+    }, [allProcessedData, currentDomain, mode, activeKeys, selectedTagGroup, categories, selectedAssetKey])
+
     // Y軸のドメイン計算
     const yAxisDomain = React.useMemo(() => {
         if (viewMode === "percent") return [0, 1] as [number, number]
         if (viewMode === "pnl") return visiblePnlDomain
         if (viewMode === "pnlValue") return visiblePnlValueDomain
+        if (viewMode === "realizedGain") return visibleRealizedGainDomain
         return ['auto', 'auto']
-    }, [viewMode, visiblePnlDomain, visiblePnlValueDomain])
+    }, [viewMode, visiblePnlDomain, visiblePnlValueDomain, visibleRealizedGainDomain])
 
     const [debouncedActivePoint, setDebouncedActivePoint] = React.useState<ChartPoint | null>(null);
 
@@ -320,7 +446,8 @@ export function AssetHistoryChart({
     const chartConfig = React.useMemo(() => {
         const config: ChartConfig = {
             totalAssets: { label: "評価額", color: "var(--chart-1)" },
-            totalCost: { label: "取得原価", color: "#888888" },
+            totalCost: { label: "取得額", color: "#888888" },
+            overlayCost: { label: "取得額", color: "#888888" },
         }
         activeKeys.forEach((key) => {
             config[`tag_${selectedTagGroup}_${key}`] = { label: key }
@@ -378,7 +505,7 @@ export function AssetHistoryChart({
 
     if (!isMounted) {
         return (
-            <div className="h-full min-h-[300px] flex items-center justify-center bg-muted/5 border-dashed">
+            <div className="h-[280px] flex items-center justify-center bg-muted/5 border-dashed">
                 <p className="text-xs text-muted-foreground animate-pulse">グラフを構成中...</p>
             </div>
         );
@@ -390,33 +517,30 @@ export function AssetHistoryChart({
         return `${date.getFullYear()}/${date.getMonth() + 1}`
     }
 
-    const shouldHighlightOnlySelected = viewMode === "value"
+    const shouldHighlightOnlySelected = viewMode === "value" || viewMode === "cost"
     const isDimmedKey = (key: string) => !shouldHighlightOnlySelected && !!selectedAssetKey && selectedAssetKey !== key
 
     return (
-        <div className="flex flex-col h-full min-h-[400px] w-full pt-1">
-            <div className="flex flex-col flex-1 p-0 relative min-h-0 overflow-hidden w-full">
-                <ChartContainer config={chartConfig} className="flex-1 min-h-0 w-full text-[10px]">
-                    <div className="flex flex-col h-full w-full">
-                        <div 
-                            className="flex-1 w-full min-h-[250px] px-2 py-2 select-none" 
-                            ref={chartRef}
-                            onMouseDown={handleMouseDown}
-                            onMouseMove={handleMouseMove}
-                            onMouseUp={handleMouseUp}
-                            onMouseLeave={handleMouseUp}
-                            onTouchStart={handleMouseDown}
-                            onTouchMove={handleMouseMove}
-                            onTouchEnd={handleMouseUp}
-                            style={{ touchAction: "none", cursor: dragStartX !== null ? "grabbing" : "grab" }}
-                        >
-                            <ResponsiveContainer width="100%" height="100%" style={{ pointerEvents: "none" }}>
-                                <ComposedChart
-                                    key={`${mode}-${selectedTagGroup}-${showPercent}-${timeRange}`}
-                                    data={allProcessedData}
-                                    stackOffset={showPercent ? "expand" : "none"}
-                                    margin={{ top: 25, right: 30, left: 10, bottom: 0 }}
-                                >
+        <div className="flex flex-col w-full pt-1">
+            <div
+                className="flex-none h-[280px] w-full px-2 pt-2 pb-1 select-none shrink-0"
+                ref={chartRef}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onTouchStart={handleMouseDown}
+                onTouchMove={handleMouseMove}
+                onTouchEnd={handleMouseUp}
+                style={{ touchAction: "none", cursor: dragStartX !== null ? "grabbing" : "grab" }}
+            >
+                <ChartContainer config={chartConfig} className="h-full w-full aspect-auto min-h-0 text-[10px] pointer-events-none">
+                    <ComposedChart
+                        key={`${mode}-${selectedTagGroup}-${viewMode}-${timeRange}`}
+                        data={allProcessedData}
+                        stackOffset={showPercent ? "expand" : "none"}
+                        margin={{ top: 25, right: 30, left: 10, bottom: 12 }}
+                    >
                                     <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.2} />
                                     
                                     <XAxis
@@ -434,7 +558,7 @@ export function AssetHistoryChart({
                                         tickFormatter={(val) => {
                                             if (viewMode === "percent") return `${(val * 100).toFixed(0)}%`
                                             if (viewMode === "pnl") return `${val.toFixed(1)}%`
-                                            if (viewMode === "pnlValue") return `${Math.round(val / 10000)}万`
+                                            if (viewMode === "pnlValue" || viewMode === "realizedGain") return `${Math.round(val / 10000)}万`
                                             return `${Math.round(val / 10000)}万`
                                         }}
                                         tickLine={false}
@@ -442,7 +566,7 @@ export function AssetHistoryChart({
                                         tick={{ fill: 'currentColor', fontSize: 10, opacity: 0.5 }}
                                         width={40}
                                         domain={yAxisDomain}
-                                        allowDataOverflow={isAnyPnlMode}
+                                        allowDataOverflow={isLineChartMode}
                                     />
                                     {activePoint && (
                                         <ReferenceLine
@@ -471,8 +595,8 @@ export function AssetHistoryChart({
                                         />
                                     )}
 
-                                    {/* 評価額・割合モード時の面グラフ */}
-                                    {!isAnyPnlMode && mode === "total" && [...categories].reverse().filter((cat: Category) => {
+                                    {/* 評価額・取得額・構成比モード時の面グラフ */}
+                                    {isStackedAreaMode && mode === "total" && [...categories].reverse().filter((cat: Category) => {
                                         if (cat.isLiability) return false
                                         if (!shouldHighlightOnlySelected) return true
                                         return !selectedAssetKey || selectedAssetKey === `category_${cat.id}`
@@ -485,7 +609,7 @@ export function AssetHistoryChart({
                                         return (
                                             <Area
                                                 key={cat.id}
-                                                dataKey={`category_${cat.id}`}
+                                                dataKey={isCostMode ? `category_cost_${cat.id}` : `category_${cat.id}`}
                                                 stackId="1"
                                                 type="linear"
                                                 stroke={color}
@@ -498,7 +622,7 @@ export function AssetHistoryChart({
                                         );
                                     })}
 
-                                    {!isAnyPnlMode && mode === "tag" && [...activeKeys].reverse().filter((key) => {
+                                    {isStackedAreaMode && mode === "tag" && [...activeKeys].reverse().filter((key) => {
                                         if (!shouldHighlightOnlySelected) return true
                                         return !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`
                                     }).map((key) => {
@@ -511,7 +635,7 @@ export function AssetHistoryChart({
                                         return (
                                             <Area
                                                 key={key}
-                                                dataKey={`tag_${selectedTagGroup}_${key}`}
+                                                dataKey={isCostMode ? `tag_cost_${selectedTagGroup}_${key}` : `tag_${selectedTagGroup}_${key}`}
                                                 stackId="1"
                                                 type="linear"
                                                 stroke={color}
@@ -524,51 +648,77 @@ export function AssetHistoryChart({
                                         );
                                     })}
 
-                                    {/* 損益率モード時の折れ線グラフ */}
-                                    {isAnyPnlMode && mode === "total" && categories.filter(c => !c.parentId && !c.isLiability).map(cat => {
+                                    {isValueMode && showCostOverlay && (
+                                        <Line
+                                            dataKey="overlayCost"
+                                            type="linear"
+                                            stroke="#888888"
+                                            strokeWidth={1}
+                                            strokeDasharray="6 4"
+                                            strokeOpacity={0.85}
+                                            dot={false}
+                                            isAnimationActive={isAnimating}
+                                            animationDuration={1200}
+                                        />
+                                    )}
+
+                                    {/* 損益率・損益額・実現益モード時の折れ線グラフ */}
+                                    {isLineChartMode && mode === "total" && categories.filter(c => !c.parentId && !c.isLiability).map(cat => {
                                         const topLevel = categories.filter(c => !c.parentId && !c.isLiability)
                                         const colorIndex = topLevel.findIndex(c => c.id === cat.id)
                                         const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`
                                         const key = `category_${cat.id}`
                                         const isDimmed = isDimmedKey(key)
+                                        const dataKey = isRealizedGainMode
+                                            ? `realized_gain_${cat.id}`
+                                            : isPnlRateMode
+                                                ? `pnl_${cat.id}`
+                                                : `pnl_value_${cat.id}`
                                         
                                         return (
                                             <Line
                                                 key={cat.id}
-                                                dataKey={isPnlRateMode ? `pnl_${cat.id}` : `pnl_value_${cat.id}`}
+                                                dataKey={dataKey}
                                                 type="linear"
                                                 stroke={color}
                                                 strokeWidth={1.5}
                                                 strokeOpacity={isDimmed ? 0.35 : 1}
                                                 dot={false}
+                                                connectNulls={isRealizedGainMode}
                                                 isAnimationActive={isAnimating}
                                             />
                                         )
                                     })}
 
-                                    {isAnyPnlMode && mode === "tag" && activeKeys.map(key => {
+                                    {isLineChartMode && mode === "tag" && activeKeys.map(key => {
                                         const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
                                         const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
                                         const colorIndex = targetTags.indexOf(key)
                                         const color = `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`
                                         const keyName = `tag_${selectedTagGroup}_${key}`
                                         const isDimmed = isDimmedKey(keyName)
+                                        const dataKey = isRealizedGainMode
+                                            ? `tag_realized_gain_${selectedTagGroup}_${key}`
+                                            : isPnlRateMode
+                                                ? `tag_pnl_${selectedTagGroup}_${key}`
+                                                : `tag_pnl_value_${selectedTagGroup}_${key}`
                                         
                                         return (
                                             <Line
                                                 key={key}
-                                                dataKey={isPnlRateMode ? `tag_pnl_${selectedTagGroup}_${key}` : `tag_pnl_value_${selectedTagGroup}_${key}`}
+                                                dataKey={dataKey}
                                                 type="linear"
                                                 stroke={color}
                                                 strokeWidth={1.5}
                                                 strokeOpacity={isDimmed ? 0.35 : 1}
                                                 dot={false}
+                                                connectNulls={isRealizedGainMode}
                                                 isAnimationActive={isAnimating}
                                             />
                                         )
                                     })}
 
-                                    {isAnyPnlMode && (
+                                    {isLineChartMode && (
                                         <ReferenceLine 
                                             y={0} 
                                             stroke="currentColor" 
@@ -579,12 +729,17 @@ export function AssetHistoryChart({
 
                                     {/* 交点の丸マーク */}
                                     {activePoint && (() => {
-                                        if (isAnyPnlMode) {
-                                            // 損益率モード: 各カテゴリ/タグ独立
+                                        if (isLineChartMode) {
                                             if (mode === "tag") {
                                                 return activeKeys.map(key => {
-                                                    const dataKey = isPnlRateMode ? `tag_pnl_${selectedTagGroup}_${key}` : `tag_pnl_value_${selectedTagGroup}_${key}`
-                                                    const val = Number((activePoint as Record<string, unknown>)[dataKey] || 0)
+                                                    const dataKey = isRealizedGainMode
+                                                        ? `tag_realized_gain_${selectedTagGroup}_${key}`
+                                                        : isPnlRateMode
+                                                            ? `tag_pnl_${selectedTagGroup}_${key}`
+                                                            : `tag_pnl_value_${selectedTagGroup}_${key}`
+                                                    const raw = (activePoint as Record<string, unknown>)[dataKey]
+                                                    if (!isRealizedGainMode && !isPlottablePnlValue(raw)) return null
+                                                    const val = Number(raw || 0)
                                                     const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
                                                     const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
                                                     const colorIndex = targetTags.indexOf(key)
@@ -608,8 +763,14 @@ export function AssetHistoryChart({
                                                 })
                                             } else {
                                                 return categories.filter(c => !c.parentId && !c.isLiability).map(cat => {
-                                                    const dataKey = isPnlRateMode ? `pnl_${cat.id}` : `pnl_value_${cat.id}`
-                                                    const val = Number((activePoint as Record<string, unknown>)[dataKey] || 0)
+                                                    const dataKey = isRealizedGainMode
+                                                        ? `realized_gain_${cat.id}`
+                                                        : isPnlRateMode
+                                                            ? `pnl_${cat.id}`
+                                                            : `pnl_value_${cat.id}`
+                                                    const raw = (activePoint as Record<string, unknown>)[dataKey]
+                                                    if (!isRealizedGainMode && !isPlottablePnlValue(raw)) return null
+                                                    const val = Number(raw || 0)
                                                     const topLevel = categories.filter(c => !c.parentId && !c.isLiability)
                                                     const colorIndex = topLevel.findIndex(c => c.id === cat.id)
                                                     const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`
@@ -633,120 +794,190 @@ export function AssetHistoryChart({
                                             }
                                         }
 
-                                        // 評価額・割合モード: 積み上げ
+                                        // 評価額・取得額・構成比モード: 積み上げ
                                         let cumulativeY = 0;
                                         if (mode === "tag") {
                                             const reversedActiveKeys = [...activeKeys].reverse();
-                                            const sum = reversedActiveKeys.reduce((a: number, key: string) => a + Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0), 0) || 1;
+                                            const valueKey = (key: string) => isCostMode
+                                                ? `tag_cost_${selectedTagGroup}_${key}`
+                                                : `tag_${selectedTagGroup}_${key}`
+                                            const sum = reversedActiveKeys.reduce((a: number, key: string) => a + Number((activePoint as Record<string, unknown>)[valueKey(key)] || 0), 0) || 1;
                                             
-                                            return reversedActiveKeys.filter((key: string) => {
-                                                if (!shouldHighlightOnlySelected) return true
-                                                return !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`
-                                            }).map((key: string) => {
-                                                const val = Number((activePoint as Record<string, unknown>)[`tag_${selectedTagGroup}_${key}`] || 0);
-                                                if (val === 0) return null;
-                                                const yVal = viewMode === "percent" ? (val / sum) : val;
-                                                cumulativeY += yVal;
-                                                
-                                                const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
-                                                const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
-                                                const colorIndex = targetTags.indexOf(key);
-                                                const color = `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`;
-                                                const keyName = `tag_${selectedTagGroup}_${key}`
-                                                const isDimmed = isDimmedKey(keyName)
-                                                
-                                                return (
-                                                    <ReferenceDot
-                                                        key={key}
-                                                        x={activePoint.timestamp}
-                                                        y={cumulativeY}
-                                                        r={4}
-                                                        fill={color}
-                                                        fillOpacity={isDimmed ? 0.35 : 1}
-                                                        stroke="var(--background)"
-                                                        strokeWidth={2}
-                                                        isFront={true}
-                                                    />
-                                                )
-                                            })
+                                            return (
+                                                <>
+                                                    {reversedActiveKeys.filter((key: string) => {
+                                                        if (!shouldHighlightOnlySelected) return true
+                                                        return !selectedAssetKey || selectedAssetKey === `tag_${selectedTagGroup}_${key}`
+                                                    }).map((key: string) => {
+                                                        const val = Number((activePoint as Record<string, unknown>)[valueKey(key)] || 0);
+                                                        if (val === 0) return null;
+                                                        const yVal = viewMode === "percent" ? (val / sum) : val;
+                                                        cumulativeY += yVal;
+                                                        
+                                                        const activeGroup = tagGroups.find(g => g.id === selectedTagGroup)
+                                                        const targetTags = activeGroup?.options?.map(o => o.name) || activeGroup?.tags || []
+                                                        const colorIndex = targetTags.indexOf(key);
+                                                        const color = `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`;
+                                                        const keyName = `tag_${selectedTagGroup}_${key}`
+                                                        const isDimmed = isDimmedKey(keyName)
+                                                        
+                                                        return (
+                                                            <ReferenceDot
+                                                                key={key}
+                                                                x={activePoint.timestamp}
+                                                                y={cumulativeY}
+                                                                r={4}
+                                                                fill={color}
+                                                                fillOpacity={isDimmed ? 0.35 : 1}
+                                                                stroke="var(--background)"
+                                                                strokeWidth={2}
+                                                                isFront={true}
+                                                            />
+                                                        )
+                                                    })}
+                                                    {isValueMode && showCostOverlay && (
+                                                        <ReferenceDot
+                                                            key="overlay-cost"
+                                                            x={activePoint.timestamp}
+                                                            y={activePoint.overlayCost}
+                                                            r={4}
+                                                            fill="#888888"
+                                                            stroke="var(--background)"
+                                                            strokeWidth={2}
+                                                            isFront={true}
+                                                        />
+                                                    )}
+                                                </>
+                                            )
                                         } else {
                                             const displayCats = categories.filter((cat: Category) => !cat.isLiability && !cat.parentId);
                                             const reversedCats = [...displayCats].reverse();
-                                            const sum = reversedCats.reduce((a: number, cat: Category) => a + Number((activePoint as Record<string, unknown>)[`category_${cat.id}`] || 0), 0) || 1;
+                                            const valueKey = (cat: Category) => isCostMode
+                                                ? `category_cost_${cat.id}`
+                                                : `category_${cat.id}`
+                                            const sum = reversedCats.reduce((a: number, cat: Category) => a + Number((activePoint as Record<string, unknown>)[valueKey(cat)] || 0), 0) || 1;
 
-                                            return reversedCats.filter((cat: Category) => {
-                                                if (!shouldHighlightOnlySelected) return true
-                                                return !selectedAssetKey || selectedAssetKey === `category_${cat.id}`
-                                            }).map((cat: Category) => {
-                                                const val = Number(activePoint[`category_${cat.id}`] || 0);
-                                                if (val === 0) return null;
-                                                const yVal = viewMode === "percent" ? (val / sum) : val;
-                                                cumulativeY += yVal;
-                                                
-                                                const topLevelCategories = categories.filter(c => !c.parentId);
-                                                const colorIndex = topLevelCategories.findIndex(tc => tc.id === cat.id);
-                                                const color = cat.color || `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`;
-                                                const key = `category_${cat.id}`
-                                                const isDimmed = isDimmedKey(key)
-                                                
-                                                return (
-                                                    <ReferenceDot
-                                                        key={cat.id}
-                                                        x={activePoint.timestamp}
-                                                        y={cumulativeY}
-                                                        r={4}
-                                                        fill={color}
-                                                        fillOpacity={isDimmed ? 0.35 : 1}
-                                                        stroke="var(--background)"
-                                                        strokeWidth={2}
-                                                        isFront={true}
-                                                    />
-                                                )
-                                            })
+                                            return (
+                                                <>
+                                                    {reversedCats.filter((cat: Category) => {
+                                                        if (!shouldHighlightOnlySelected) return true
+                                                        return !selectedAssetKey || selectedAssetKey === `category_${cat.id}`
+                                                    }).map((cat: Category) => {
+                                                        const val = Number(activePoint[valueKey(cat)] || 0);
+                                                        if (val === 0) return null;
+                                                        const yVal = viewMode === "percent" ? (val / sum) : val;
+                                                        cumulativeY += yVal;
+                                                        
+                                                        const topLevelCategories = categories.filter(c => !c.parentId);
+                                                        const colorIndex = topLevelCategories.findIndex(tc => tc.id === cat.id);
+                                                        const color = cat.color || `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`;
+                                                        const key = `category_${cat.id}`
+                                                        const isDimmed = isDimmedKey(key)
+                                                        
+                                                        return (
+                                                            <ReferenceDot
+                                                                key={cat.id}
+                                                                x={activePoint.timestamp}
+                                                                y={cumulativeY}
+                                                                r={4}
+                                                                fill={color}
+                                                                fillOpacity={isDimmed ? 0.35 : 1}
+                                                                stroke="var(--background)"
+                                                                strokeWidth={2}
+                                                                isFront={true}
+                                                            />
+                                                        )
+                                                    })}
+                                                    {isValueMode && showCostOverlay && (
+                                                        <ReferenceDot
+                                                            key="overlay-cost"
+                                                            x={activePoint.timestamp}
+                                                            y={activePoint.overlayCost}
+                                                            r={4}
+                                                            fill="#888888"
+                                                            stroke="var(--background)"
+                                                            strokeWidth={2}
+                                                            isFront={true}
+                                                        />
+                                                    )}
+                                                </>
+                                            )
                                         }
                                     })()}
-                                </ComposedChart>
-                            </ResponsiveContainer>
-                        </div>
-
-                        <div className="flex items-center justify-between px-4 pb-4 mt-0 shrink-0 gap-2 overflow-x-auto no-scrollbar">
-                            <div className="flex bg-muted/50 rounded-md p-0.5 border shrink-0">
-                                {["1M", "3M", "1Y", "ALL"].map((range) => {
-                                    const label = { "1M": "1ヶ月", "3M": "3ヶ月", "1Y": "1年", "ALL": "全期間" }[range] || range;
-                                    return (
-                                        <button
-                                            key={range}
-                                            onClick={() => handleTimeRangeChange(range)}
-                                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all whitespace-nowrap ${timeRange === range
-                                                ? "bg-background text-foreground shadow-sm"
-                                                : "text-muted-foreground hover:text-foreground"}`}
-                                        >
-                                            {label}
-                                        </button>
-                                    )
-                                })}
-                            </div>
-
-                            <div className="flex bg-muted/50 rounded-md p-0.5 border shrink-0">
-                                <button
-                                    onClick={() => {
-                                        const modes: ChartViewMode[] = ["value", "percent", "pnl", "pnlValue"];
-                                        const currentIndex = modes.indexOf(viewMode);
-                                        const nextIndex = (currentIndex + 1) % modes.length;
-                                        onViewModeChange(modes[nextIndex]);
-                                    }}
-                                    className="px-4 py-1.5 text-[11px] font-bold rounded-md transition-all whitespace-nowrap bg-background text-foreground shadow-sm flex items-center gap-2 hover:bg-muted/80"
-                                >
-                                    <span className="opacity-50">表示:</span>
-                                    <span>{{ value: "評価額", percent: "構成比", pnl: "損益率", pnlValue: "損益額" }[viewMode]}</span>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-50">
-                                        <path d="m6 9 6 6 6-6"/>
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    </ComposedChart>
                 </ChartContainer>
+            </div>
+
+            <div className="flex-none shrink-0 px-4 pb-4 pt-0">
+                            <div className="grid grid-cols-[1fr_auto] grid-rows-[auto_auto] gap-x-2 gap-y-1 items-center">
+                                <div className="flex bg-muted/50 rounded-md p-0.5 border shrink-0 row-start-1 col-start-1 justify-self-start">
+                                    {["1M", "3M", "1Y", "ALL"].map((range) => {
+                                        const label = { "1M": "1ヶ月", "3M": "3ヶ月", "1Y": "1年", "ALL": "全期間" }[range] || range;
+                                        return (
+                                            <button
+                                                key={range}
+                                                onClick={() => handleTimeRangeChange(range)}
+                                                className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all whitespace-nowrap ${timeRange === range
+                                                    ? "bg-background text-foreground shadow-sm"
+                                                    : "text-muted-foreground hover:text-foreground"}`}
+                                            >
+                                                {label}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+
+                                <div className="flex bg-muted/50 rounded-md p-0.5 border shrink-0 row-start-1 col-start-2">
+                                    <Popover open={viewModeOpen} onOpenChange={setViewModeOpen}>
+                                        <PopoverTrigger asChild>
+                                            <button
+                                                type="button"
+                                                className="px-3 py-1 text-[10px] font-bold rounded-md transition-all whitespace-nowrap bg-background text-foreground shadow-sm flex items-center gap-1.5 hover:bg-muted/80"
+                                            >
+                                                <span className="opacity-50">表示:</span>
+                                                <span>{VIEW_MODE_LABELS[viewMode]}</span>
+                                                <ChevronDown className="h-2.5 w-2.5 opacity-50" />
+                                            </button>
+                                        </PopoverTrigger>
+                                        <PopoverContent side="top" align="end" className="w-auto min-w-[7rem] p-1">
+                                            <div className="flex flex-col gap-0.5">
+                                                {VIEW_MODE_OPTIONS.map(({ value, label }) => (
+                                                    <button
+                                                        key={value}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            onViewModeChange(value)
+                                                            setViewModeOpen(false)
+                                                        }}
+                                                        className={`flex w-full items-center justify-between gap-4 rounded-sm px-3 py-1.5 text-left text-[11px] font-medium transition-colors ${viewMode === value
+                                                            ? "bg-accent font-bold text-accent-foreground"
+                                                            : "text-foreground hover:bg-muted"}`}
+                                                    >
+                                                        {label}
+                                                        {viewMode === value && <Check className="h-3 w-3 shrink-0" />}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
+
+                                {isValueMode && (
+                                    <div className="flex w-full bg-muted/50 rounded-md p-0.5 border shrink-0 row-start-2 col-start-2">
+                                        <button
+                                            type="button"
+                                            onClick={toggleShowCostOverlay}
+                                            aria-pressed={showCostOverlay}
+                                            className={`w-full px-3 py-1 text-[10px] font-bold rounded-md transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${showCostOverlay
+                                                ? "bg-background text-foreground shadow-sm"
+                                                : "text-muted-foreground hover:text-foreground hover:bg-muted/80"}`}
+                                        >
+                                            <span className="inline-block w-3 border-t-2 border-dashed border-current opacity-70" />
+                                            取得額
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
             </div>
         </div>
     )

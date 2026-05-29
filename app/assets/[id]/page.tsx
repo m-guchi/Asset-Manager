@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { Plus, History, RefreshCw, Edit2, Trash2, ArrowUpRight, ArrowDownRight, AlertCircle, ChevronRight } from "lucide-react"
+import { Plus, History, RefreshCw, Edit2, Trash2, ArrowUpRight, ArrowDownRight, AlertCircle, ChevronRight, ChevronDown, Check } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -34,20 +34,8 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
-import {
-    Area,
-    CartesianGrid,
-    XAxis,
-    YAxis,
-    ComposedChart,
-    Line
-} from "recharts"
-import {
-    ChartContainer,
-    ChartTooltip,
-    ChartTooltipContent,
-} from "@/components/ui/chart"
 
+import { AssetDetailHistoryChart, AssetDetailChartPoint } from "@/components/assets/asset-detail-history-chart"
 import { getCategoryDetails } from "../../actions/categories"
 import { updateValuation, addTransaction, deleteHistoryItem, updateHistoryItem } from "../../actions/assets"
 
@@ -76,7 +64,7 @@ interface CategoryDetail {
     isCash: boolean | null;
     isLiability: boolean | null;
     parent: { id: number; name: string } | null;
-    children: { id: number; name: string; color: string; currentValue: number; isLiability: boolean | null }[];
+    children: { id: number; name: string; color: string; currentValue: number; costBasis: number; isLiability: boolean | null }[];
     allDescendants?: { id: number; name: string }[];
     transactions: TransactionItem[];
     history: Record<string, string | number>[];
@@ -88,25 +76,15 @@ export default function AssetDetailPage() {
 
     const [category, setCategory] = React.useState<CategoryDetail | null>(null)
     const [isLoading, setIsLoading] = React.useState(true)
-    const [timeRange, setTimeRange] = React.useState("1Y")
     const [historyFilter, setHistoryFilter] = React.useState<string>("ALL")
     const [isTrxModalOpen, setIsTrxModalOpen] = React.useState(false)
     const [editingItem, setEditingItem] = React.useState<TransactionItem | null>(null)
     const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
     const [deletingItemId, setDeletingItemId] = React.useState<string | null>(null)
-    const [isMounted, setIsMounted] = React.useState(false)
     const [showZeroWarning, setShowZeroWarning] = React.useState(false)
-
-    React.useEffect(() => {
-        setIsMounted(true)
-        const savedRange = localStorage.getItem("defaultTimeRange")
-        if (savedRange) setTimeRange(savedRange)
-    }, [])
-
-    const handleTimeRangeChange = (range: string) => {
-        setTimeRange(range)
-        localStorage.setItem("defaultTimeRange", range)
-    }
+    const [activeChartPoint, setActiveChartPoint] = React.useState<AssetDetailChartPoint | null>(null)
+    const [showBreakdown, setShowBreakdown] = React.useState(true)
+    const [showChildPnl, setShowChildPnl] = React.useState(false)
 
     const fetchData = React.useCallback(async () => {
         setIsLoading(true)
@@ -120,6 +98,10 @@ export default function AssetDetailPage() {
     React.useEffect(() => {
         fetchData()
     }, [fetchData])
+
+    React.useEffect(() => {
+        setActiveChartPoint(null)
+    }, [id])
 
     // Filter transactions
     const filteredTransactions = React.useMemo(() => {
@@ -283,18 +265,58 @@ export default function AssetDetailPage() {
         return <div className="p-8 text-center text-muted-foreground">資産が見つかりません</div>
     }
 
-    const profit = (category?.currentValue ?? 0) - (category?.costBasis ?? 0)
-    const profitPercent = (category?.costBasis ?? 0) > 0 ? (profit / (category?.costBasis ?? 1)) * 100 : 0
-    const isPositive = profit >= 0
-
     const totalRealizedGain = (category?.transactions || []).reduce((sum: number, tx) => sum + Number(tx.realizedGain || 0), 0);
-    const isRealizedPositive = totalRealizedGain >= 0;
 
     const totalDeposit = (category?.transactions || []).filter((tx) => tx.type === 'DEPOSIT').reduce((sum: number, tx) => sum + Math.abs(Number(tx.amount)), 0);
     const totalWithdrawal = (category?.transactions || []).filter((tx) => tx.type === 'WITHDRAW').reduce((sum: number, tx) => sum + Math.abs(Number(tx.amount)), 0);
 
+    const activeTimestamp = activeChartPoint?.timestamp ?? null
+    const isHistoricalView = activeTimestamp !== null
 
+    const txOnOrBefore = (timestamp: number) =>
+        (category?.transactions || []).filter((tx) => new Date(tx.date).getTime() <= timestamp)
 
+    const displayValue = activeChartPoint?.value ?? (category?.currentValue || 0)
+    const displayCost = activeChartPoint?.cost ?? (category?.costBasis || 0)
+    const displayRealizedGain = activeTimestamp !== null
+        ? txOnOrBefore(activeTimestamp).reduce((sum, tx) => sum + Number(tx.realizedGain || 0), 0)
+        : totalRealizedGain
+    const displayDeposit = activeTimestamp !== null
+        ? txOnOrBefore(activeTimestamp).filter((tx) => tx.type === "DEPOSIT").reduce((sum, tx) => sum + Math.abs(Number(tx.amount)), 0)
+        : totalDeposit
+    const displayWithdrawal = activeTimestamp !== null
+        ? txOnOrBefore(activeTimestamp).filter((tx) => tx.type === "WITHDRAW").reduce((sum, tx) => sum + Math.abs(Number(tx.amount)), 0)
+        : totalWithdrawal
+
+    const displayProfit = displayValue - displayCost
+    const displayProfitPercent = displayCost > 0 ? (displayProfit / displayCost) * 100 : 0
+    const isDisplayProfitPositive = displayProfit >= 0
+    const isDisplayRealizedPositive = displayRealizedGain >= 0
+
+    const selectedDateLabel = activeTimestamp !== null
+        ? (() => {
+            const d = new Date(activeTimestamp)
+            return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
+        })()
+        : null
+
+    const chartSection = category?.history ? (
+        <Card className="overflow-hidden py-0 gap-0">
+            <CardContent className="p-0">
+                <AssetDetailHistoryChart
+                    history={category.history}
+                    color={category.color}
+                    isCash={category.isCash}
+                    childAssets={category.children?.map((child) => ({
+                        id: child.id,
+                        name: child.name,
+                        color: child.color,
+                    }))}
+                    onActivePointChange={setActiveChartPoint}
+                />
+            </CardContent>
+        </Card>
+    ) : null
     return (
         <div className="flex flex-col gap-6 pb-20">
             {/* Breadcrumbs */}
@@ -316,48 +338,114 @@ export default function AssetDetailPage() {
             </nav>
 
             {/* Main Stats */}
-            <div className={`grid grid-cols-1 ${category?.isCash ? 'md:grid-cols-1' : 'md:grid-cols-3'} gap-4`}>
+            <div className="flex flex-col gap-4">
                 <Card>
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">評価額</CardTitle>
+                        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center justify-between gap-2">
+                            <span>評価額</span>
+                            {isHistoricalView && selectedDateLabel && (
+                                <span className="text-[10px] font-normal normal-case tracking-normal text-muted-foreground">
+                                    {selectedDateLabel}時点
+                                </span>
+                            )}
+                        </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">
-                            ¥{(category?.currentValue || 0).toLocaleString()}
+                            ¥{displayValue.toLocaleString()}
                         </div>
                         {!category?.isCash && (
-                            <div className={`text-sm mt-1 flex items-center gap-2 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                                {isPositive ? '+' : '-'}¥{Math.abs(profit).toLocaleString()}
+                            <div className={`text-sm mt-1 flex items-center gap-2 ${isDisplayProfitPositive ? 'text-green-500' : 'text-red-500'}`}>
+                                {isDisplayProfitPositive ? '+' : '-'}¥{Math.abs(displayProfit).toLocaleString()}
                                 <span className="text-xs bg-muted/20 px-1.5 py-0.5 rounded text-muted-foreground">
-                                    {(category?.costBasis || 0) > 0 ? `${isPositive ? '+' : ''}${profitPercent.toFixed(1)}%` : '-'}
+                                    {displayCost > 0 ? `${isDisplayProfitPositive ? '+' : ''}${displayProfitPercent.toFixed(1)}%` : '-'}
                                 </span>
                             </div>
                         )}
                         {/* Child Asset Breakdown */}
                         {category?.children && category.children.length > 0 && (
-                            <div className="mt-4 pt-4 border-t space-y-2">
-                                <div className="text-xs text-muted-foreground mb-2">内訳</div>
-                                {category.children.map((child: CategoryDetail['children'][0]) => (
-                                    <Link key={child.id} href={`/assets/${child.id}`} className="flex items-center justify-between text-sm group hover:bg-muted/50 p-1 rounded -mx-1 transition-colors">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: child.color }} />
-                                            <span className="group-hover:underline">{child.name}</span>
-                                        </div>
-                                        <span className="font-mono">¥{child.currentValue.toLocaleString()}</span>
-                                    </Link>
-                                ))}
+                            <div className="mt-4 pt-4 border-t">
+                                <div className="flex items-center justify-between gap-2 mb-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowBreakdown((prev) => !prev)}
+                                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                        aria-expanded={showBreakdown}
+                                    >
+                                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showBreakdown ? "" : "-rotate-90"}`} />
+                                        <span>内訳</span>
+                                    </button>
+                                    {showBreakdown && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowChildPnl((prev) => !prev)}
+                                            aria-pressed={showChildPnl}
+                                            className="flex items-center gap-1 px-1 py-0.5 text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+                                        >
+                                            <span className={`inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[3px] border ${showChildPnl ? "border-foreground bg-foreground text-background" : "border-muted-foreground/60"}`}>
+                                                {showChildPnl && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
+                                            </span>
+                                            損益表示
+                                        </button>
+                                    )}
+                                </div>
+                                {showBreakdown && (
+                                    <div className="space-y-2">
+                                        {category.children.map((child: CategoryDetail['children'][0]) => {
+                                            const childValue = activeChartPoint
+                                                ? Number(activeChartPoint[`child_${child.id}`] || 0)
+                                                : child.currentValue
+                                            const childCost = activeChartPoint
+                                                ? Number(activeChartPoint[`child_cost_${child.id}`] || 0)
+                                                : child.costBasis
+                                            if (childValue === 0 && childCost === 0) return null
+                                            const childPnl = childValue - childCost
+                                            const childPnlRate = childCost > 0 ? (childPnl / childCost) * 100 : 0
+                                            const isChildPnlPositive = childPnl >= 0
+                                            return (
+                                                <Link key={child.id} href={`/assets/${child.id}`} className="flex items-center justify-between gap-2 text-sm group hover:bg-muted/50 p-1 rounded -mx-1 transition-colors">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: child.color }} />
+                                                        <span className="group-hover:underline truncate">{child.name}</span>
+                                                    </div>
+                                                    <div className="flex flex-col items-end shrink-0">
+                                                        <span className="font-mono tabular-nums">¥{childValue.toLocaleString()}</span>
+                                                        {showChildPnl && childCost > 0 && (
+                                                            <span className={`text-[11px] font-mono tabular-nums ${isChildPnlPositive ? "text-green-500" : "text-red-500"}`}>
+                                                                {isChildPnlPositive ? "+" : "-"}¥{Math.abs(childPnl).toLocaleString()}
+                                                                <span className="text-muted-foreground ml-1">
+                                                                    ({isChildPnlPositive ? "+" : ""}{childPnlRate.toFixed(1)}%)
+                                                                </span>
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </Link>
+                                            )
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </CardContent>
                 </Card>
+
+                {chartSection}
+
                 {!category.isCash && (
-                    <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Card>
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-medium text-muted-foreground">取得原価</CardTitle>
+                                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center justify-between gap-2">
+                                    <span>取得原価</span>
+                                    {isHistoricalView && selectedDateLabel && (
+                                        <span className="text-[10px] font-normal normal-case tracking-normal text-muted-foreground">
+                                            {selectedDateLabel}時点
+                                        </span>
+                                    )}
+                                </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold text-muted-foreground">¥{(category?.costBasis || 0).toLocaleString()}</div>
+                                <div className="text-2xl font-bold text-muted-foreground">¥{displayCost.toLocaleString()}</div>
                                 <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-dashed">
                                     <div className="flex justify-between items-center text-xs">
                                         <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -366,7 +454,7 @@ export default function AssetDetailPage() {
                                             </div>
                                             <span>総入金額</span>
                                         </div>
-                                        <span className="font-mono font-medium">¥{totalDeposit.toLocaleString()}</span>
+                                        <span className="font-mono font-medium">¥{displayDeposit.toLocaleString()}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-xs">
                                         <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -375,240 +463,41 @@ export default function AssetDetailPage() {
                                             </div>
                                             <span>総出金額</span>
                                         </div>
-                                        <span className="font-mono font-medium">¥{totalWithdrawal.toLocaleString()}</span>
+                                        <span className="font-mono font-medium">¥{displayWithdrawal.toLocaleString()}</span>
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
                         <Card>
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-medium text-muted-foreground">累計実現損益</CardTitle>
+                                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center justify-between gap-2">
+                                    <span>累計実現損益</span>
+                                    {isHistoricalView && selectedDateLabel && (
+                                        <span className="text-[10px] font-normal normal-case tracking-normal text-muted-foreground">
+                                            {selectedDateLabel}時点
+                                        </span>
+                                    )}
+                                </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className={`text-2xl font-bold ${isRealizedPositive ? 'text-green-600' : 'text-red-500'}`}>
-                                    {isRealizedPositive ? '+' : '-'}¥{Math.abs(totalRealizedGain).toLocaleString()}
+                                <div className={`text-2xl font-bold ${isDisplayRealizedPositive ? 'text-green-600' : 'text-red-500'}`}>
+                                    {isDisplayRealizedPositive ? '+' : '-'}¥{Math.abs(displayRealizedGain).toLocaleString()}
                                 </div>
                                 <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-dashed">
                                     <div className="flex justify-between items-center text-xs">
                                         <span className="text-muted-foreground">売却受取額</span>
-                                        <span className="font-mono font-medium">¥{(totalWithdrawal + totalRealizedGain).toLocaleString()}</span>
+                                        <span className="font-mono font-medium">¥{(displayWithdrawal + displayRealizedGain).toLocaleString()}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-xs">
                                         <span className="text-muted-foreground">元本減少額</span>
-                                        <span className="font-mono font-medium text-muted-foreground">-¥{totalWithdrawal.toLocaleString()}</span>
+                                        <span className="font-mono font-medium text-muted-foreground">-¥{displayWithdrawal.toLocaleString()}</span>
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
-                    </>
+                    </div>
                 )}
             </div>
-
-            {/* Chart Section */}
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">資産推移</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="h-[300px] w-full">
-                        {category?.history && (
-                            <ChartContainer
-                                config={(() => {
-                                    const c: Record<string, { label: string; color: string }> = {
-                                        value: {
-                                            label: "評価額",
-                                            color: category?.color || "hsl(var(--primary))",
-                                        },
-                                        cost: {
-                                            label: "取得原価",
-                                            color: "hsl(var(--muted-foreground))",
-                                        },
-                                    };
-                                    if (category?.children && category.children.length > 0) {
-                                        category.children.forEach((child) => {
-                                            c[`child_${child.id}`] = {
-                                                label: child.name,
-                                                color: child.color || "#cccccc"
-                                            };
-                                        });
-                                    }
-                                    return c;
-                                })()}
-                                className="h-full w-full"
-                            >
-                                <ComposedChart
-                                    data={(() => {
-                                        if (!category?.history || category.history.length === 0) return []
-
-                                        const now = new Date()
-                                        const cutoff = new Date()
-                                        let isAll = false
-
-                                        cutoff.setHours(0, 0, 0, 0)
-
-                                        if (timeRange === "1M") cutoff.setMonth(now.getMonth() - 1)
-                                        else if (timeRange === "3M") cutoff.setMonth(now.getMonth() - 3)
-                                        else if (timeRange === "1Y") cutoff.setFullYear(now.getFullYear() - 1)
-                                        else isAll = true
-
-                                        const multiplier = 1;
-
-                                        interface HistoryRecord {
-                                            date: number;
-                                            value: number;
-                                            cost: number;
-                                            [key: string]: number;
-                                        }
-
-                                        const allData: HistoryRecord[] = category?.history?.map((h) => {
-                                            const hRecord = h as Record<string, string | number>;
-                                            const point: HistoryRecord = {
-                                                date: new Date(hRecord.date).getTime(),
-                                                value: Number(hRecord.value || 0) * multiplier,
-                                                cost: Number(hRecord.cost || 0) * multiplier
-                                            }
-                                            Object.keys(hRecord).forEach(k => {
-                                                if (k.startsWith('child_')) {
-                                                    point[k] = Number(hRecord[k] || 0) * multiplier;
-                                                }
-                                            });
-                                            return point;
-                                        })
-
-                                        if (isAll) return allData
-
-                                        const cutoffTime = cutoff.getTime()
-                                        const filtered = allData.filter((h) => h.date >= cutoffTime)
-
-                                        const beforeCutoff = allData.slice().reverse().find((h) => h.date < cutoffTime)
-
-                                        if (beforeCutoff) {
-                                            const startPoint = { ...beforeCutoff, date: cutoffTime }
-                                            return [startPoint, ...filtered]
-                                        }
-                                        return filtered
-                                    })()}
-                                    margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                                >
-                                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                                    <XAxis
-                                        dataKey="date"
-                                        type="number"
-                                        domain={['dataMin', 'dataMax']}
-                                        tickLine={false}
-                                        axisLine={false}
-                                        tickMargin={8}
-                                        className="text-[10px]"
-                                        tickFormatter={(tick) => {
-                                            const date = new Date(tick)
-                                            if (timeRange === "1M" || timeRange === "3M") {
-                                                return `${date.getMonth() + 1}/${date.getDate()}`
-                                            }
-                                            return `${date.getFullYear()}/${date.getMonth() + 1}`
-                                        }}
-                                        minTickGap={30}
-                                    />
-                                    <YAxis
-                                        tickFormatter={(val) => `${(val / 10000).toFixed(0)}万`}
-                                        width={45}
-                                        tickLine={false}
-                                        axisLine={false}
-                                        tickMargin={4}
-                                        className="text-[10px]"
-                                        domain={['auto', 'auto']}
-                                    />
-                                    <ChartTooltip
-                                        cursor={false}
-                                        content={
-                                            <ChartTooltipContent
-                                                indicator="dot"
-                                                labelFormatter={(_, payload) => {
-                                                    if (!payload || !payload.length || !payload[0].payload) return "";
-                                                    const d = new Date(payload[0].payload.date);
-                                                    if (isNaN(d.getTime())) return "";
-                                                    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
-                                                }}
-                                                formatter={(value, name, item) => (
-                                                    <div className="flex w-full items-center justify-between gap-4">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: item.color }} />
-                                                            <span className="text-muted-foreground">{name}</span>
-                                                        </div>
-                                                        <span className="font-mono font-medium tabular-nums text-foreground">
-                                                            ¥{Number(value).toLocaleString()}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            />
-                                        }
-                                    />
-                                    {category.children && category.children.length > 0 ? (
-                                        category.children.map((child) => (
-                                            <Area
-                                                key={child.id}
-                                                type="linear"
-                                                dataKey={`child_${child.id}`}
-                                                name={child.name}
-                                                stackId="1"
-                                                stroke={child.color}
-                                                fill={child.color}
-                                                fillOpacity={0.2}
-                                                strokeWidth={2}
-                                                isAnimationActive={false}
-                                            />
-                                        ))
-                                    ) : (
-                                        <Area
-                                            type="linear"
-                                            dataKey="value"
-                                            name="評価額"
-                                            stroke={category.color || "hsl(var(--primary))"}
-                                            fill={category.color || "hsl(var(--primary))"}
-                                            fillOpacity={0.1}
-                                            strokeWidth={2}
-                                            stackId="1"
-                                            isAnimationActive={false}
-                                        />
-                                    )}
-                                    {!category.isCash && (
-                                        <Line
-                                            type="stepAfter"
-                                            dataKey="cost"
-                                            name="取得原価"
-                                            stroke="#888888"
-                                            strokeWidth={2}
-                                            strokeDasharray="4 4"
-                                            dot={false}
-                                            isAnimationActive={false}
-                                            connectNulls
-                                        />
-                                    )}
-                                </ComposedChart>
-                            </ChartContainer>
-                        )}
-                    </div>
-                    {isMounted && (
-                        <div className="flex items-center justify-between px-4 pb-4 mt-2">
-                            <div className="flex bg-muted/50 rounded-md p-0.5 border">
-                                {["1M", "3M", "1Y", "ALL"].map((range) => {
-                                    const label = { "1M": "1ヶ月", "3M": "3ヶ月", "1Y": "1年", "ALL": "全期間" }[range] || range;
-                                    return (
-                                        <button
-                                            key={range}
-                                            onClick={() => handleTimeRangeChange(range)}
-                                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${timeRange === range
-                                                ? "bg-background text-foreground shadow-sm"
-                                                : "text-muted-foreground hover:text-foreground"}`}
-                                        >
-                                            {label}
-                                        </button>
-                                    )
-                                })}
-                            </div>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
 
             {/* Transaction History */}
             <div className="flex flex-col gap-4">

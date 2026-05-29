@@ -18,7 +18,7 @@ interface CategoryWithRelations {
     isCash: boolean;
     parentId: number | null;
     tags: { tagGroupId: number; tagOption: { name: string } | null }[];
-    transactions: { transactedAt: Date; amount: number; type: string }[];
+    transactions: { transactedAt: Date; amount: number; type: string; realizedGain: number | null }[];
 }
 
 export async function getHistoryData() {
@@ -87,6 +87,7 @@ export async function getHistoryData() {
         // 4. Initial state
         const latestValues = new Map<number, number>();
         const latestCostBasis = new Map<number, number>();
+        const latestRealizedGain = new Map<number, number>();
 
         // Helper to sum own + children values (Recursive but safe)
         const getConsolidated = (id: number, valSource: Map<number, number>, costSource: Map<number, number>, visited = new Set<number>()): { val: number, cost: number } => {
@@ -108,6 +109,22 @@ export async function getHistoryData() {
             });
 
             return { val, cost };
+        };
+
+        const getConsolidatedRealizedGain = (id: number, source: Map<number, number>, visited = new Set<number>()): number => {
+            if (visited.has(id)) return 0;
+            visited.add(id);
+
+            const cat = categoryMap.get(id);
+            if (!cat) return 0;
+
+            let total = source.get(id) || 0;
+            const children = childrenMap.get(id) || [];
+            children.forEach(childId => {
+                total += getConsolidatedRealizedGain(childId, source, visited);
+            });
+
+            return total;
         };
 
         // 4. Pre-collect all unique tag keys to ensure every point has all keys
@@ -156,6 +173,11 @@ export async function getHistoryData() {
                         }, 0);
                     latestCostBasis.set(cat.id, cost);
                 }
+
+                const realizedGain = (cat.transactions || [])
+                    .filter((t) => new Date(t.transactedAt) <= dateObj)
+                    .reduce((sum: number, t) => sum + Number(t.realizedGain || 0), 0);
+                latestRealizedGain.set(cat.id, realizedGain);
             });
 
             // Initialize point with ALL tag keys set to 0
@@ -171,6 +193,7 @@ export async function getHistoryData() {
             categories.forEach((cat) => {
                 const val = (latestValues.get(cat.id) || 0);
                 const cost = (latestCostBasis.get(cat.id) || 0);
+                const realizedGain = latestRealizedGain.get(cat.id) || 0;
                 const tags = getEffectiveTags(cat.id);
 
                 // Deduplicate based on groupId + name to ensure uniqueness within the category context
@@ -184,23 +207,29 @@ export async function getHistoryData() {
                     // Key includes groupId to distinguish identical names in different groups
                     const key = `tag_${t.groupId}_${t.name}`;
                     const costKey = `tag_cost_${t.groupId}_${t.name}`;
+                    const realizedKey = `tag_realized_gain_${t.groupId}_${t.name}`;
                     point[key] = (Number(point[key]) || 0) + val;
                     point[costKey] = (Number(point[costKey]) || 0) + cost;
+                    point[realizedKey] = (Number(point[realizedKey]) || 0) + realizedGain;
                 });
             });
 
             // Total Aggregation (Roots only)
             let grossAssets = 0;
             let totalCost = 0;
+            let totalRealizedGain = 0;
 
             categories.forEach(cat => {
                 if (!cat.parentId) {
                     const res = getConsolidated(cat.id, latestValues, latestCostBasis);
+                    const realized = getConsolidatedRealizedGain(cat.id, latestRealizedGain);
                     grossAssets += res.val;
                     totalCost += Math.max(0, res.cost);
+                    totalRealizedGain += realized;
                     // 円グラフ動作用にルートカテゴリの過去の金額を保持
                     point[`category_${cat.id}`] = res.val;
                     point[`category_cost_${cat.id}`] = Math.max(0, res.cost);
+                    point[`realized_gain_${cat.id}`] = realized;
 
                 }
             });
@@ -208,6 +237,7 @@ export async function getHistoryData() {
             point.totalAssets = grossAssets;
             point.totalCost = totalCost;
             point.netWorth = grossAssets;
+            point.totalRealizedGain = totalRealizedGain;
 
             // The previous logic to set tag values to 0 for null/negative is now handled by initialization
             // and the removal of `if (val !== 0)` condition.
