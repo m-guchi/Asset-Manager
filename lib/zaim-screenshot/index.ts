@@ -53,8 +53,12 @@ function attachSourceToHoldings(
             valuationBbox: holding.valuationBbox,
             amountCandidates: holding.amountCandidates,
         }
-        const { valuationBbox: _, ...rest } = holding
-        return { ...rest, source }
+        return {
+            name: holding.name,
+            valuation: holding.valuation,
+            amountCandidates: holding.amountCandidates,
+            source,
+        }
     })
 }
 
