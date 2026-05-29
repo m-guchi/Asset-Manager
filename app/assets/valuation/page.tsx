@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, Settings, Eye, EyeOff, GripVertical } from "lucide-react"
+import { ZaimScreenshotImportTrigger } from "@/components/assets/zaim-screenshot-import-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -36,6 +37,7 @@ interface ValuationCategory {
     currentValue: number;
     valuationOrder: number | null;
     isValuationTarget: boolean | null;
+    valuationAlias: string | null;
 }
 
 export default function BulkValuationPage() {
@@ -93,6 +95,10 @@ export default function BulkValuationPage() {
             .sort((a, b) => (a.valuationOrder ?? 0) - (b.valuationOrder ?? 0))
     }, [categories])
 
+    const zaimImportCategories = React.useMemo(() => {
+        return displayedCategories.filter((c) => c.valuationAlias?.trim())
+    }, [displayedCategories])
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center p-20">
@@ -104,8 +110,18 @@ export default function BulkValuationPage() {
 
     return (
         <div className="flex flex-col gap-6 px-2 py-4 md:px-4 md:py-8">
-            <div className="flex items-center justify-between">
-                <div />
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+                <ZaimScreenshotImportTrigger
+                    categories={zaimImportCategories.map((c) => ({
+                        id: c.id,
+                        name: c.name,
+                        valuationAlias: c.valuationAlias,
+                    }))}
+                    zaimImportCount={zaimImportCategories.length}
+                    onApply={(imported) =>
+                        setValuations((prev) => ({ ...prev, ...imported }))
+                    }
+                />
 
                 <Button variant="outline" size="sm" onClick={() => setIsSettingsOpen(true)}>
                     <Settings className="mr-2 h-4 w-4" />
@@ -201,7 +217,12 @@ function ValuationSettingsDialog({
     open: boolean,
     onOpenChange: (open: boolean) => void,
     categories: ValuationCategory[],
-    onSave: (settings: { id: number, valuationOrder: number, isValuationTarget: boolean }[]) => void
+    onSave: (settings: {
+        id: number
+        valuationOrder: number
+        isValuationTarget: boolean
+        valuationAlias: string | null
+    }[]) => void
 }) {
     // Determine initial order: 
     // sort by valuationOrder first. If same (e.g. 0), keep stable or sort by ID
@@ -215,6 +236,7 @@ function ValuationSettingsDialog({
     }, [categories])
 
     const [items, setItems] = useState<ValuationCategory[]>([])
+    const [showHidden, setShowHidden] = useState(false)
 
     // Capture the open state to detect when it changes to true
     const [lastOpen, setLastOpen] = useState(false)
@@ -222,9 +244,14 @@ function ValuationSettingsDialog({
     if (open && !lastOpen) {
         setLastOpen(true)
         setItems(sortedCats)
+        setShowHidden(false)
     } else if (!open && lastOpen) {
         setLastOpen(false)
+        setShowHidden(false)
     }
+
+    const hiddenCount = items.filter((i) => !i.isValuationTarget).length
+    const visibleItems = showHidden ? items : items.filter((i) => i.isValuationTarget)
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -235,9 +262,12 @@ function ValuationSettingsDialog({
         const { active, over } = event
         if (over && active.id !== over.id) {
             setItems((items) => {
-                const oldIndex = items.findIndex(i => i.id === active.id)
-                const newIndex = items.findIndex(i => i.id === over.id)
-                return arrayMove(items, oldIndex, newIndex)
+                const visible = showHidden ? items : items.filter((i) => i.isValuationTarget)
+                const hidden = showHidden ? [] : items.filter((i) => !i.isValuationTarget)
+                const oldIndex = visible.findIndex((i) => i.id === active.id)
+                const newIndex = visible.findIndex((i) => i.id === over.id)
+                const reorderedVisible = arrayMove(visible, oldIndex, newIndex)
+                return [...reorderedVisible, ...hidden]
             })
         }
     }
@@ -248,34 +278,56 @@ function ValuationSettingsDialog({
         ))
     }
 
+    const updateAlias = (id: number, valuationAlias: string) => {
+        setItems(items.map(item =>
+            item.id === id ? { ...item, valuationAlias: valuationAlias || null } : item
+        ))
+    }
+
     const handleSave = () => {
         const settings = items.map((item, index) => ({
             id: item.id,
             valuationOrder: index,
-            isValuationTarget: !!item.isValuationTarget // Ensure boolean
+            isValuationTarget: !!item.isValuationTarget,
+            valuationAlias: item.valuationAlias?.trim() || null,
         }))
         onSave(settings)
     }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[80vh] flex flex-col sm:max-w-[500px]">
+            <DialogContent className="max-h-[80vh] flex flex-col sm:max-w-[560px]">
                 <DialogHeader>
                     <DialogTitle>表示設定</DialogTitle>
                     <DialogDescription>
-                        評価額更新画面での表示順序と表示/非表示を設定します。
+                        評価額更新画面の表示順序・Zaim表示名・表示/非表示を設定します。
+                        Zaim表示名を設定した項目のみスクショ読込対象です。Zaim上の表示順と同じ順に並べてください。
                     </DialogDescription>
                 </DialogHeader>
 
+                {hiddenCount > 0 && (
+                    <div className="flex justify-end">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={() => setShowHidden((prev) => !prev)}
+                        >
+                            {showHidden ? "非表示項目を隠す" : `すべて表示する（非表示 ${hiddenCount}件）`}
+                        </Button>
+                    </div>
+                )}
+
                 <div className="flex-1 overflow-y-auto pr-2 -mr-2 min-h-[300px]">
                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                        <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                        <SortableContext items={visibleItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
                             <div className="space-y-2">
-                                {items.map((item) => (
+                                {visibleItems.map((item) => (
                                     <ValuationSettingItem
                                         key={item.id}
                                         item={item}
                                         onToggle={() => toggleVisibility(item.id)}
+                                        onAliasChange={(alias) => updateAlias(item.id, alias)}
                                     />
                                 ))}
                             </div>
@@ -292,7 +344,15 @@ function ValuationSettingsDialog({
     )
 }
 
-function ValuationSettingItem({ item, onToggle }: { item: ValuationCategory, onToggle: () => void }) {
+function ValuationSettingItem({
+    item,
+    onToggle,
+    onAliasChange,
+}: {
+    item: ValuationCategory
+    onToggle: () => void
+    onAliasChange: (alias: string) => void
+}) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
 
     const style = {
@@ -306,24 +366,37 @@ function ValuationSettingItem({ item, onToggle }: { item: ValuationCategory, onT
         <div
             ref={setNodeRef}
             style={style}
-            className={`flex items-center gap-3 p-3 rounded-lg border bg-card ${isDragging ? 'shadow-md ring-2 ring-primary/20' : ''} ${!item.isValuationTarget ? 'opacity-60 bg-muted/50' : ''}`}
+            className={`rounded-lg border bg-card ${isDragging ? 'shadow-md ring-2 ring-primary/20' : ''} ${!item.isValuationTarget ? 'opacity-60 bg-muted/50' : ''}`}
         >
-            <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground">
-                <GripVertical className="h-4 w-4" />
+            <div className="flex items-center gap-3 p-3">
+                <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground">
+                    <GripVertical className="h-4 w-4" />
+                </div>
+
+                <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm truncate">{item.name}</div>
+                </div>
+
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className={`h-8 w-8 shrink-0 ${item.isValuationTarget ? 'text-primary' : 'text-muted-foreground'}`}
+                    onClick={onToggle}
+                >
+                    {item.isValuationTarget ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                </Button>
             </div>
 
-            <div className="flex-1 font-medium text-sm truncate">
-                {item.name}
-            </div>
-
-            <Button
-                variant="ghost"
-                size="icon"
-                className={`h-8 w-8 ${item.isValuationTarget ? 'text-primary' : 'text-muted-foreground'}`}
-                onClick={onToggle}
-            >
-                {item.isValuationTarget ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-            </Button>
+            {item.isValuationTarget && (
+                <div className="px-3 pb-3 pt-0">
+                    <Input
+                        className="h-8 text-xs"
+                        placeholder="Zaim表示名（例: NTT, 三菱重）※設定した項目のみスクショ読込対象"
+                        value={item.valuationAlias ?? ""}
+                        onChange={(e) => onAliasChange(e.target.value)}
+                    />
+                </div>
+            )}
         </div>
     )
 }
