@@ -113,10 +113,37 @@ function kindLabel(kind: YenAmountCandidate["kind"]): string {
     return kind === "profit_loss" ? "損益" : "評価額"
 }
 
+function isDisplayNumberOverExpected(
+    displayNumber: number | undefined,
+    expectedCategoryCount: number
+): boolean {
+    return (
+        displayNumber !== undefined &&
+        expectedCategoryCount > 0 &&
+        displayNumber > expectedCategoryCount
+    )
+}
+
+function displayNumberBadgeClass(
+    displayNumber: number,
+    expectedCategoryCount: number,
+    size: "sm" | "md" = "md"
+): string {
+    const over = isDisplayNumberOverExpected(displayNumber, expectedCategoryCount)
+    const sizeClass =
+        size === "sm"
+            ? "h-5 w-5 text-[10px]"
+            : "h-4 min-w-4 text-[9px] leading-none"
+    return `flex shrink-0 items-center justify-center rounded-full font-bold text-white ${sizeClass} ${
+        over ? "bg-red-500" : "bg-amber-500"
+    }`
+}
+
 function ResultEntryEditor({
     result,
     globalIndex,
     displayNumber,
+    expectedCategoryCount,
     onSelectCandidate,
     onExcludeCandidate,
     onRemoveResult,
@@ -124,6 +151,7 @@ function ResultEntryEditor({
     result: MatchResult
     globalIndex: number
     displayNumber?: number
+    expectedCategoryCount: number
     onSelectCandidate?: (resultIndex: number, candidate: YenAmountCandidate) => void
     onExcludeCandidate?: (resultIndex: number, candidate: YenAmountCandidate) => void
     onRemoveResult?: (resultIndex: number) => void
@@ -135,11 +163,7 @@ function ResultEntryEditor({
         <li className="rounded-md border bg-background/80 overflow-hidden">
             <div className="flex items-center gap-1 px-2 py-1.5">
                 <span
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                        displayNumber !== undefined
-                            ? "bg-amber-500/90 text-white"
-                            : "bg-muted text-muted-foreground"
-                    }`}
+                    className={`${displayNumber !== undefined ? displayNumberBadgeClass(displayNumber, expectedCategoryCount, "sm") : "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold bg-muted text-muted-foreground"}`}
                 >
                     {displayNumber ?? "—"}
                 </span>
@@ -223,6 +247,7 @@ function ImageReadCheckCard({
     imageIndex,
     resultEntries,
     displayNumberByIndex,
+    expectedCategoryCount,
     onSelectCandidate,
     onDismissAdopted,
     onExcludeCandidate,
@@ -232,6 +257,7 @@ function ImageReadCheckCard({
     imageIndex: number
     resultEntries: { result: MatchResult; globalIndex: number }[]
     displayNumberByIndex: Map<number, number>
+    expectedCategoryCount: number
     onSelectCandidate?: (resultIndex: number, candidate: YenAmountCandidate) => void
     onDismissAdopted?: (resultIndex: number, candidate: YenAmountCandidate) => void
     onExcludeCandidate?: (resultIndex: number, candidate: YenAmountCandidate) => void
@@ -242,17 +268,17 @@ function ImageReadCheckCard({
     const [listOpen, setListOpen] = useState(false)
 
     return (
-        <div className="rounded-lg border bg-card overflow-hidden">
-            <div className="px-3 py-2 border-b bg-muted/30">
-                <span className="text-sm font-medium">
+        <div className="rounded-lg border bg-card min-w-0">
+            <div className="px-3 py-2 border-b bg-muted/30 min-w-0">
+                <span className="text-sm font-medium break-words">
                     {imageIndex + 1}. {item.name}
                 </span>
-                <span className="text-xs text-muted-foreground ml-2">
+                <span className="text-xs text-muted-foreground ml-2 whitespace-nowrap">
                     {resultEntries.length}行読み取り
                 </span>
             </div>
 
-            <div className="p-3 space-y-3">
+            <div className="p-3 space-y-3 min-w-0">
                 <div className="relative w-full max-w-[280px] mx-auto rounded-md border bg-muted/30 overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -275,7 +301,12 @@ function ImageReadCheckCard({
                                 sourceMeta.ocrImageHeight
                             )
                             const overlayClass = isAdopted
-                                ? ADOPTED_OVERLAY_CLASS
+                                ? isDisplayNumberOverExpected(
+                                      displayNumber,
+                                      expectedCategoryCount
+                                  )
+                                    ? "border-red-500 bg-red-400/30 ring-1 ring-red-500/50"
+                                    : ADOPTED_OVERLAY_CLASS
                                 : DISMISSED_OVERLAY_CLASS
 
                             if (!canEdit) {
@@ -286,7 +317,9 @@ function ImageReadCheckCard({
                                         style={style}
                                     >
                                         {isAdopted && displayNumber !== undefined && (
-                                            <span className="absolute -top-2 -left-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-0.5 text-[9px] font-bold text-white leading-none">
+                                            <span
+                                                className={`absolute -top-2 -left-1 ${displayNumberBadgeClass(displayNumber, expectedCategoryCount)}`}
+                                            >
                                                 {displayNumber}
                                             </span>
                                         )}
@@ -305,7 +338,12 @@ function ImageReadCheckCard({
                                     }
                                     className={`absolute border-2 cursor-pointer transition-colors ${overlayClass} ${
                                         isAdopted
-                                            ? "hover:border-destructive hover:ring-1 hover:ring-destructive/40"
+                                            ? isDisplayNumberOverExpected(
+                                                  displayNumber,
+                                                  expectedCategoryCount
+                                              )
+                                                ? "hover:border-red-600 hover:ring-1 hover:ring-red-600/40"
+                                                : "hover:border-destructive hover:ring-1 hover:ring-destructive/40"
                                             : "hover:border-amber-500 hover:ring-1 hover:ring-amber-500/40"
                                     }`}
                                     style={style}
@@ -318,7 +356,9 @@ function ImageReadCheckCard({
                                     }}
                                 >
                                     {isAdopted && displayNumber !== undefined && (
-                                        <span className="absolute -top-2 -left-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-0.5 text-[9px] font-bold text-white leading-none pointer-events-none">
+                                        <span
+                                            className={`absolute -top-2 -left-1 pointer-events-none ${displayNumberBadgeClass(displayNumber, expectedCategoryCount)}`}
+                                        >
                                             {displayNumber}
                                         </span>
                                     )}
@@ -328,24 +368,24 @@ function ImageReadCheckCard({
                 </div>
 
                 {resultEntries.length > 0 ? (
-                    <div>
+                    <div className="pt-1 pb-1">
                         <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-7 w-full text-xs text-muted-foreground"
+                            className="h-auto min-h-8 w-full text-xs text-muted-foreground whitespace-normal py-2 px-2 shrink-0"
                             onClick={() => setListOpen((open) => !open)}
                         >
                             {listOpen ? (
-                                <>
-                                    <ChevronUp className="h-3.5 w-3.5 mr-1" />
+                                <span className="inline-flex items-center justify-center gap-1 flex-wrap">
+                                    <ChevronUp className="h-3.5 w-3.5 shrink-0" />
                                     リストを閉じる
-                                </>
+                                </span>
                             ) : (
-                                <>
-                                    <ChevronDown className="h-3.5 w-3.5 mr-1" />
+                                <span className="inline-flex items-center justify-center gap-1 flex-wrap">
+                                    <ChevronDown className="h-3.5 w-3.5 shrink-0" />
                                     リスト表示（{resultEntries.length}件）
-                                </>
+                                </span>
                             )}
                         </Button>
                         {listOpen && (
@@ -356,6 +396,7 @@ function ImageReadCheckCard({
                                         result={result}
                                         globalIndex={globalIndex}
                                         displayNumber={displayNumberByIndex.get(globalIndex)}
+                                        expectedCategoryCount={expectedCategoryCount}
                                         onSelectCandidate={onSelectCandidate}
                                         onExcludeCandidate={onExcludeCandidate}
                                         onRemoveResult={onRemoveResult}
@@ -377,6 +418,7 @@ function ImageReadCheckCard({
 interface ZaimImageReadCheckProps {
     items: ImageQueueItem[]
     results: MatchResult[]
+    expectedCategoryCount: number
     onSelectCandidate?: (resultIndex: number, candidate: YenAmountCandidate) => void
     onDismissAdopted?: (resultIndex: number, candidate: YenAmountCandidate) => void
     onExcludeCandidate?: (resultIndex: number, candidate: YenAmountCandidate) => void
@@ -386,6 +428,7 @@ interface ZaimImageReadCheckProps {
 export function ZaimImageReadCheck({
     items,
     results,
+    expectedCategoryCount,
     onSelectCandidate,
     onDismissAdopted,
     onExcludeCandidate,
@@ -399,8 +442,8 @@ export function ZaimImageReadCheck({
     const canEdit = Boolean(onSelectCandidate && onDismissAdopted)
 
     return (
-        <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        <div className="space-y-3 min-h-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground shrink-0">
                 <span className="flex items-center gap-1">
                     <span className="inline-block h-2.5 w-2.5 rounded-sm border-2 border-amber-500 bg-amber-400/30 shrink-0" />
                     採用中
@@ -411,19 +454,21 @@ export function ZaimImageReadCheck({
                 </span>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 max-h-[min(520px,55vh)] overflow-y-auto pr-1">
+            <div className="grid gap-4 sm:grid-cols-2 min-w-0 pb-2">
                 {grouped.map(({ item, results: imageResults }, imageIndex) => (
+                    <div key={item.id} className="min-w-0">
                     <ImageReadCheckCard
-                        key={item.id}
                         item={item}
                         imageIndex={imageIndex}
                         resultEntries={imageResults}
                         displayNumberByIndex={displayNumberByIndex}
+                        expectedCategoryCount={expectedCategoryCount}
                         onSelectCandidate={onSelectCandidate}
                         onDismissAdopted={onDismissAdopted}
                         onExcludeCandidate={onExcludeCandidate}
                         onRemoveResult={onRemoveResult}
                     />
+                    </div>
                 ))}
             </div>
 
