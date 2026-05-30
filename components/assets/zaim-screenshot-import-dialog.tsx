@@ -73,13 +73,71 @@ const CONFIDENCE_VARIANTS: Record<
     none: "destructive",
 }
 
+interface ImportTableRow {
+    key: string
+    label: string
+    current: number | null
+    result: MatchResult | null
+    resultIndex: number | null
+    isExtra: boolean
+}
+
+function buildImportTableRows(
+    categories: ValuationCategoryRef[],
+    results: MatchResult[]
+): ImportTableRow[] {
+    const resultByCategoryId = new Map<
+        number,
+        { result: MatchResult; index: number }
+    >()
+    const claimedIndices = new Set<number>()
+
+    for (let index = 0; index < results.length; index++) {
+        const result = results[index]
+        if (
+            result.categoryId !== null &&
+            hasAdoptedValuation(result) &&
+            !resultByCategoryId.has(result.categoryId)
+        ) {
+            resultByCategoryId.set(result.categoryId, { result, index })
+            claimedIndices.add(index)
+        }
+    }
+
+    const rows: ImportTableRow[] = categories.map((category) => {
+        const matched = resultByCategoryId.get(category.id)
+        return {
+            key: `cat-${category.id}`,
+            label: category.name,
+            current: category.currentValue ?? 0,
+            result: matched?.result ?? null,
+            resultIndex: matched?.index ?? null,
+            isExtra: false,
+        }
+    })
+
+    for (let index = 0; index < results.length; index++) {
+        const result = results[index]
+        if (hasAdoptedValuation(result) && !claimedIndices.has(index)) {
+            rows.push({
+                key: `extra-${index}`,
+                label:
+                    result.categoryName ??
+                    (result.ocrName.trim() || `(行${index + 1})`),
+                current: null,
+                result,
+                resultIndex: index,
+                isExtra: true,
+            })
+        }
+    }
+
+    return rows
+}
+
 function getImageFiles(fileList: FileList | null): File[] {
     if (!fileList) return []
     return Array.from(fileList).filter((file) => file.type.startsWith("image/"))
-}
-
-function getCurrentValueMap(categories: ValuationCategoryRef[]): Map<number, number> {
-    return new Map(categories.map((c) => [c.id, c.currentValue ?? 0]))
 }
 
 function matchFromQueue(
@@ -183,6 +241,40 @@ export function ZaimScreenshotImportDialog({
         },
         [closePreviewOnly]
     )
+
+    const handleGoBack = useCallback(() => {
+        if (previewIndex !== null) {
+            closePreviewOnly()
+            return
+        }
+        if (hasResults) {
+            setQueueItems((prev) =>
+                prev.map((item) => ({
+                    id: item.id,
+                    name: item.name,
+                    previewUrl: item.previewUrl,
+                    file: item.file,
+                    holdings: undefined,
+                }))
+            )
+            setResults([])
+            setPreviewIndex(null)
+            setResultView("images")
+            return
+        }
+        if (queueItems.length > 0) {
+            resetState()
+            return
+        }
+        handleOpenChange(false)
+    }, [
+        previewIndex,
+        hasResults,
+        queueItems.length,
+        closePreviewOnly,
+        resetState,
+        handleOpenChange,
+    ])
 
     const addFilesToQueue = (files: File[], append: boolean) => {
         const newItems = buildQueueItemsFromFiles(files)
@@ -394,23 +486,20 @@ export function ZaimScreenshotImportDialog({
                 : "読み取り中..."
 
     const selectedCount = results.filter(
-        (r) => r.selected && r.categoryId !== null && hasAdoptedValuation(r)
+        (r) => r.selected && hasAdoptedValuation(r)
     ).length
-    const currentValueMap = getCurrentValueMap(categories)
 
-    const tableResultEntries = useMemo(
-        () =>
-            results
-                .map((result, index) => ({ result, index }))
-                .filter(({ result }) => hasAdoptedValuation(result)),
-        [results]
+    const adoptedCount = results.filter((r) => hasAdoptedValuation(r)).length
+
+    const tableRows = useMemo(
+        () => buildImportTableRows(categories, results),
+        [categories, results]
     )
 
-    const hasLargeDiff = results.some((r) => {
-        if (r.categoryId === null) return false
-        const active = getActiveValuation(r)
+    const hasLargeDiff = tableRows.some(({ current, result, isExtra }) => {
+        if (isExtra || !result || current === null) return false
+        const active = getActiveValuation(result)
         if (active === null) return false
-        const current = currentValueMap.get(r.categoryId) ?? 0
         return isLargeValuationDiff(current, active)
     })
 
@@ -418,18 +507,27 @@ export function ZaimScreenshotImportDialog({
         let readTotal = 0
         let currentTotal = 0
         let diffTotal = 0
-        for (const result of results) {
+        for (const { current, result, isExtra } of tableRows) {
+            if (!isExtra && current !== null) {
+                currentTotal += current
+            }
+            if (!result) continue
             const active = getActiveValuation(result)
             if (active === null) continue
             readTotal += active
-            if (result.categoryId !== null) {
-                const current = currentValueMap.get(result.categoryId) ?? 0
-                currentTotal += current
+            if (!isExtra && current !== null) {
                 diffTotal += active - current
             }
         }
         return { readTotal, currentTotal, diffTotal }
-    }, [results, currentValueMap])
+    }, [tableRows])
+
+    const expectedCategoryCount = categories.length
+    const readCountMatches = adoptedCount === expectedCategoryCount
+    const hasExtraTableRows = tableRows.some((row) => row.isExtra)
+    const hasMissingReads = tableRows.some(
+        (row) => !row.isExtra && row.result === null
+    )
 
     const showInitialDescription =
         !isProcessing && queueItems.length === 0 && categories.length > 0
@@ -550,8 +648,8 @@ export function ZaimScreenshotImportDialog({
                         )}
 
                         {!isProcessing && hasResults && (
-                            <>
-                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex flex-col flex-1 min-h-0 gap-3">
+                                <div className="flex items-center justify-between gap-2 flex-wrap shrink-0">
                                     <span className="text-xs text-muted-foreground">
                                         {queueItems.length}枚 · {results.length}件読み取り
                                     </span>
@@ -605,10 +703,11 @@ export function ZaimScreenshotImportDialog({
                                 )}
 
                                 {results.length > 0 && resultView === "images" && (
-                                    <div className="flex-1 min-h-0 overflow-hidden border rounded-md p-3 bg-muted/10">
+                                    <div className="flex-1 min-h-0 overflow-y-auto border rounded-md p-3 pb-4 bg-muted/10">
                                         <ZaimImageReadCheck
                                             items={queueItems}
                                             results={results}
+                                            expectedCategoryCount={expectedCategoryCount}
                                             onSelectCandidate={applySelectCandidate}
                                             onDismissAdopted={applyDismissAdopted}
                                             onExcludeCandidate={applyExcludeCandidate}
@@ -617,11 +716,13 @@ export function ZaimScreenshotImportDialog({
                                     </div>
                                 )}
 
-                                {results.length > 0 && resultView === "table" && (
-                                    <>
-                                        {tableResultEntries.some(
-                                            ({ result: r }) =>
-                                                r.confidence === "low" || r.confidence === "none"
+                                {hasResults && resultView === "table" && (
+                                    <div className="flex flex-col flex-1 min-h-0 gap-3 overflow-y-auto min-w-0">
+                                        {tableRows.some(
+                                            ({ result }) =>
+                                                result &&
+                                                (result.confidence === "low" ||
+                                                    result.confidence === "none")
                                         ) && (
                                             <div className="flex items-start gap-2 rounded-md border border-amber-300/50 bg-amber-50/50 dark:bg-amber-900/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
                                                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
@@ -642,11 +743,15 @@ export function ZaimScreenshotImportDialog({
                                             </div>
                                         )}
 
-                                        {tableResultEntries.length === 0 ? (
-                                            <p className="text-sm text-muted-foreground text-center py-6 border rounded-md">
-                                                採用中の行がありません。「画像で確認」から金額を採用するか、灰色の枠をクリックして再採用してください。
-                                            </p>
-                                        ) : (
+                                        {hasMissingReads && (
+                                            <div className="flex items-start gap-2 rounded-md border border-red-300/50 bg-red-50/50 dark:bg-red-900/10 px-3 py-2 text-xs text-red-800 dark:text-red-200">
+                                                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                                                <span>
+                                                    読み取れていない項目があります。「画像で確認」でスクショ内容を確認してください。
+                                                </span>
+                                            </div>
+                                        )}
+
                                         <div className="flex-1 overflow-y-auto min-h-0 border rounded-md">
                                             <Table>
                                                 <TableHeader>
@@ -664,24 +769,32 @@ export function ZaimScreenshotImportDialog({
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
-                                                    {tableResultEntries.map(({ result, index }) => {
+                                                    {tableRows.map((row) => {
+                                                        const {
+                                                            key,
+                                                            label,
+                                                            current,
+                                                            result,
+                                                            resultIndex,
+                                                            isExtra,
+                                                        } = row
+                                                        const isMissing =
+                                                            !isExtra && result === null
                                                         const isConfidenceWarning =
-                                                            result.confidence === "low" ||
-                                                            result.confidence === "none"
-                                                        const current =
-                                                            result.categoryId !== null
-                                                                ? (currentValueMap.get(
-                                                                      result.categoryId
-                                                                  ) ?? 0)
-                                                                : null
-                                                        const activeValuation =
-                                                            getActiveValuation(result)
+                                                            !isMissing &&
+                                                            result !== null &&
+                                                            (result.confidence === "low" ||
+                                                                result.confidence === "none")
+                                                        const activeValuation = result
+                                                            ? getActiveValuation(result)
+                                                            : null
                                                         const diff =
                                                             current !== null &&
                                                             activeValuation !== null
                                                                 ? activeValuation - current
                                                                 : null
                                                         const isDiffWarning =
+                                                            diff !== null &&
                                                             current !== null &&
                                                             activeValuation !== null &&
                                                             isLargeValuationDiff(
@@ -689,82 +802,128 @@ export function ZaimScreenshotImportDialog({
                                                                 activeValuation
                                                             )
                                                         const isWarning =
-                                                            isConfidenceWarning || isDiffWarning
+                                                            isMissing ||
+                                                            isExtra ||
+                                                            isConfidenceWarning ||
+                                                            isDiffWarning
 
                                                         return (
                                                             <TableRow
-                                                                key={`${result.ocrName}-${index}`}
+                                                                key={key}
                                                                 className={
                                                                     isWarning
-                                                                        ? "bg-amber-50/50 dark:bg-amber-900/10"
+                                                                        ? isMissing
+                                                                            ? "bg-red-50/50 dark:bg-red-900/10"
+                                                                            : "bg-amber-50/50 dark:bg-amber-900/10"
                                                                         : undefined
                                                                 }
                                                             >
                                                                 <TableCell>
                                                                     <Checkbox
-                                                                        checked={result.selected}
+                                                                        checked={
+                                                                            result?.selected ??
+                                                                            false
+                                                                        }
                                                                         disabled={
-                                                                            result.categoryId ===
-                                                                            null
+                                                                            isMissing ||
+                                                                            resultIndex === null
                                                                         }
                                                                         onCheckedChange={(
                                                                             checked
-                                                                        ) =>
-                                                                            updateResult(index, {
-                                                                                selected:
-                                                                                    checked ===
-                                                                                    true,
-                                                                            })
-                                                                        }
+                                                                        ) => {
+                                                                            if (
+                                                                                resultIndex ===
+                                                                                null
+                                                                            )
+                                                                                return
+                                                                            updateResult(
+                                                                                resultIndex,
+                                                                                {
+                                                                                    selected:
+                                                                                        checked ===
+                                                                                        true,
+                                                                                }
+                                                                            )
+                                                                        }}
                                                                     />
                                                                 </TableCell>
                                                                 <TableCell className="text-xs font-medium">
-                                                                    {result.categoryName ?? (
-                                                                        <span className="text-muted-foreground">
-                                                                            未一致
-                                                                        </span>
+                                                                    <span>{label}</span>
+                                                                    {isExtra && (
+                                                                        <Badge
+                                                                            variant="outline"
+                                                                            className="ml-1.5 text-[10px] align-middle"
+                                                                        >
+                                                                            余分
+                                                                        </Badge>
                                                                     )}
                                                                 </TableCell>
                                                                 <TableCell className="text-right">
-                                                                    <Input
-                                                                        type="number"
-                                                                        className="h-8 text-right text-xs w-24 ml-auto"
-                                                                        value={result.valuation}
-                                                                        onChange={(e) =>
-                                                                            updateResult(index, {
-                                                                                valuation:
-                                                                                    parseFloat(
-                                                                                        e.target.value
-                                                                                    ) || 0,
-                                                                                imageDismissedCandidate:
-                                                                                    undefined,
-                                                                            })
-                                                                        }
-                                                                    />
+                                                                    {isMissing ||
+                                                                    activeValuation === null ? (
+                                                                        <span className="inline-flex h-8 items-center justify-end text-xs text-red-600 dark:text-red-400 w-24 ml-auto">
+                                                                            未読取
+                                                                        </span>
+                                                                    ) : (
+                                                                        <Input
+                                                                            type="number"
+                                                                            className="h-8 text-right text-xs w-24 ml-auto"
+                                                                            value={
+                                                                                result!.valuation
+                                                                            }
+                                                                            onChange={(e) => {
+                                                                                if (
+                                                                                    resultIndex ===
+                                                                                    null
+                                                                                )
+                                                                                    return
+                                                                                updateResult(
+                                                                                    resultIndex,
+                                                                                    {
+                                                                                        valuation:
+                                                                                            parseFloat(
+                                                                                                e
+                                                                                                    .target
+                                                                                                    .value
+                                                                                            ) || 0,
+                                                                                        imageDismissedCandidate:
+                                                                                            undefined,
+                                                                                    }
+                                                                                )
+                                                                            }}
+                                                                        />
+                                                                    )}
                                                                 </TableCell>
                                                                 <TableCell className="text-right text-xs whitespace-nowrap">
-                                                                    {diff !== null &&
-                                                                    current !== null ? (
+                                                                    {current !== null ? (
                                                                         <div className="flex flex-col items-end leading-tight gap-0.5">
                                                                             <span className="tabular-nums text-muted-foreground">
                                                                                 ¥
                                                                                 {current.toLocaleString()}
                                                                             </span>
-                                                                            <span
-                                                                                className={`tabular-nums ${
-                                                                                    isDiffWarning
-                                                                                        ? "font-semibold text-amber-700 dark:text-amber-300"
-                                                                                        : diff > 0
-                                                                                          ? "text-emerald-600 dark:text-emerald-400"
-                                                                                          : diff < 0
-                                                                                            ? "text-red-600 dark:text-red-400"
-                                                                                            : "text-muted-foreground"
-                                                                                }`}
-                                                                            >
-                                                                                {formatValuationDiff(
-                                                                                    diff
-                                                                                )}
-                                                                            </span>
+                                                                            {diff !== null ? (
+                                                                                <span
+                                                                                    className={`tabular-nums ${
+                                                                                        isDiffWarning
+                                                                                            ? "font-semibold text-amber-700 dark:text-amber-300"
+                                                                                            : diff >
+                                                                                                0
+                                                                                              ? "text-emerald-600 dark:text-emerald-400"
+                                                                                              : diff <
+                                                                                                  0
+                                                                                                ? "text-red-600 dark:text-red-400"
+                                                                                                : "text-muted-foreground"
+                                                                                    }`}
+                                                                                >
+                                                                                    {formatValuationDiff(
+                                                                                        diff
+                                                                                    )}
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="text-muted-foreground">
+                                                                                    —
+                                                                                </span>
+                                                                            )}
                                                                         </div>
                                                                     ) : (
                                                                         <span className="text-muted-foreground">
@@ -773,52 +932,68 @@ export function ZaimScreenshotImportDialog({
                                                                     )}
                                                                 </TableCell>
                                                                 <TableCell>
-                                                                    <Badge
-                                                                        variant={
-                                                                            CONFIDENCE_VARIANTS[
-                                                                                result.confidence
-                                                                            ]
-                                                                        }
-                                                                        className="text-[10px]"
-                                                                    >
-                                                                        {
-                                                                            CONFIDENCE_LABELS[
-                                                                                result.confidence
-                                                                            ]
-                                                                        }
-                                                                    </Badge>
+                                                                    {isMissing ? (
+                                                                        <Badge
+                                                                            variant="destructive"
+                                                                            className="text-[10px]"
+                                                                        >
+                                                                            未読取
+                                                                        </Badge>
+                                                                    ) : (
+                                                                        <Badge
+                                                                            variant={
+                                                                                CONFIDENCE_VARIANTS[
+                                                                                    result!
+                                                                                        .confidence
+                                                                                ]
+                                                                            }
+                                                                            className="text-[10px]"
+                                                                        >
+                                                                            {
+                                                                                CONFIDENCE_LABELS[
+                                                                                    result!
+                                                                                        .confidence
+                                                                                ]
+                                                                            }
+                                                                        </Badge>
+                                                                    )}
                                                                 </TableCell>
                                                                 <TableCell>
-                                                                    <div className="flex items-center justify-end gap-0.5">
-                                                                        {result.source ? (
+                                                                    {!isMissing &&
+                                                                    resultIndex !== null ? (
+                                                                        <div className="flex items-center justify-end gap-0.5">
+                                                                            {result!.source ? (
+                                                                                <Button
+                                                                                    type="button"
+                                                                                    variant="ghost"
+                                                                                    size="icon"
+                                                                                    className="h-7 w-7"
+                                                                                    title="読取位置・金額候補"
+                                                                                    onClick={() =>
+                                                                                        setPreviewIndex(
+                                                                                            resultIndex
+                                                                                        )
+                                                                                    }
+                                                                                >
+                                                                                    <ScanSearch className="h-3.5 w-3.5" />
+                                                                                </Button>
+                                                                            ) : null}
                                                                             <Button
                                                                                 type="button"
                                                                                 variant="ghost"
                                                                                 size="icon"
-                                                                                className="h-7 w-7"
-                                                                                title="読取位置・金額候補"
+                                                                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                                                                title="行を削除"
                                                                                 onClick={() =>
-                                                                                    setPreviewIndex(
-                                                                                        index
+                                                                                    removeResult(
+                                                                                        resultIndex
                                                                                     )
                                                                                 }
                                                                             >
-                                                                                <ScanSearch className="h-3.5 w-3.5" />
+                                                                                <Trash2 className="h-3.5 w-3.5" />
                                                                             </Button>
-                                                                        ) : null}
-                                                                        <Button
-                                                                            type="button"
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                                                            title="行を削除"
-                                                                            onClick={() =>
-                                                                                removeResult(index)
-                                                                            }
-                                                                        >
-                                                                            <Trash2 className="h-3.5 w-3.5" />
-                                                                        </Button>
-                                                                    </div>
+                                                                        </div>
+                                                                    ) : null}
                                                                 </TableCell>
                                                             </TableRow>
                                                         )
@@ -860,30 +1035,41 @@ export function ZaimScreenshotImportDialog({
                                                 </TableBody>
                                             </Table>
                                         </div>
-                                        )}
 
-                                        {tableResultEntries.some(
-                                            ({ result: r }) => r.confidence === "none"
-                                        ) && (
+                                        {hasExtraTableRows && (
                                             <p className="text-xs text-muted-foreground">
                                                 余分に読み取った行があります。Zaim表示名の件数・順序とスクショが一致しているか確認してください。
                                             </p>
                                         )}
-                                    </>
+                                    </div>
                                 )}
-                            </>
+                            </div>
                         )}
                     </div>
 
-                    <DialogFooter className="gap-2 sm:gap-0">
-                        {queueItems.length > 0 && !isProcessing && (
-                            <Button variant="outline" onClick={resetState}>
-                                最初からやり直す
+                    <DialogFooter className="flex-col gap-3 sm:flex-row sm:gap-2">
+                        {hasResults && !isProcessing && results.length > 0 && (
+                            <div className="w-full sm:mr-auto text-left text-xs space-y-0.5 order-first sm:order-none">
+                                <p
+                                    className={`tabular-nums font-medium ${
+                                        readCountMatches
+                                            ? "text-emerald-600 dark:text-emerald-400"
+                                            : "text-red-600 dark:text-red-400"
+                                    }`}
+                                >
+                                    読取件数 {adoptedCount}/{expectedCategoryCount}件
+                                </p>
+                                <p className="text-muted-foreground tabular-nums">
+                                    合計金額 ¥{tableTotals.readTotal.toLocaleString()}
+                                </p>
+                            </div>
+                        )}
+                        <div className="flex flex-wrap justify-end gap-2 w-full sm:w-auto">
+                        {!isProcessing && (
+                            <Button variant="outline" onClick={handleGoBack}>
+                                前に戻る
                             </Button>
                         )}
-                        <Button variant="outline" onClick={() => handleOpenChange(false)}>
-                            キャンセル
-                        </Button>
                         {awaitingOcr && !isProcessing && queueItems.length > 0 && (
                             <Button onClick={runOcr}>
                                 {queueItems.some((i) => i.holdings !== undefined)
@@ -893,9 +1079,10 @@ export function ZaimScreenshotImportDialog({
                         )}
                         {hasResults && !isProcessing && results.length > 0 && (
                             <Button onClick={handleApply} disabled={selectedCount === 0}>
-                                {selectedCount}件をフォームに反映
+                                フォームに反映
                             </Button>
                         )}
+                        </div>
                     </DialogFooter>
 
                     <OcrSourcePreviewDialog
