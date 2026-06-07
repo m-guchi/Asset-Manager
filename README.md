@@ -34,26 +34,31 @@
 # パッケージのインストール
 npm install
 
-# 開発サーバーの起動 (ローカルDBを使用する場合)
+# 開発サーバーの起動（1Password から秘密情報を注入）
 npm run dev
 
-# SSHトンネルを経由してリモート開発DBを利用する場合
+# SSH トンネル経由で開発 DB に接続する場合
 npm run dev:tunnel
+
+# 本番 DB を SSH トンネル経由でローカル接続する場合
+npm run prod:tunnel
 ```
 
 ### 環境変数の管理 (1Password)
 
-秘密情報は 1Password の `apps` 保管庫で一元管理します。GitHub Actions とローカル開発の両方で参照できます。
+秘密情報は 1Password の `apps` 保管庫で一元管理します。`.env` には値を書きません（README 用のコメントのみ）。
 
-**ローカル開発** — `.env` の代わりに 1Password CLI (`op`) で `DB_*` を注入し、`DATABASE_URL` を自動組み立て:
+| 用途 | テンプレート | コマンド |
+|------|-------------|----------|
+| 開発 DB | `.env.1password.tpl` | `npm run dev` / `npm run dev:tunnel` |
+| 本番 DB（ローカル接続） | `.env.1password.prod.tpl` | `npm run prod` / `npm run prod:tunnel` |
+| GitHub Actions デプロイ | `.github/deploy.env.tpl` | `main` への push で自動実行 |
 
 ```bash
 # 1Password CLI にサインイン済みであること
-npm run dev:op
-npm run dev:tunnel:op
+eval "$(op signin)"   # または export OP_SERVICE_ACCOUNT_TOKEN=...
+npm run verify:op     # 参照確認
 ```
-
-従来どおり `.env` を手動で置く方法も利用できます（gitignore 対象）。
 
 ---
 
