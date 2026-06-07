@@ -1,9 +1,10 @@
-name: CI Test
+name: CI
 
 on:
+  push:
+    branches: [develop]
   pull_request:
-    branches: [ "main" ]
-
+    branches: [main, develop]
 
 jobs:
   test:
@@ -43,3 +44,54 @@ jobs:
         run: npm run build
         env:
           DATABASE_URL: mysql://root@127.0.0.1:3306/test_db
+
+  notify:
+    needs: [test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine workflow status
+        id: status
+        run: |
+          test="${{ needs.test.result }}"
+          if [ "$test" = "success" ]; then
+            result=success
+          elif [ "$test" = "cancelled" ]; then
+            result=cancelled
+          else
+            result=failure
+          fi
+          echo "result=$result" >> "$GITHUB_OUTPUT"
+          if [ "$test" = "success" ]; then
+            echo "jobs=test" >> "$GITHUB_OUTPUT"
+          else
+            echo "jobs=test: $test" >> "$GITHUB_OUTPUT"
+          fi
+          # develop push: failure only. main PR: success, failure, and cancelled.
+          if [ "$result" = "failure" ]; then
+            echo "should_notify=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.base_ref }}" = "main" ]; then
+            echo "should_notify=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_notify=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Load secrets from 1Password
+        if: steps.status.outputs.should_notify == 'true'
+        uses: 1password/load-secrets-action@v4
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_ENV_FILE: ".github/ci.env.tpl"
+
+      - name: Notify Discord
+        if: steps.status.outputs.should_notify == 'true'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ env.DISCORD_CI_WEBHOOK_URL }}
+          NOTIFY_STATUS: ${{ steps.status.outputs.result }}
+          NOTIFY_WORKFLOW: CI
+          NOTIFY_JOB: ${{ steps.status.outputs.jobs }}
+        run: bash .github/scripts/discord-notify.sh

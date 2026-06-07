@@ -114,13 +114,15 @@ jobs:
           SMTP_PASS: ${{ env.SMTP_PASS }}
           SMTP_FROM: ${{ env.SMTP_FROM }}
           NEXT_PUBLIC_GA_ID: ${{ env.NEXT_PUBLIC_GA_ID }}
+          DISCORD_APPS_LOGIN_WEBHOOK_URL: ${{ env.DISCORD_APPS_LOGIN_WEBHOOK_URL }}
+          DISCORD_APPS_REGISTER_WEBHOOK_URL: ${{ env.DISCORD_APPS_REGISTER_WEBHOOK_URL }}
           TARGET_DIR: ${{ env.TARGET_DIR }}
         with:
           host: ${{ env.HOST }}
           username: ${{ env.USERNAME }}
           key: ${{ env.SSH_PRIVATE_KEY }}
           port: ${{ env.SSH_PORT }}
-          envs: DATABASE_URL,NEXTAUTH_URL,NEXTAUTH_SECRET,AUTH_GOOGLE_ID,AUTH_GOOGLE_SECRET,SMTP_HOST,SMTP_PORT,SMTP_USER,SMTP_PASS,SMTP_FROM,NEXT_PUBLIC_GA_ID,TARGET_DIR
+          envs: DATABASE_URL,NEXTAUTH_URL,NEXTAUTH_SECRET,AUTH_GOOGLE_ID,AUTH_GOOGLE_SECRET,SMTP_HOST,SMTP_PORT,SMTP_USER,SMTP_PASS,SMTP_FROM,NEXT_PUBLIC_GA_ID,DISCORD_APPS_LOGIN_WEBHOOK_URL,DISCORD_APPS_REGISTER_WEBHOOK_URL,TARGET_DIR
           script: |
             cd "${TARGET_DIR}"
 
@@ -153,6 +155,8 @@ jobs:
             sync_env_var SMTP_PASS "$SMTP_PASS"
             sync_env_var SMTP_FROM "$SMTP_FROM"
             sync_env_var NEXT_PUBLIC_GA_ID "$NEXT_PUBLIC_GA_ID"
+            sync_env_var DISCORD_APPS_LOGIN_WEBHOOK_URL "$DISCORD_APPS_LOGIN_WEBHOOK_URL"
+            sync_env_var DISCORD_APPS_REGISTER_WEBHOOK_URL "$DISCORD_APPS_REGISTER_WEBHOOK_URL"
             sync_env_var NEXT_PUBLIC_NEXTAUTH_URL "$NEXTAUTH_URL"
             sync_env_var AUTH_TRUST_HOST "true"
             sync_env_var PORT "3102"
@@ -181,3 +185,49 @@ jobs:
             sleep 20
             curl -f http://localhost:3102 || (echo "Health check failed!" && exit 1)
             echo "Deployment successful and app is running."
+
+  notify:
+    needs: [build, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine workflow status
+        id: status
+        run: |
+          build="${{ needs.build.result }}"
+          deploy="${{ needs.deploy.result }}"
+          if [ "$build" = "success" ] && [ "$deploy" = "success" ]; then
+            result=success
+          elif [ "$build" = "cancelled" ] || [ "$deploy" = "cancelled" ]; then
+            result=cancelled
+          else
+            result=failure
+          fi
+          echo "result=$result" >> "$GITHUB_OUTPUT"
+          jobs=()
+          [ "$build" != "success" ] && jobs+=("build: $build")
+          [ "$deploy" != "success" ] && jobs+=("deploy: $deploy")
+          if [ "${#jobs[@]}" -eq 0 ]; then
+            echo "jobs=build, deploy" >> "$GITHUB_OUTPUT"
+          else
+            printf -v joined '%s, ' "${jobs[@]}"
+            echo "jobs=${joined%, }" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Load secrets from 1Password
+        uses: 1password/load-secrets-action@v4
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_ENV_FILE: ".github/deploy.env.tpl"
+
+      - name: Notify Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ env.DISCORD_CI_WEBHOOK_URL }}
+          NOTIFY_STATUS: ${{ steps.status.outputs.result }}
+          NOTIFY_WORKFLOW: Deploy to VPS
+          NOTIFY_JOB: ${{ steps.status.outputs.jobs }}
+        run: bash .github/scripts/discord-notify.sh

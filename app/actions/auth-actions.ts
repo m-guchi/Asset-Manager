@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs"
 import { seedDummyData } from "@/lib/db/seed"
 import { generateVerificationToken, generatePasswordResetToken } from "@/lib/tokens"
 import { sendVerificationEmail, sendPasswordResetEmail } from "@/lib/mail"
+import { sendRegisterNotification } from "@/lib/discord"
 
 export async function signUp(formData: FormData) {
     const email = formData.get("email") as string
@@ -53,6 +54,11 @@ export async function signUp(formData: FormData) {
 
             // 新規作成時のみ初期データを投入
             await seedDummyData(userId)
+            await sendRegisterNotification({
+                email: newUser.email,
+                name: newUser.name,
+                provider: "credentials",
+            })
         }
 
         // トークン生成とメール送信（新規・更新に関わらず常に最新のものを送る）

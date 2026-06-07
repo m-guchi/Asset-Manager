@@ -4,6 +4,7 @@ import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { NextAuthOptions } from "next-auth"
 import { seedDummyData } from "@/lib/db/seed"
+import { sendLoginNotification, sendRegisterNotification } from "@/lib/discord"
 import bcrypt from "bcryptjs"
 
 export const authOptions: NextAuthOptions = {
@@ -95,9 +96,22 @@ export const authOptions: NextAuthOptions = {
     },
     events: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        async signIn({ user, account }: { user: any; account: any }) {
+            await sendLoginNotification({
+                email: user.email,
+                name: user.name,
+                provider: account?.provider,
+            })
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         async createUser({ user }: { user: any }) {
             if (user.id) {
-                await seedDummyData(user.id);
+                await seedDummyData(user.id)
+                await sendRegisterNotification({
+                    email: user.email,
+                    name: user.name,
+                    provider: "google",
+                })
             }
         },
     },
