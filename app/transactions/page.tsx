@@ -204,7 +204,7 @@ export default function TransactionsPage() {
                 return
             }
 
-            if (res.success) {
+            if ("success" in res && res.success) {
                 toast.success(confirmOverwrite ? "評価額を上書きしました" : "取引を記録しました")
                 setOpen(false)
                 setOverwriteDialogOpen(false)
@@ -219,7 +219,7 @@ export default function TransactionsPage() {
                     categoryId: "",
                 })
             } else {
-                toast.error(res.error || "保存に失敗しました")
+                toast.error("error" in res && res.error ? res.error : "保存に失敗しました")
             }
         } finally {
             setIsSubmitting(false)

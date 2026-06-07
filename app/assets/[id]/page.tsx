@@ -188,7 +188,7 @@ export default function AssetDetailPage() {
                 return
             }
 
-            if (res.success) {
+            if ("success" in res && res.success) {
                 toast.success(
                     editingItem
                         ? "更新しました"

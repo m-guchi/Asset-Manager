@@ -117,7 +117,7 @@ export default function BulkValuationPage() {
                     return
                 }
 
-                if (!res.success) {
+                if ("success" in res && !res.success) {
                     toast.error("更新に失敗しました")
                     return
                 }
