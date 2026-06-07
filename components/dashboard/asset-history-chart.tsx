@@ -541,7 +541,7 @@ export function AssetHistoryChart({
                         stackOffset={showPercent ? "expand" : "none"}
                         margin={{ top: 25, right: 30, left: 10, bottom: 12 }}
                     >
-                                    <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.2} />
+                                    <CartesianGrid vertical={false} stroke="currentColor" strokeDasharray="3 3" strokeOpacity={0.2} />
                                     
                                     <XAxis
                                         dataKey="timestamp"

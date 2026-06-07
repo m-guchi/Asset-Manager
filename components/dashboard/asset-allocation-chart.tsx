@@ -233,7 +233,7 @@ export function AssetAllocationChart({
                                         key={percent}
                                         y={totalValue * percent}
                                         stroke="currentColor"
-                                        strokeOpacity={0.2}
+                                        strokeOpacity={0.5}
                                         strokeDasharray="3 3"
                                         isFront={true}
                                     />
