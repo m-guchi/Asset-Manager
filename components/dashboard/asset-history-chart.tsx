@@ -6,6 +6,7 @@ import { Check, ChevronDown } from "lucide-react"
 import { ChartConfig, ChartContainer } from "@/components/ui/chart"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { HistoryPoint, TagGroup, Category, ChartViewMode } from "@/types/asset"
+import { clampDomainOffset, computeDomainOffsetForSelectedTimestamp } from "@/lib/chart-domain"
 import { applyPnlWithZeroTransitions, isPlottablePnlValue } from "@/lib/chart-pnl"
 
 const VIEW_MODE_OPTIONS = [
@@ -103,6 +104,7 @@ export function AssetHistoryChart({
     const [dragStartX, setDragStartX] = React.useState<number | null>(null)
     const [domainOffset, setDomainOffset] = React.useState<number>(0)
     const chartRef = React.useRef<HTMLDivElement>(null);
+    const selectedTimestampRef = React.useRef<number | null>(null)
 
     React.useEffect(() => {
         setIsAnimating(true)
@@ -132,7 +134,18 @@ export function AssetHistoryChart({
 
     const handleTimeRangeChange = (range: string) => {
         setTimeRange(range);
-        setDomainOffset(0); // リセット
+        if (selectedTimestampRef.current !== null && allProcessedData.length > 0) {
+            const dataMinTime = allProcessedData[0].timestamp;
+            const dataMaxTime = allProcessedData[allProcessedData.length - 1].timestamp;
+            setDomainOffset(computeDomainOffsetForSelectedTimestamp(
+                selectedTimestampRef.current,
+                range,
+                dataMinTime,
+                dataMaxTime
+            ));
+        } else {
+            setDomainOffset(0);
+        }
         localStorage.setItem("defaultTimeRange", range);
     }
 
@@ -260,6 +273,12 @@ export function AssetHistoryChart({
             Math.abs(curr.timestamp - targetTime) < Math.abs(prev.timestamp - targetTime) ? curr : prev
         );
     }, [allProcessedData, currentDomain]);
+
+    React.useEffect(() => {
+        if (activePoint) {
+            selectedTimestampRef.current = activePoint.timestamp;
+        }
+    }, [activePoint]);
 
     const visiblePnlDomain = React.useMemo(() => {
         if (!allProcessedData.length) return [-1, 1] as [number, number]
@@ -477,24 +496,7 @@ export function AssetHistoryChart({
             const dataMinTime = allProcessedData[0].timestamp;
             const dataMaxTime = allProcessedData[allProcessedData.length - 1].timestamp;
 
-            setDomainOffset(prev => {
-                let newOffset = prev + timeShift;
-                // 未来方向への移動制限（ドメイン初期位置が上限）
-                if (newOffset > 0) newOffset = 0;
-                
-                // 過去方向への移動制限
-                // 最初のデータ(dataMinTime)が点線の位置(右から10%)に来る限界までスクロールを許可する
-                const minOffset = dataMinTime - dataMaxTime;
-                
-                if (minOffset >= 0) {
-                    newOffset = 0;
-                } else if (newOffset < minOffset) {
-                    // 左へ引っ張りすぎた場合
-                    newOffset = minOffset;
-                }
-                
-                return newOffset;
-            });
+            setDomainOffset(prev => clampDomainOffset(prev + timeShift, dataMinTime, dataMaxTime));
             setDragStartX(clientX);
         }
     };

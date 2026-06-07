@@ -6,6 +6,7 @@ import { Check, ChevronDown } from "lucide-react"
 
 import { ChartConfig, ChartContainer } from "@/components/ui/chart"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { clampDomainOffset, computeDomainOffsetForSelectedTimestamp } from "@/lib/chart-domain"
 import { applyPnlWithZeroTransitions, isPlottablePnlValue } from "@/lib/chart-pnl"
 
 type AssetDetailViewMode = "value" | "pnl" | "pnlValue" | "realizedGain"
@@ -109,6 +110,7 @@ export function AssetDetailHistoryChart({
     const [dragStartX, setDragStartX] = React.useState<number | null>(null)
     const [domainOffset, setDomainOffset] = React.useState(0)
     const chartRef = React.useRef<HTMLDivElement>(null)
+    const selectedTimestampRef = React.useRef<number | null>(null)
 
     const hasChildren = childAssets.length > 0
     const isValueMode = viewMode === "value"
@@ -130,7 +132,18 @@ export function AssetDetailHistoryChart({
 
     const handleTimeRangeChange = (range: string) => {
         setTimeRange(range)
-        setDomainOffset(0)
+        if (selectedTimestampRef.current !== null && allProcessedData.length > 0) {
+            const dataMinTime = allProcessedData[0].timestamp
+            const dataMaxTime = allProcessedData[allProcessedData.length - 1].timestamp
+            setDomainOffset(computeDomainOffsetForSelectedTimestamp(
+                selectedTimestampRef.current,
+                range,
+                dataMinTime,
+                dataMaxTime
+            ))
+        } else {
+            setDomainOffset(0)
+        }
         localStorage.setItem("defaultTimeRange", range)
     }
 
@@ -198,6 +211,12 @@ export function AssetDetailHistoryChart({
             Math.abs(curr.timestamp - targetTime) < Math.abs(prev.timestamp - targetTime) ? curr : prev
         )
     }, [allProcessedData, currentDomain])
+
+    React.useEffect(() => {
+        if (activePoint) {
+            selectedTimestampRef.current = activePoint.timestamp
+        }
+    }, [activePoint])
 
     const [debouncedActivePoint, setDebouncedActivePoint] = React.useState<ProcessedPoint | null>(null)
 
@@ -321,19 +340,7 @@ export function AssetDetailHistoryChart({
             const dataMinTime = allProcessedData[0].timestamp
             const dataMaxTime = allProcessedData[allProcessedData.length - 1].timestamp
 
-            setDomainOffset((prev) => {
-                let newOffset = prev + timeShift
-                if (newOffset > 0) newOffset = 0
-
-                const minOffset = dataMinTime - dataMaxTime
-                if (minOffset >= 0) {
-                    newOffset = 0
-                } else if (newOffset < minOffset) {
-                    newOffset = minOffset
-                }
-
-                return newOffset
-            })
+            setDomainOffset((prev) => clampDomainOffset(prev + timeShift, dataMinTime, dataMaxTime))
             setDragStartX(clientX)
         }
     }
