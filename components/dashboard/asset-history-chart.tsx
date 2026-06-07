@@ -132,23 +132,6 @@ export function AssetHistoryChart({
         });
     };
 
-    const handleTimeRangeChange = (range: string) => {
-        setTimeRange(range);
-        if (selectedTimestampRef.current !== null && allProcessedData.length > 0) {
-            const dataMinTime = allProcessedData[0].timestamp;
-            const dataMaxTime = allProcessedData[allProcessedData.length - 1].timestamp;
-            setDomainOffset(computeDomainOffsetForSelectedTimestamp(
-                selectedTimestampRef.current,
-                range,
-                dataMinTime,
-                dataMaxTime
-            ));
-        } else {
-            setDomainOffset(0);
-        }
-        localStorage.setItem("defaultTimeRange", range);
-    }
-
     const activeKeys = React.useMemo(() => {
         if (mode === "tag") {
             const grp = tagGroups.find((g: TagGroup) => g.id === selectedTagGroup)
@@ -218,6 +201,23 @@ export function AssetHistoryChart({
         applyPnlWithZeroTransitions(points as unknown as Array<Record<string, number | null>>, pnlSeries)
         return points
     }, [data, activeKeys, mode, selectedTagGroup, categories, selectedAssetKey])
+
+    const handleTimeRangeChange = (range: string) => {
+        setTimeRange(range);
+        if (selectedTimestampRef.current !== null && allProcessedData.length > 0) {
+            const dataMinTime = allProcessedData[0].timestamp;
+            const dataMaxTime = allProcessedData[allProcessedData.length - 1].timestamp;
+            setDomainOffset(computeDomainOffsetForSelectedTimestamp(
+                selectedTimestampRef.current,
+                range,
+                dataMinTime,
+                dataMaxTime
+            ));
+        } else {
+            setDomainOffset(0);
+        }
+        localStorage.setItem("defaultTimeRange", range);
+    }
 
     const baseWindowMs = React.useMemo(() => {
         if (timeRange === "ALL") return null;

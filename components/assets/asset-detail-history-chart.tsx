@@ -130,6 +130,19 @@ export function AssetDetailHistoryChart({
         }
     }, [])
 
+    const toggleShowCostOverlay = () => {
+        setShowCostOverlay((prev) => {
+            const next = !prev
+            localStorage.setItem("showCostOverlay", String(next))
+            return next
+        })
+    }
+
+    const allProcessedData = React.useMemo(
+        () => processAllHistory(history, childAssets),
+        [history, childAssets]
+    )
+
     const handleTimeRangeChange = (range: string) => {
         setTimeRange(range)
         if (selectedTimestampRef.current !== null && allProcessedData.length > 0) {
@@ -146,19 +159,6 @@ export function AssetDetailHistoryChart({
         }
         localStorage.setItem("defaultTimeRange", range)
     }
-
-    const toggleShowCostOverlay = () => {
-        setShowCostOverlay((prev) => {
-            const next = !prev
-            localStorage.setItem("showCostOverlay", String(next))
-            return next
-        })
-    }
-
-    const allProcessedData = React.useMemo(
-        () => processAllHistory(history, childAssets),
-        [history, childAssets]
-    )
 
     const baseWindowMs = React.useMemo(() => {
         if (timeRange === "ALL") return null
