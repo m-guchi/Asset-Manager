@@ -20,6 +20,14 @@ export type ChangelogEntry = {
  */
 export const CHANGELOG: ChangelogEntry[] = [
     {
+        version: "3.2.0",
+        date: "2026-06-07",
+        changes: [
+            "設定画面に更新履歴を追加（バージョン横から過去の更新内容を確認可能）",
+            "本番環境ではアプリケーション情報の開発向け表示を非表示に",
+        ],
+    },
+    {
         version: "3.1.2",
         date: "2026-05-30",
         changes: [
