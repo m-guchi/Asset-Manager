@@ -53,6 +53,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
 import { getCategories } from "../actions/categories"
+import { ValuationOverwriteDialog, type ValuationOverwriteItem } from "@/components/valuation-overwrite-dialog"
 import { getTransactions, addTransaction } from "../actions/assets"
 
 // Schema
@@ -89,6 +90,10 @@ export default function TransactionsPage() {
     const [categories, setCategories] = React.useState<CategoryMinimal[]>([])
     const [assetFilter, setAssetFilter] = React.useState("ALL")
     const [isLoading, setIsLoading] = React.useState(true)
+    const [overwriteDialogOpen, setOverwriteDialogOpen] = React.useState(false)
+    const [overwriteItems, setOverwriteItems] = React.useState<ValuationOverwriteItem[]>([])
+    const [pendingSubmitValues, setPendingSubmitValues] = React.useState<z.infer<typeof formSchema> | null>(null)
+    const [isSubmitting, setIsSubmitting] = React.useState(false)
 
     const filteredTransactions = React.useMemo(() => {
         if (assetFilter === "ALL") return transactions
@@ -161,46 +166,73 @@ export default function TransactionsPage() {
         form.setValue("valuation", (lastVal + amt).toString())
     }, [watchAmount, watchCategoryId, watchType, transactions, form, categories])
 
-    async function onSubmit(values: z.infer<typeof formSchema>) {
+    async function submitTransaction(values: z.infer<typeof formSchema>, confirmOverwrite = false) {
         const catId = parseInt(values.categoryId)
         const amt = parseInt(values.amount || "0")
         const val = parseInt(values.valuation)
 
-        let finalType: "DEPOSIT" | "WITHDRAW" | "VALUATION" = "VALUATION";
+        let finalType: "DEPOSIT" | "WITHDRAW" | "VALUATION" = "VALUATION"
         if (values.type === "TRANSACTION") {
             finalType = amt >= 0 ? "DEPOSIT" : "WITHDRAW"
-        } else {
-            finalType = "VALUATION"
         }
         let finalAmount = amt
-
         if (values.type === "TRANSACTION") {
             finalAmount = Math.abs(amt)
         }
 
-        const res = await addTransaction(catId, {
-            type: finalType,
-            amount: finalType === "VALUATION" ? 0 : finalAmount,
-            valuation: val,
-            date: values.date,
-            memo: values.memo || ""
-        })
-
-        if (res.success) {
-            toast.success("取引を記録しました")
-            setOpen(false)
-            fetchData() // Refresh list
-            form.reset({
-                date: new Date(),
-                type: "TRANSACTION",
-                memo: "",
-                valuation: "",
-                amount: "",
-                categoryId: "",
+        setIsSubmitting(true)
+        try {
+            const res = await addTransaction(catId, {
+                type: finalType,
+                amount: finalType === "VALUATION" ? 0 : finalAmount,
+                valuation: val,
+                date: values.date,
+                memo: values.memo || "",
+                confirmOverwrite,
             })
-        } else {
-            toast.error("保存に失敗しました")
+
+            if ("needsConfirmation" in res && res.needsConfirmation) {
+                const categoryName = categories.find((cat) => cat.id === catId)?.name || "資産"
+                setPendingSubmitValues(values)
+                setOverwriteItems([{
+                    label: categoryName,
+                    existingValue: res.existingValue,
+                    newValue: val,
+                    dayKey: res.dayKey,
+                }])
+                setOverwriteDialogOpen(true)
+                return
+            }
+
+            if (res.success) {
+                toast.success(confirmOverwrite ? "評価額を上書きしました" : "取引を記録しました")
+                setOpen(false)
+                setOverwriteDialogOpen(false)
+                setPendingSubmitValues(null)
+                fetchData()
+                form.reset({
+                    date: new Date(),
+                    type: "TRANSACTION",
+                    memo: "",
+                    valuation: "",
+                    amount: "",
+                    categoryId: "",
+                })
+            } else {
+                toast.error(res.error || "保存に失敗しました")
+            }
+        } finally {
+            setIsSubmitting(false)
         }
+    }
+
+    async function onSubmit(values: z.infer<typeof formSchema>) {
+        await submitTransaction(values, false)
+    }
+
+    async function confirmOverwrite() {
+        if (!pendingSubmitValues) return
+        await submitTransaction(pendingSubmitValues, true)
     }
 
     if (isLoading && transactions.length === 0) {
@@ -372,7 +404,9 @@ export default function TransactionsPage() {
                                 />
 
                                 <DialogFooter>
-                                    <Button type="submit" className="w-full">保存</Button>
+                                    <Button type="submit" className="w-full" disabled={isSubmitting}>
+                                        {isSubmitting ? "保存中..." : "保存"}
+                                    </Button>
                                 </DialogFooter>
                             </form>
                         </Form>
@@ -468,6 +502,17 @@ export default function TransactionsPage() {
                     </Table>
                 </CardContent>
             </Card>
+
+            <ValuationOverwriteDialog
+                open={overwriteDialogOpen}
+                onOpenChange={(open) => {
+                    setOverwriteDialogOpen(open)
+                    if (!open) setPendingSubmitValues(null)
+                }}
+                items={overwriteItems}
+                onConfirm={confirmOverwrite}
+                isSubmitting={isSubmitting}
+            />
         </div>
     )
 }

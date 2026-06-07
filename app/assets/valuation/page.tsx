@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
 import { getCategories, updateValuationSettingsAction } from "@/app/actions/categories"
-import { updateValuation } from "@/app/actions/assets"
+import { ValuationOverwriteDialog, type ValuationOverwriteItem } from "@/components/valuation-overwrite-dialog"
+import { checkValuationOverwrite, updateValuation } from "@/app/actions/assets"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
     DndContext,
@@ -49,6 +50,8 @@ export default function BulkValuationPage() {
     const [recordedAt, setRecordedAt] = useState(new Date().toISOString().slice(0, 10))
     const [isSaving, setIsSaving] = useState(false)
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+    const [overwriteDialogOpen, setOverwriteDialogOpen] = useState(false)
+    const [overwriteItems, setOverwriteItems] = useState<ValuationOverwriteItem[]>([])
 
     const fetchData = useCallback(async () => {
         setIsLoading(true)
@@ -67,18 +70,50 @@ export default function BulkValuationPage() {
         fetchData()
     }, [fetchData])
 
-    const handleSave = async () => {
+    const saveValuations = async (confirmOverwrite = false) => {
         setIsSaving(true)
         try {
             const dateObj = new Date(recordedAt)
             dateObj.setHours(12, 0, 0, 0)
 
             const entries = Object.entries(valuations)
-            for (const [id, val] of entries) {
-                await updateValuation(parseInt(id), val, dateObj)
+
+            if (!confirmOverwrite) {
+                const overwriteCandidates: ValuationOverwriteItem[] = []
+                for (const [id, val] of entries) {
+                    const check = await checkValuationOverwrite(parseInt(id), dateObj)
+                    if (check?.exists) {
+                        const category = categories.find((cat) => cat.id === parseInt(id))
+                        overwriteCandidates.push({
+                            label: category?.name || `資産 #${id}`,
+                            existingValue: check.existingValue,
+                            newValue: val,
+                            dayKey: check.dayKey,
+                        })
+                    }
+                }
+
+                if (overwriteCandidates.length > 0) {
+                    setOverwriteItems(overwriteCandidates)
+                    setOverwriteDialogOpen(true)
+                    return
+                }
             }
 
-            toast.success("評価額を更新しました")
+            for (const [id, val] of entries) {
+                const res = await updateValuation(parseInt(id), val, dateObj, { confirmOverwrite: true })
+                if ("needsConfirmation" in res && res.needsConfirmation) {
+                    toast.error("評価額の上書きに失敗しました")
+                    return
+                }
+                if (!res.success) {
+                    toast.error("更新に失敗しました")
+                    return
+                }
+            }
+
+            toast.success(confirmOverwrite ? "評価額を上書きしました" : "評価額を更新しました")
+            setOverwriteDialogOpen(false)
             router.push("/")
         } catch (error) {
             console.error("Save error:", error);
@@ -86,6 +121,14 @@ export default function BulkValuationPage() {
         } finally {
             setIsSaving(false)
         }
+    }
+
+    const handleSave = async () => {
+        await saveValuations(false)
+    }
+
+    const confirmOverwrite = async () => {
+        await saveValuations(true)
     }
 
     const displayedCategories = React.useMemo(() => {
@@ -227,6 +270,14 @@ export default function BulkValuationPage() {
                     setIsSettingsOpen(false)
                     toast.success("表示設定を保存しました")
                 }}
+            />
+
+            <ValuationOverwriteDialog
+                open={overwriteDialogOpen}
+                onOpenChange={setOverwriteDialogOpen}
+                items={overwriteItems}
+                onConfirm={confirmOverwrite}
+                isSubmitting={isSaving}
             />
         </div>
     )
