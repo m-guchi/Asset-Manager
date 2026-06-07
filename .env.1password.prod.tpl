@@ -1,11 +1,10 @@
-# Local development — inject secrets from 1Password:
-#   npm run dev
-#   npm run dev:tunnel
+# 本番 DB を SSH トンネル経由でローカル接続する場合:
+#   npm run prod:tunnel:op
 DB_USER=op://apps/DB/db-user
 DB_PASSWORD=op://apps/DB/db-password
 DB_HOST=op://apps/DB/db-host-dev
 DB_PORT=op://apps/DB/db-port-dev
-DB_NAME=op://apps/AssetManager/db-name-dev
+DB_NAME=op://apps/AssetManager/db-name
 NEXTAUTH_SECRET=op://apps/AssetManager/nextauth-secret
 NEXTAUTH_URL=op://apps/AssetManager/nextauth-url-dev
 AUTH_GOOGLE_ID=op://apps/AssetManager/auth-google-id
