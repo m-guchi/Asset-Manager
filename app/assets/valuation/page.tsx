@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { getCategories, updateValuationSettingsAction } from "@/app/actions/categories"
 import { ValuationOverwriteDialog, type ValuationOverwriteItem } from "@/components/valuation-overwrite-dialog"
 import { checkBulkValuationOverwrite, updateValuation } from "@/app/actions/assets"
+import { isValuationFailure, isValuationNeedsConfirmation } from "@/lib/valuation-result"
 import { parseValuationDateInput } from "@/lib/valuation-day"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
@@ -105,7 +106,7 @@ export default function BulkValuationPage() {
                     { confirmOverwrite }
                 )
 
-                if ("needsConfirmation" in res && res.needsConfirmation) {
+                if (isValuationNeedsConfirmation(res)) {
                     const category = categories.find((cat) => cat.id === entry.categoryId)
                     setOverwriteItems([{
                         label: category?.name || `資産 #${entry.categoryId}`,
@@ -117,8 +118,8 @@ export default function BulkValuationPage() {
                     return
                 }
 
-                if ("success" in res && !res.success) {
-                    toast.error("更新に失敗しました")
+                if (isValuationFailure(res)) {
+                    toast.error(res.error ?? "更新に失敗しました")
                     return
                 }
             }

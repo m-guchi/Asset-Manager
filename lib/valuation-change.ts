@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma"
 import { TransactionType } from "@prisma/client"
 import { getCalendarDayKey, getUtcDayBounds, normalizeRecordDate } from "@/lib/valuation-day"
+import type { ValuationWriteResult } from "@/lib/valuation-result"
+
+export type { ValuationWriteResult } from "@/lib/valuation-result"
 
 export type ExistingValuationChange = {
     dayKey: string
@@ -10,11 +13,6 @@ export type ExistingValuationChange = {
     duplicateTransactionIds: number[]
     duplicateAssetIds: number[]
 }
-
-export type ValuationWriteResult =
-    | { success: true }
-    | { success: false; error?: string }
-    | { needsConfirmation: true; existingValue: number; dayKey: string }
 
 async function findAssetsOnDay(categoryId: number, date: Date, userId: string) {
     const dayKey = getCalendarDayKey(date)
