@@ -79,9 +79,7 @@ export default function BulkValuationPage() {
             }
 
             toast.success("評価額を更新しました")
-            setValuations({})
-            fetchData()
-            router.push('/assets')
+            router.push("/")
         } catch (error) {
             console.error("Save error:", error);
             toast.error("更新に失敗しました")
