@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Load secrets from 1Password
         uses: 1password/load-secrets-action@v4
@@ -25,7 +25,7 @@ jobs:
         run: bash scripts/construct-database-url.sh
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -55,7 +55,7 @@ jobs:
           tar -czf deploy.tar.gz package.json package-lock.json public .next prisma next.config.ts scripts lib tsconfig.json
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-artifact
           path: deploy.tar.gz
@@ -67,10 +67,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: build-artifact
           path: ./
@@ -191,7 +191,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Determine workflow status
         id: status
