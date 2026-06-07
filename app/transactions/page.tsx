@@ -80,13 +80,20 @@ interface CategoryMinimal {
     id: number;
     name: string;
     isCash: boolean;
+    depth?: number;
 }
 
 export default function TransactionsPage() {
     const [open, setOpen] = React.useState(false)
     const [transactions, setTransactions] = React.useState<TransactionRecord[]>([])
     const [categories, setCategories] = React.useState<CategoryMinimal[]>([])
+    const [assetFilter, setAssetFilter] = React.useState("ALL")
     const [isLoading, setIsLoading] = React.useState(true)
+
+    const filteredTransactions = React.useMemo(() => {
+        if (assetFilter === "ALL") return transactions
+        return transactions.filter((tx) => tx.categoryId.toString() === assetFilter)
+    }, [transactions, assetFilter])
 
     const fetchData = React.useCallback(async () => {
         setIsLoading(true)
@@ -375,8 +382,31 @@ export default function TransactionsPage() {
 
             <Card className="flex-1 overflow-hidden flex flex-col">
                 <CardHeader className="flex-none">
-                    <CardTitle>履歴一覧</CardTitle>
-                    <CardDescription>過去の全ての入出金・評価履歴</CardDescription>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <CardTitle>履歴一覧</CardTitle>
+                            <CardDescription>
+                                {assetFilter === "ALL"
+                                    ? "過去の全ての入出金・評価履歴"
+                                    : `${filteredTransactions.length}件の取引を表示中`}
+                            </CardDescription>
+                        </div>
+                        <Select value={assetFilter} onValueChange={setAssetFilter}>
+                            <SelectTrigger className="h-9 w-full sm:w-[200px] text-xs shrink-0">
+                                <SelectValue placeholder="資産で絞り込み" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ALL">すべての資産</SelectItem>
+                                {categories.map((cat) => (
+                                    <SelectItem key={cat.id} value={cat.id.toString()}>
+                                        <span style={{ paddingLeft: `${(cat.depth || 0) * 0.75}rem` }}>
+                                            {cat.name}
+                                        </span>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </CardHeader>
                 <CardContent className="p-0 md:p-6 flex-1 overflow-y-auto min-h-0">
                     <Table>
@@ -391,7 +421,7 @@ export default function TransactionsPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {transactions.map((tx) => (
+                            {filteredTransactions.map((tx) => (
                                 <TableRow key={tx.id}>
                                     <TableCell className="text-muted-foreground text-xs">{format(new Date(tx.date), "yyyy/MM/dd")}</TableCell>
                                     <TableCell className="font-medium text-sm">{tx.category}</TableCell>
@@ -427,9 +457,11 @@ export default function TransactionsPage() {
                                     </TableCell>
                                 </TableRow>
                             ))}
-                            {transactions.length === 0 && (
+                            {filteredTransactions.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">取引履歴がありません</TableCell>
+                                    <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                                        {transactions.length === 0 ? "取引履歴がありません" : "該当する取引履歴がありません"}
+                                    </TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
