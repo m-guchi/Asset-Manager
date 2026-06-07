@@ -74,6 +74,7 @@ verify_tpl() {
 verify_tpl ".env.1password.tpl"
 verify_tpl ".env.1password.prod.tpl"
 verify_tpl ".github/deploy.env.tpl"
+verify_tpl ".github/ci.env.tpl"
 
 if [[ "$failed" -gt 0 ]]; then
   print_diagnostics

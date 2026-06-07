@@ -17,6 +17,7 @@ SMTP_FROM=op://apps/Mail/smtp-from
 NEXT_PUBLIC_GA_ID=op://apps/AssetManager/ga-id
 DISCORD_APPS_LOGIN_WEBHOOK_URL=op://apps/AssetManager/discord-apps-login
 DISCORD_APPS_REGISTER_WEBHOOK_URL=op://apps/AssetManager/discord-apps-register
+DISCORD_CI_WEBHOOK_URL=op://apps/AssetManager/discord-ci-deploy
 SSH_PRIVATE_KEY=op://apps/githubaction-sshkey/private_key?ssh-format=openssh
 HOST=op://apps/Server/host
 USERNAME=op://apps/Server/username
