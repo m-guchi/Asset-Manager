@@ -21,6 +21,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { ChangelogDialog } from "@/components/changelog-dialog"
 
 export default function SettingsPage() {
     const { setTheme, theme, systemTheme } = useTheme()
@@ -167,14 +168,21 @@ export default function SettingsPage() {
                         </Button>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                        <div className="flex justify-between py-2 border-b">
+                        <div
+                            className={`flex items-center justify-between gap-4 py-2${process.env.NODE_ENV === "development" ? " border-b" : ""}`}
+                        >
                             <span className="text-muted-foreground">Version</span>
-                            <span className="font-mono">{process.env.NEXT_PUBLIC_APP_VERSION || "1.0.0"}</span>
+                            <div className="flex items-center gap-2">
+                                <span className="font-mono">{process.env.NEXT_PUBLIC_APP_VERSION || "1.0.0"}</span>
+                                <ChangelogDialog />
+                            </div>
                         </div>
-                        <div className="flex justify-between py-2 border-b">
-                            <span className="text-muted-foreground">Environment</span>
-                            <span className="font-mono">{process.env.NODE_ENV}</span>
-                        </div>
+                        {process.env.NODE_ENV === "development" && (
+                            <div className="flex justify-between py-2 border-b">
+                                <span className="text-muted-foreground">Environment</span>
+                                <span className="font-mono">{process.env.NODE_ENV}</span>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>
