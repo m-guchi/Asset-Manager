@@ -4,21 +4,87 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { TransactionType } from "@prisma/client"
 import { getCurrentUserId } from "@/lib/auth"
+import { normalizeRecordDate } from "@/lib/valuation-day"
+import {
+    findValuationChangeForDay,
+    upsertValuationChange,
+    type ValuationWriteResult,
+} from "@/lib/valuation-change"
 
-export async function updateValuation(categoryId: number, value: number, recordedAt = new Date()) {
+export type { ValuationWriteResult }
+
+export async function checkValuationOverwrite(
+    categoryId: number,
+    date: Date
+): Promise<{ exists: boolean; existingValue: number; dayKey: string } | null> {
+    const userId = await getCurrentUserId()
+    if (!userId) return null
+
+    const existing = await findValuationChangeForDay(categoryId, date, userId)
+    if (!existing) {
+        return { exists: false, existingValue: 0, dayKey: "" }
+    }
+
+    return {
+        exists: true,
+        existingValue: existing.value,
+        dayKey: existing.dayKey,
+    }
+}
+
+export async function checkBulkValuationOverwrite(
+    entries: { categoryId: number; value: number }[],
+    date: Date
+): Promise<{ categoryId: number; existingValue: number; newValue: number; dayKey: string }[]> {
+    const userId = await getCurrentUserId()
+    if (!userId) return []
+
+    const conflicts: { categoryId: number; existingValue: number; newValue: number; dayKey: string }[] = []
+
+    for (const entry of entries) {
+        const existing = await findValuationChangeForDay(entry.categoryId, date, userId)
+        if (!existing) continue
+
+        conflicts.push({
+            categoryId: entry.categoryId,
+            existingValue: existing.value,
+            newValue: entry.value,
+            dayKey: existing.dayKey,
+        })
+    }
+
+    return conflicts
+}
+
+export async function updateValuation(
+    categoryId: number,
+    value: number,
+    recordedAt = new Date(),
+    options?: { confirmOverwrite?: boolean }
+): Promise<ValuationWriteResult> {
     try {
         const userId = await getCurrentUserId()
         if (!userId) {
             throw new Error("User not authenticated")
         }
-        await prisma.asset.create({
-            data: {
-                categoryId,
-                userId: userId!,
-                currentValue: value,
-                recordedAt
-            }
+
+        const result = await upsertValuationChange({
+            categoryId,
+            userId,
+            date: recordedAt,
+            value,
+            confirmOverwrite: options?.confirmOverwrite,
+            createTransaction: false,
         })
+
+        if ("needsConfirmation" in result) {
+            return result
+        }
+
+        if (!result.success) {
+            return result
+        }
+
         revalidatePath("/")
         revalidatePath("/assets")
         revalidatePath("/transactions")
@@ -37,6 +103,7 @@ export async function addTransaction(categoryId: number, data: {
     valuation?: number // Optional
     date: Date
     memo?: string
+    confirmOverwrite?: boolean
 }) {
     // Input Validation
     if (data.memo && data.memo.length > 200) {
@@ -48,6 +115,38 @@ export async function addTransaction(categoryId: number, data: {
         if (!userId) {
             throw new Error("User not authenticated")
         }
+
+        if (data.type === "VALUATION") {
+            if (data.valuation === undefined || data.valuation === null || isNaN(data.valuation)) {
+                return { success: false, error: "評価額を入力してください" }
+            }
+
+            const result = await upsertValuationChange({
+                categoryId,
+                userId,
+                date: data.date,
+                value: data.valuation,
+                memo: data.memo,
+                confirmOverwrite: data.confirmOverwrite,
+                createTransaction: true,
+            })
+
+            if ("needsConfirmation" in result) {
+                return result
+            }
+
+            if (!result.success) {
+                return result
+            }
+
+            revalidatePath("/")
+            revalidatePath("/assets")
+            revalidatePath("/transactions")
+            revalidatePath(`/assets/${categoryId}`)
+            return { success: true }
+        }
+
+        const recordedAt = normalizeRecordDate(data.date)
         const operations: Array<ReturnType<typeof prisma.transaction.create> | ReturnType<typeof prisma.asset.create>> = [
             prisma.transaction.create({
                 data: {
@@ -56,7 +155,7 @@ export async function addTransaction(categoryId: number, data: {
                     type: data.type as TransactionType,
                     amount: data.amount,
                     realizedGain: data.realizedGain,
-                    transactedAt: data.date,
+                    transactedAt: recordedAt,
                     memo: data.memo
                 }
             })
@@ -70,7 +169,7 @@ export async function addTransaction(categoryId: number, data: {
                         categoryId,
                         userId: userId!,
                         currentValue: data.valuation,
-                        recordedAt: data.date
+                        recordedAt
                     }
                 })
             );
@@ -193,8 +292,9 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: Upd
             const txType = (data.type === 'DEPOSIT' || data.type === 'WITHDRAW')
                 ? data.type
                 : (data.type === 'VALUATION' ? 'VALUATION' : (amt >= 0 ? 'DEPOSIT' : 'WITHDRAW'))
+            const recordedAt = normalizeRecordDate(new Date(data.date))
 
-            type Op = ReturnType<typeof prisma.transaction.update> | ReturnType<typeof prisma.asset.deleteMany> | ReturnType<typeof prisma.asset.create>;
+            type Op = ReturnType<typeof prisma.transaction.update> | ReturnType<typeof prisma.asset.deleteMany> | ReturnType<typeof prisma.asset.create> | ReturnType<typeof prisma.asset.update>;
             const operations: Op[] = [
                 prisma.transaction.update({
                     where: { id },
@@ -202,13 +302,12 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: Upd
                         type: txType as TransactionType,
                         amount: Math.abs(amt),
                         realizedGain: data.realizedGain !== undefined ? Number(data.realizedGain) : undefined,
-                        transactedAt: new Date(data.date),
+                        transactedAt: recordedAt,
                         memo: data.memo
                     }
                 })
             ];
 
-            // Check if there are other transactions on the OLD date
             const otherTxCount = await prisma.transaction.count({
                 where: {
                     categoryId: oldTx.categoryId,
@@ -218,7 +317,6 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: Upd
             });
 
             if (otherTxCount === 0) {
-                // Only delete asset record if no other transactions exist on that day
                 operations.push(
                     prisma.asset.deleteMany({
                         where: {
@@ -229,20 +327,45 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: Upd
                 );
             }
 
-            // Create new asset record only if valuation is provided
             if (data.valuation !== undefined && data.valuation !== null && data.valuation !== "") {
                 const numVal = Number(data.valuation);
                 if (!isNaN(numVal)) {
-                    operations.push(
-                        prisma.asset.create({
-                            data: {
-                                categoryId: oldTx.categoryId,
-                                userId: userId!,
-                                currentValue: numVal,
-                                recordedAt: new Date(data.date)
-                            }
-                        })
-                    );
+                    if (txType === 'VALUATION') {
+                        const existing = await findValuationChangeForDay(oldTx.categoryId, new Date(data.date), userId)
+                        if (existing?.assetId) {
+                            operations.push(
+                                prisma.asset.update({
+                                    where: { id: existing.assetId },
+                                    data: {
+                                        currentValue: numVal,
+                                        recordedAt,
+                                    },
+                                })
+                            )
+                        } else {
+                            operations.push(
+                                prisma.asset.create({
+                                    data: {
+                                        categoryId: oldTx.categoryId,
+                                        userId: userId!,
+                                        currentValue: numVal,
+                                        recordedAt,
+                                    }
+                                })
+                            );
+                        }
+                    } else {
+                        operations.push(
+                            prisma.asset.create({
+                                data: {
+                                    categoryId: oldTx.categoryId,
+                                    userId: userId!,
+                                    currentValue: numVal,
+                                    recordedAt,
+                                }
+                            })
+                        );
+                    }
                 }
             }
 
@@ -253,7 +376,7 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: Upd
                 where: { id },
                 data: {
                     currentValue: Number(data.valuation),
-                    recordedAt: new Date(data.date)
+                    recordedAt: normalizeRecordDate(new Date(data.date))
                 }
             })
             revalidatePath(`/assets/${asset.categoryId}`)

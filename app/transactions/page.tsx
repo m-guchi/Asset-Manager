@@ -53,6 +53,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
 import { getCategories } from "../actions/categories"
+import { ValuationOverwriteDialog, type ValuationOverwriteItem } from "@/components/valuation-overwrite-dialog"
 import { getTransactions, addTransaction } from "../actions/assets"
 
 // Schema
@@ -80,13 +81,24 @@ interface CategoryMinimal {
     id: number;
     name: string;
     isCash: boolean;
+    depth?: number;
 }
 
 export default function TransactionsPage() {
     const [open, setOpen] = React.useState(false)
     const [transactions, setTransactions] = React.useState<TransactionRecord[]>([])
     const [categories, setCategories] = React.useState<CategoryMinimal[]>([])
+    const [assetFilter, setAssetFilter] = React.useState("ALL")
     const [isLoading, setIsLoading] = React.useState(true)
+    const [overwriteDialogOpen, setOverwriteDialogOpen] = React.useState(false)
+    const [overwriteItems, setOverwriteItems] = React.useState<ValuationOverwriteItem[]>([])
+    const [pendingSubmitValues, setPendingSubmitValues] = React.useState<z.infer<typeof formSchema> | null>(null)
+    const [isSubmitting, setIsSubmitting] = React.useState(false)
+
+    const filteredTransactions = React.useMemo(() => {
+        if (assetFilter === "ALL") return transactions
+        return transactions.filter((tx) => tx.categoryId.toString() === assetFilter)
+    }, [transactions, assetFilter])
 
     const fetchData = React.useCallback(async () => {
         setIsLoading(true)
@@ -154,46 +166,73 @@ export default function TransactionsPage() {
         form.setValue("valuation", (lastVal + amt).toString())
     }, [watchAmount, watchCategoryId, watchType, transactions, form, categories])
 
-    async function onSubmit(values: z.infer<typeof formSchema>) {
+    async function submitTransaction(values: z.infer<typeof formSchema>, confirmOverwrite = false) {
         const catId = parseInt(values.categoryId)
         const amt = parseInt(values.amount || "0")
         const val = parseInt(values.valuation)
 
-        let finalType: "DEPOSIT" | "WITHDRAW" | "VALUATION" = "VALUATION";
+        let finalType: "DEPOSIT" | "WITHDRAW" | "VALUATION" = "VALUATION"
         if (values.type === "TRANSACTION") {
             finalType = amt >= 0 ? "DEPOSIT" : "WITHDRAW"
-        } else {
-            finalType = "VALUATION"
         }
         let finalAmount = amt
-
         if (values.type === "TRANSACTION") {
             finalAmount = Math.abs(amt)
         }
 
-        const res = await addTransaction(catId, {
-            type: finalType,
-            amount: finalType === "VALUATION" ? 0 : finalAmount,
-            valuation: val,
-            date: values.date,
-            memo: values.memo || ""
-        })
-
-        if (res.success) {
-            toast.success("取引を記録しました")
-            setOpen(false)
-            fetchData() // Refresh list
-            form.reset({
-                date: new Date(),
-                type: "TRANSACTION",
-                memo: "",
-                valuation: "",
-                amount: "",
-                categoryId: "",
+        setIsSubmitting(true)
+        try {
+            const res = await addTransaction(catId, {
+                type: finalType,
+                amount: finalType === "VALUATION" ? 0 : finalAmount,
+                valuation: val,
+                date: values.date,
+                memo: values.memo || "",
+                confirmOverwrite,
             })
-        } else {
-            toast.error("保存に失敗しました")
+
+            if ("needsConfirmation" in res && res.needsConfirmation) {
+                const categoryName = categories.find((cat) => cat.id === catId)?.name || "資産"
+                setPendingSubmitValues(values)
+                setOverwriteItems([{
+                    label: categoryName,
+                    existingValue: res.existingValue,
+                    newValue: val,
+                    dayKey: res.dayKey,
+                }])
+                setOverwriteDialogOpen(true)
+                return
+            }
+
+            if ("success" in res && res.success) {
+                toast.success(confirmOverwrite ? "評価額を上書きしました" : "取引を記録しました")
+                setOpen(false)
+                setOverwriteDialogOpen(false)
+                setPendingSubmitValues(null)
+                fetchData()
+                form.reset({
+                    date: new Date(),
+                    type: "TRANSACTION",
+                    memo: "",
+                    valuation: "",
+                    amount: "",
+                    categoryId: "",
+                })
+            } else {
+                toast.error("error" in res && res.error ? res.error : "保存に失敗しました")
+            }
+        } finally {
+            setIsSubmitting(false)
         }
+    }
+
+    async function onSubmit(values: z.infer<typeof formSchema>) {
+        await submitTransaction(values, false)
+    }
+
+    async function confirmOverwrite() {
+        if (!pendingSubmitValues) return
+        await submitTransaction(pendingSubmitValues, true)
     }
 
     if (isLoading && transactions.length === 0) {
@@ -365,7 +404,9 @@ export default function TransactionsPage() {
                                 />
 
                                 <DialogFooter>
-                                    <Button type="submit" className="w-full">保存</Button>
+                                    <Button type="submit" className="w-full" disabled={isSubmitting}>
+                                        {isSubmitting ? "保存中..." : "保存"}
+                                    </Button>
                                 </DialogFooter>
                             </form>
                         </Form>
@@ -375,8 +416,31 @@ export default function TransactionsPage() {
 
             <Card className="flex-1 overflow-hidden flex flex-col">
                 <CardHeader className="flex-none">
-                    <CardTitle>履歴一覧</CardTitle>
-                    <CardDescription>過去の全ての入出金・評価履歴</CardDescription>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <CardTitle>履歴一覧</CardTitle>
+                            <CardDescription>
+                                {assetFilter === "ALL"
+                                    ? "過去の全ての入出金・評価履歴"
+                                    : `${filteredTransactions.length}件の取引を表示中`}
+                            </CardDescription>
+                        </div>
+                        <Select value={assetFilter} onValueChange={setAssetFilter}>
+                            <SelectTrigger className="h-9 w-full sm:w-[200px] text-xs shrink-0">
+                                <SelectValue placeholder="資産で絞り込み" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ALL">すべての資産</SelectItem>
+                                {categories.map((cat) => (
+                                    <SelectItem key={cat.id} value={cat.id.toString()}>
+                                        <span style={{ paddingLeft: `${(cat.depth || 0) * 0.75}rem` }}>
+                                            {cat.name}
+                                        </span>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </CardHeader>
                 <CardContent className="p-0 md:p-6 flex-1 overflow-y-auto min-h-0">
                     <Table>
@@ -391,7 +455,7 @@ export default function TransactionsPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {transactions.map((tx) => (
+                            {filteredTransactions.map((tx) => (
                                 <TableRow key={tx.id}>
                                     <TableCell className="text-muted-foreground text-xs">{format(new Date(tx.date), "yyyy/MM/dd")}</TableCell>
                                     <TableCell className="font-medium text-sm">{tx.category}</TableCell>
@@ -427,15 +491,28 @@ export default function TransactionsPage() {
                                     </TableCell>
                                 </TableRow>
                             ))}
-                            {transactions.length === 0 && (
+                            {filteredTransactions.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">取引履歴がありません</TableCell>
+                                    <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                                        {transactions.length === 0 ? "取引履歴がありません" : "該当する取引履歴がありません"}
+                                    </TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
                     </Table>
                 </CardContent>
             </Card>
+
+            <ValuationOverwriteDialog
+                open={overwriteDialogOpen}
+                onOpenChange={(open) => {
+                    setOverwriteDialogOpen(open)
+                    if (!open) setPendingSubmitValues(null)
+                }}
+                items={overwriteItems}
+                onConfirm={confirmOverwrite}
+                isSubmitting={isSubmitting}
+            />
         </div>
     )
 }

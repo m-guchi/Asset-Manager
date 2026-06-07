@@ -36,6 +36,7 @@ import {
 import { toast } from "sonner"
 
 import { AssetDetailHistoryChart, AssetDetailChartPoint } from "@/components/assets/asset-detail-history-chart"
+import { ValuationOverwriteDialog, type ValuationOverwriteItem } from "@/components/valuation-overwrite-dialog"
 import { getCategoryDetails } from "../../actions/categories"
 import { updateValuation, addTransaction, deleteHistoryItem, updateHistoryItem } from "../../actions/assets"
 
@@ -82,6 +83,9 @@ export default function AssetDetailPage() {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
     const [deletingItemId, setDeletingItemId] = React.useState<string | null>(null)
     const [showZeroWarning, setShowZeroWarning] = React.useState(false)
+    const [overwriteDialogOpen, setOverwriteDialogOpen] = React.useState(false)
+    const [overwriteItems, setOverwriteItems] = React.useState<ValuationOverwriteItem[]>([])
+    const [isSavingTrx, setIsSavingTrx] = React.useState(false)
     const [activeChartPoint, setActiveChartPoint] = React.useState<AssetDetailChartPoint | null>(null)
     const [showBreakdown, setShowBreakdown] = React.useState(true)
     const [showChildPnl, setShowChildPnl] = React.useState(false)
@@ -133,15 +137,12 @@ export default function AssetDetailPage() {
         }
     }, [category, editingItem])
 
-    const handleAddTrx = async () => {
-        // Validation: Valuation is mandatory ONLY for 'VALUATION' type updates.
-        // For 'TRANSACTION' (Deposit/Withdrawal), it is optional.
+    const handleAddTrx = async (confirmOverwrite = false) => {
         if (newTrx.type === 'VALUATION' && !newTrx.valuation) {
             toast.error("評価額を入力してください")
             return
         }
 
-        // 入金・出金時の0円チェック
         if ((newTrx.type === "DEPOSIT" || newTrx.type === "WITHDRAW") && !showZeroWarning) {
             const checkVal = newTrx.type === "WITHDRAW" && !category?.isCash ? saleAmount : newTrx.amount;
             if (!checkVal || Number(checkVal) === 0) {
@@ -150,14 +151,20 @@ export default function AssetDetailPage() {
             }
         }
 
-        let res;
-        if (editingItem) {
-            const [typeStr, itemId] = editingItem.id.split('-')
-            const itemType = typeStr === 'tx' ? 'tx' : 'as'
-            res = await updateHistoryItem(itemType, Number(itemId), newTrx)
-        } else {
-            if (newTrx.type === 'VALUATION') {
-                res = await updateValuation(id, Number(newTrx.valuation), new Date(newTrx.date))
+        setIsSavingTrx(true)
+        try {
+            let res;
+            if (editingItem) {
+                const [typeStr, itemId] = editingItem.id.split('-')
+                const itemType = typeStr === 'tx' ? 'tx' : 'as'
+                res = await updateHistoryItem(itemType, Number(itemId), newTrx)
+            } else if (newTrx.type === 'VALUATION') {
+                res = await updateValuation(
+                    id,
+                    Number(newTrx.valuation),
+                    new Date(newTrx.date),
+                    { confirmOverwrite }
+                )
             } else {
                 const amt = Number(newTrx.amount) || 0
                 res = await addTransaction(id, {
@@ -169,16 +176,41 @@ export default function AssetDetailPage() {
                     memo: newTrx.memo
                 })
             }
-        }
 
-        if (res.success) {
-            toast.success(editingItem ? "更新しました" : "記録しました")
-            setIsTrxModalOpen(false)
-            setEditingItem(null)
-            fetchData()
-        } else {
-            toast.error("保存に失敗しました")
+            if ("needsConfirmation" in res && res.needsConfirmation) {
+                setOverwriteItems([{
+                    label: category?.name || "資産",
+                    existingValue: res.existingValue,
+                    newValue: Number(newTrx.valuation),
+                    dayKey: res.dayKey,
+                }])
+                setOverwriteDialogOpen(true)
+                return
+            }
+
+            if ("success" in res && res.success) {
+                toast.success(
+                    editingItem
+                        ? "更新しました"
+                        : confirmOverwrite
+                            ? "評価額を上書きしました"
+                            : "記録しました"
+                )
+                setIsTrxModalOpen(false)
+                setEditingItem(null)
+                setOverwriteDialogOpen(false)
+                setShowZeroWarning(false)
+                fetchData()
+            } else {
+                toast.error("error" in res && res.error ? res.error : "保存に失敗しました")
+            }
+        } finally {
+            setIsSavingTrx(false)
         }
+    }
+
+    const confirmValuationOverwrite = async () => {
+        await handleAddTrx(true)
     }
 
     const handleDelete = (itemIdStr: string) => {
@@ -821,16 +853,25 @@ export default function AssetDetailPage() {
                         <div className="flex gap-2 justify-end w-full">
                             <Button variant="outline" onClick={() => setIsTrxModalOpen(false)}>キャンセル</Button>
                             <Button
-                                onClick={handleAddTrx}
+                                onClick={() => handleAddTrx(false)}
                                 variant="default"
+                                disabled={isSavingTrx}
                                 className={showZeroWarning ? "bg-amber-600 hover:bg-amber-700 text-white" : ""}
                             >
-                                {showZeroWarning ? "はい、記録します" : "保存する"}
+                                {isSavingTrx ? "保存中..." : showZeroWarning ? "はい、記録します" : "保存する"}
                             </Button>
                         </div>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <ValuationOverwriteDialog
+                open={overwriteDialogOpen}
+                onOpenChange={setOverwriteDialogOpen}
+                items={overwriteItems}
+                onConfirm={confirmValuationOverwrite}
+                isSubmitting={isSavingTrx}
+            />
 
             {/* Delete Confirmation Dialog */}
             <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
