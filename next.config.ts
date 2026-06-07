@@ -15,16 +15,6 @@ const nextConfig: NextConfig = {
         NEXTAUTH_URL: process.env.NEXTAUTH_URL,
         NEXT_PUBLIC_NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     },
-    webpack: (config, { dev }) => {
-        if (dev) {
-            config.watchOptions = {
-                poll: 1000,
-                aggregateTimeout: 300,
-                ignored: ["**/node_modules/**", "**/.git/**", "**/.next/**"],
-            };
-        }
-        return config;
-    },
     images: {
         remotePatterns: [
             {
