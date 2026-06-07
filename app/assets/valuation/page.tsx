@@ -154,6 +154,26 @@ export default function BulkValuationPage() {
         return displayedCategories.filter((c) => c.valuationAlias?.trim())
     }, [displayedCategories])
 
+    const valuationTotals = React.useMemo(() => {
+        let inputTotal = 0
+        let previousTotal = 0
+
+        for (const cat of displayedCategories) {
+            const previous = Number(cat.currentValue)
+            previousTotal += previous
+
+            const inputVal = valuations[cat.id]
+            const hasInput = inputVal !== undefined && !Number.isNaN(inputVal)
+            inputTotal += hasInput ? inputVal : previous
+        }
+
+        return {
+            inputTotal,
+            previousTotal,
+            diff: inputTotal - previousTotal,
+        }
+    }, [displayedCategories, valuations])
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center p-20">
@@ -264,11 +284,39 @@ export default function BulkValuationPage() {
                         </TableBody>
                     </Table>
                 </CardContent>
-                <CardFooter className="flex justify-end border-t pt-4">
-                    <Button disabled={isSaving || Object.keys(valuations).length === 0} onClick={handleSave}>
-                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {Object.keys(valuations).length}件の評価額を一括保存
-                    </Button>
+                <CardFooter className="flex flex-col gap-3 border-t pt-4">
+                    {displayedCategories.length > 0 && (
+                        <div className="flex w-full flex-wrap items-baseline justify-end gap-x-4 gap-y-1 text-sm tabular-nums">
+                            <div className="flex items-baseline gap-1.5">
+                                <span className="text-muted-foreground text-xs">入力合計</span>
+                                <span className="font-bold">¥{valuationTotals.inputTotal.toLocaleString()}</span>
+                            </div>
+                            <div className="flex items-baseline gap-1.5">
+                                <span className="text-muted-foreground text-xs">前回合計</span>
+                                <span>¥{valuationTotals.previousTotal.toLocaleString()}</span>
+                            </div>
+                            <div className="flex items-baseline gap-1.5">
+                                <span className="text-muted-foreground text-xs">差分</span>
+                                <span
+                                    className={
+                                        valuationTotals.diff > 0
+                                            ? "font-semibold text-emerald-600 dark:text-emerald-400"
+                                            : valuationTotals.diff < 0
+                                              ? "font-semibold text-red-600 dark:text-red-400"
+                                              : "text-muted-foreground"
+                                    }
+                                >
+                                    {formatValuationDiff(valuationTotals.diff)}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                    <div className="flex w-full justify-end">
+                        <Button disabled={isSaving || Object.keys(valuations).length === 0} onClick={handleSave}>
+                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {Object.keys(valuations).length}件の評価額を一括保存
+                        </Button>
+                    </div>
                 </CardFooter>
             </Card>
 
