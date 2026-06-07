@@ -9,6 +9,7 @@
     "dev": "op run --env-file=.env.1password.tpl -- bash scripts/construct-database-url.sh bash scripts/next-dev.sh",
     "dev:tunnel": "npm run tunnel:kill && npm run tunnel:start && op run --env-file=.env.1password.tpl -- bash scripts/construct-database-url.sh bash scripts/next-dev.sh",
     "verify:op": "bash scripts/verify-1password-secrets.sh",
+    "test:smtp": "bash scripts/test-smtp-send.sh",
     "migrate": "prisma migrate dev",
     "prod": "op run --env-file=.env.1password.prod.tpl -- bash scripts/construct-database-url.sh bash scripts/next-dev.sh",
     "prod:tunnel": "npm run tunnel:kill && npm run tunnel:start && op run --env-file=.env.1password.prod.tpl -- bash scripts/construct-database-url.sh bash scripts/next-dev.sh",

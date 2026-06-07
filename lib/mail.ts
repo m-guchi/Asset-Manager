@@ -1,5 +1,28 @@
 import nodemailer from "nodemailer";
 
+const extractEmail = (value: string) => {
+    const match = value.match(/<([^>]+)>/);
+    return (match ? match[1] : value).trim();
+};
+
+/** Use SMTP_USER as the authoritative sender address (matches Sakura webmail behavior). */
+const buildFromAddress = () => {
+    const smtpUser = process.env.SMTP_USER;
+    const smtpFrom = process.env.SMTP_FROM || "Asset Manager <noreply@example.com>";
+
+    if (!smtpUser) {
+        return smtpFrom;
+    }
+
+    const userEmail = extractEmail(smtpUser);
+    const displayMatch = smtpFrom.match(/^(.+)<[^>]+>$/);
+    if (displayMatch) {
+        return `${displayMatch[1].trim()} <${userEmail}>`;
+    }
+
+    return userEmail;
+};
+
 const getTransporter = () => {
     const host = process.env.SMTP_HOST;
     const port = parseInt(process.env.SMTP_PORT || "587");
@@ -24,7 +47,7 @@ const getTransporter = () => {
 
 const sendMail = async (options: { to: string; subject: string; html: string; text: string }) => {
     const transporter = getTransporter();
-    const from = process.env.SMTP_FROM || "Asset Manager <noreply@example.com>";
+    const from = buildFromAddress();
 
     if (!transporter) {
         console.log("========================================");
@@ -35,14 +58,30 @@ const sendMail = async (options: { to: string; subject: string; html: string; te
         return;
     }
 
+    const smtpUser = process.env.SMTP_USER;
+    const envelopeFrom = smtpUser ? extractEmail(smtpUser) : extractEmail(from);
+
+    const configuredFrom = process.env.SMTP_FROM;
+    if (smtpUser && configuredFrom && extractEmail(configuredFrom) !== extractEmail(smtpUser)) {
+        console.warn(
+            `SMTP_FROM (${extractEmail(configuredFrom)}) differs from SMTP_USER (${extractEmail(smtpUser)}); ` +
+            `using ${extractEmail(from)} as From address.`
+        );
+    }
+
     try {
-        await transporter.sendMail({
+        const info = await transporter.sendMail({
             from,
             to: options.to,
+            envelope: {
+                from: envelopeFrom,
+                to: options.to,
+            },
             subject: options.subject,
             html: options.html,
             text: options.text,
         });
+        console.log(`Email sent to ${options.to}, messageId: ${info.messageId}, response: ${info.response}`);
     } catch (error) {
         console.error("Failed to send email:", error);
         throw new Error("メールの送信に失敗しました");
