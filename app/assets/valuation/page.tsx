@@ -12,7 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner"
 import { getCategories, updateValuationSettingsAction } from "@/app/actions/categories"
 import { ValuationOverwriteDialog, type ValuationOverwriteItem } from "@/components/valuation-overwrite-dialog"
-import { checkValuationOverwrite, updateValuation } from "@/app/actions/assets"
+import { checkBulkValuationOverwrite, updateValuation } from "@/app/actions/assets"
+import { parseValuationDateInput } from "@/lib/valuation-day"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
     DndContext,
@@ -73,39 +74,49 @@ export default function BulkValuationPage() {
     const saveValuations = async (confirmOverwrite = false) => {
         setIsSaving(true)
         try {
-            const dateObj = new Date(recordedAt)
-            dateObj.setHours(12, 0, 0, 0)
-
-            const entries = Object.entries(valuations)
+            const dateObj = parseValuationDateInput(recordedAt)
+            const entries = Object.entries(valuations).map(([id, val]) => ({
+                categoryId: parseInt(id),
+                value: val,
+            }))
 
             if (!confirmOverwrite) {
-                const overwriteCandidates: ValuationOverwriteItem[] = []
-                for (const [id, val] of entries) {
-                    const check = await checkValuationOverwrite(parseInt(id), dateObj)
-                    if (check?.exists) {
-                        const category = categories.find((cat) => cat.id === parseInt(id))
-                        overwriteCandidates.push({
-                            label: category?.name || `資産 #${id}`,
-                            existingValue: check.existingValue,
-                            newValue: val,
-                            dayKey: check.dayKey,
-                        })
-                    }
-                }
-
-                if (overwriteCandidates.length > 0) {
-                    setOverwriteItems(overwriteCandidates)
+                const conflicts = await checkBulkValuationOverwrite(entries, dateObj)
+                if (conflicts.length > 0) {
+                    setOverwriteItems(conflicts.map((conflict) => {
+                        const category = categories.find((cat) => cat.id === conflict.categoryId)
+                        return {
+                            label: category?.name || `資産 #${conflict.categoryId}`,
+                            existingValue: conflict.existingValue,
+                            newValue: conflict.newValue,
+                            dayKey: conflict.dayKey,
+                        }
+                    }))
                     setOverwriteDialogOpen(true)
                     return
                 }
             }
 
-            for (const [id, val] of entries) {
-                const res = await updateValuation(parseInt(id), val, dateObj, { confirmOverwrite: true })
+            for (const entry of entries) {
+                const res = await updateValuation(
+                    entry.categoryId,
+                    entry.value,
+                    dateObj,
+                    { confirmOverwrite }
+                )
+
                 if ("needsConfirmation" in res && res.needsConfirmation) {
-                    toast.error("評価額の上書きに失敗しました")
+                    const category = categories.find((cat) => cat.id === entry.categoryId)
+                    setOverwriteItems([{
+                        label: category?.name || `資産 #${entry.categoryId}`,
+                        existingValue: res.existingValue,
+                        newValue: entry.value,
+                        dayKey: res.dayKey,
+                    }])
+                    setOverwriteDialogOpen(true)
                     return
                 }
+
                 if (!res.success) {
                     toast.error("更新に失敗しました")
                     return
@@ -114,6 +125,8 @@ export default function BulkValuationPage() {
 
             toast.success(confirmOverwrite ? "評価額を上書きしました" : "評価額を更新しました")
             setOverwriteDialogOpen(false)
+            setValuations({})
+            await fetchData()
             router.push("/")
         } catch (error) {
             console.error("Save error:", error);

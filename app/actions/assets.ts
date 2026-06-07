@@ -32,6 +32,30 @@ export async function checkValuationOverwrite(
     }
 }
 
+export async function checkBulkValuationOverwrite(
+    entries: { categoryId: number; value: number }[],
+    date: Date
+): Promise<{ categoryId: number; existingValue: number; newValue: number; dayKey: string }[]> {
+    const userId = await getCurrentUserId()
+    if (!userId) return []
+
+    const conflicts: { categoryId: number; existingValue: number; newValue: number; dayKey: string }[] = []
+
+    for (const entry of entries) {
+        const existing = await findValuationChangeForDay(entry.categoryId, date, userId)
+        if (!existing) continue
+
+        conflicts.push({
+            categoryId: entry.categoryId,
+            existingValue: existing.value,
+            newValue: entry.value,
+            dayKey: existing.dayKey,
+        })
+    }
+
+    return conflicts
+}
+
 export async function updateValuation(
     categoryId: number,
     value: number,

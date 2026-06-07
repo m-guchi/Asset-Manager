@@ -13,3 +13,12 @@ export function normalizeRecordDate(date: Date): Date {
     const dayKey = getCalendarDayKey(date)
     return new Date(`${dayKey}T12:00:00.000Z`)
 }
+
+export function parseValuationDateInput(dateInput: string | Date): Date {
+    if (dateInput instanceof Date) {
+        return normalizeRecordDate(dateInput)
+    }
+
+    const dayKey = dateInput.slice(0, 10)
+    return new Date(`${dayKey}T12:00:00.000Z`)
+}

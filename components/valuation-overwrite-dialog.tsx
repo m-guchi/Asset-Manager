@@ -49,9 +49,13 @@ export function ValuationOverwriteDialog({
                 <DialogHeader>
                     <DialogTitle>評価額の上書き確認</DialogTitle>
                     <DialogDescription>
-                        {dayLabel
-                            ? `${dayLabel}にはすでに評価額の記録があります。新しい値で上書きしますか？`
-                            : "すでに評価額の記録があります。新しい値で上書きしますか？"}
+                        {items.length > 1
+                            ? dayLabel
+                                ? `${dayLabel}に登録済みの評価額があります。以下の内容で上書きしますか？`
+                                : "登録済みの評価額があります。以下の内容で上書きしますか？"
+                            : dayLabel
+                                ? `${dayLabel}にはすでに評価額の記録があります。新しい値で上書きしますか？`
+                                : "すでに評価額の記録があります。新しい値で上書きしますか？"}
                     </DialogDescription>
                 </DialogHeader>
 
