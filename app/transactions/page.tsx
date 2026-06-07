@@ -55,6 +55,7 @@ import { toast } from "sonner"
 import { getCategories } from "../actions/categories"
 import { ValuationOverwriteDialog, type ValuationOverwriteItem } from "@/components/valuation-overwrite-dialog"
 import { getTransactions, addTransaction } from "../actions/assets"
+import { isValuationFailure, isValuationNeedsConfirmation, isValuationSuccess } from "@/lib/valuation-result"
 
 // Schema
 const formSchema = z.object({
@@ -191,7 +192,7 @@ export default function TransactionsPage() {
                 confirmOverwrite,
             })
 
-            if ("needsConfirmation" in res && res.needsConfirmation) {
+            if (isValuationNeedsConfirmation(res)) {
                 const categoryName = categories.find((cat) => cat.id === catId)?.name || "資産"
                 setPendingSubmitValues(values)
                 setOverwriteItems([{
@@ -204,7 +205,7 @@ export default function TransactionsPage() {
                 return
             }
 
-            if ("success" in res && res.success) {
+            if (isValuationSuccess(res)) {
                 toast.success(confirmOverwrite ? "評価額を上書きしました" : "取引を記録しました")
                 setOpen(false)
                 setOverwriteDialogOpen(false)
@@ -219,7 +220,7 @@ export default function TransactionsPage() {
                     categoryId: "",
                 })
             } else {
-                toast.error("error" in res && res.error ? res.error : "保存に失敗しました")
+                toast.error(isValuationFailure(res) && res.error ? res.error : "保存に失敗しました")
             }
         } finally {
             setIsSubmitting(false)

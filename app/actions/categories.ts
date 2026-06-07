@@ -808,7 +808,17 @@ export async function getCategoryDetails(id: number) {
                 name: d.name
             })),
             parent: catWithNested.parent ? { id: catWithNested.parent.id, name: catWithNested.parent.name } : null,
-            transactions: mergedList
+            transactions: mergedList.map((item) => {
+                const { rawDate, ...rest } = item
+                void rawDate
+                return {
+                    ...rest,
+                    amount: Number(rest.amount),
+                    realizedGain: rest.realizedGain != null ? Number(rest.realizedGain) : null,
+                    pointInTimeValuation:
+                        rest.pointInTimeValuation != null ? Number(rest.pointInTimeValuation) : null,
+                }
+            })
         };
     } catch (error) {
         console.error("Fetch detail error", error);

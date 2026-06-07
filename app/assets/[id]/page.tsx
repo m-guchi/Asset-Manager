@@ -39,6 +39,7 @@ import { AssetDetailHistoryChart, AssetDetailChartPoint } from "@/components/ass
 import { ValuationOverwriteDialog, type ValuationOverwriteItem } from "@/components/valuation-overwrite-dialog"
 import { getCategoryDetails } from "../../actions/categories"
 import { updateValuation, addTransaction, deleteHistoryItem, updateHistoryItem } from "../../actions/assets"
+import { isValuationFailure, isValuationNeedsConfirmation, isValuationSuccess } from "@/lib/valuation-result"
 
 interface TransactionItem {
     id: string;
@@ -92,11 +93,19 @@ export default function AssetDetailPage() {
 
     const fetchData = React.useCallback(async () => {
         setIsLoading(true)
-        const data = await getCategoryDetails(id)
-        if (data) {
-            setCategory(data)
+        try {
+            const data = await getCategoryDetails(id)
+            if (data) {
+                setCategory(data)
+            } else {
+                toast.error("データの取得に失敗しました")
+            }
+        } catch (err) {
+            console.error(err)
+            toast.error("データの取得に失敗しました")
+        } finally {
+            setIsLoading(false)
         }
-        setIsLoading(false)
     }, [id])
 
     React.useEffect(() => {
@@ -177,7 +186,7 @@ export default function AssetDetailPage() {
                 })
             }
 
-            if ("needsConfirmation" in res && res.needsConfirmation) {
+            if (isValuationNeedsConfirmation(res)) {
                 setOverwriteItems([{
                     label: category?.name || "資産",
                     existingValue: res.existingValue,
@@ -188,7 +197,7 @@ export default function AssetDetailPage() {
                 return
             }
 
-            if ("success" in res && res.success) {
+            if (isValuationSuccess(res)) {
                 toast.success(
                     editingItem
                         ? "更新しました"
@@ -202,7 +211,7 @@ export default function AssetDetailPage() {
                 setShowZeroWarning(false)
                 fetchData()
             } else {
-                toast.error("error" in res && res.error ? res.error : "保存に失敗しました")
+                toast.error(isValuationFailure(res) && res.error ? res.error : "保存に失敗しました")
             }
         } finally {
             setIsSavingTrx(false)

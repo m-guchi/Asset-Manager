@@ -8,10 +8,8 @@ import { normalizeRecordDate } from "@/lib/valuation-day"
 import {
     findValuationChangeForDay,
     upsertValuationChange,
-    type ValuationWriteResult,
 } from "@/lib/valuation-change"
-
-export type { ValuationWriteResult }
+import type { ValuationWriteResult } from "@/lib/valuation-result"
 
 export async function checkValuationOverwrite(
     categoryId: number,
@@ -215,7 +213,7 @@ export async function getTransactions() {
 
             return {
                 id: tx.id,
-                date: tx.transactedAt,
+                date: tx.transactedAt.toISOString(),
                 category: category.name,
                 categoryId: tx.categoryId,
                 type: tx.type,
