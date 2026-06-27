@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { signIn } from "next-auth/react"
+import { signIn, signOut } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Mail, Lock, User as UserIcon, Eye, EyeOff } from "lucide-react"
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { signUp, resetPasswordRequest } from "@/app/actions/auth-actions"
 import { toast } from "sonner"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Logo } from "@/components/Logo"
 
 export default function LoginPage() {
@@ -26,6 +26,27 @@ export default function LoginPage() {
         confirmPassword: ""
     })
     const router = useRouter()
+    const searchParams = useSearchParams()
+
+    React.useEffect(() => {
+        const session = searchParams.get("session")
+        const error = searchParams.get("error")
+
+        if (session === "session_expired") {
+            void signOut({ redirect: false })
+            setErrorMessage("セッションが無効になりました。再度ログインしてください。")
+            return
+        }
+
+        if (error === "OAuthCallback" || error === "OAuthSignin") {
+            setErrorMessage("Googleログインに失敗しました。ブラウザのCookieを有効にして、もう一度お試しください。")
+            return
+        }
+
+        if (error === "Callback") {
+            setErrorMessage("ログイン処理が中断されました。もう一度お試しください。")
+        }
+    }, [searchParams])
 
     const MAX_LENGTHS = {
         name: 50,

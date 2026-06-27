@@ -171,11 +171,23 @@ export function computeHistoryPoints(
     }
 
     const allTagKeys = new Set<string>()
+    const categoryTagContributions: { tags: { name: string; groupId: number }[] }[] = []
+
     for (const cat of categories) {
-        for (const tag of getEffectiveTags(cat.id)) {
+        const tags = getEffectiveTags(cat.id)
+        for (const tag of tags) {
             allTagKeys.add(`tag_${tag.groupId}_${tag.name}`)
         }
+        const uniqueTagsMap = new Map<string, { name: string; groupId: number }>()
+        for (const tag of tags) {
+            uniqueTagsMap.set(`${tag.groupId}_${tag.name}`, tag)
+        }
+        categoryTagContributions.push({
+            tags: [...uniqueTagsMap.values()],
+        })
     }
+
+    const topLevelCategories = categories.filter((cat) => !cat.parentId)
 
     const points: HistoryPoint[] = []
 
@@ -234,17 +246,13 @@ export function computeHistoryPoints(
             point[key] = 0
         }
 
-        for (const cat of categories) {
+        for (let catIndex = 0; catIndex < categories.length; catIndex++) {
+            const cat = categories[catIndex]
             const val = latestValues.get(cat.id) || 0
             const cost = latestCostBasis.get(cat.id) || 0
             const realizedGain = latestRealizedGain.get(cat.id) || 0
 
-            const uniqueTagsMap = new Map<string, { name: string; groupId: number }>()
-            for (const tag of getEffectiveTags(cat.id)) {
-                uniqueTagsMap.set(`${tag.groupId}_${tag.name}`, tag)
-            }
-
-            for (const tag of uniqueTagsMap.values()) {
+            for (const tag of categoryTagContributions[catIndex].tags) {
                 const key = `tag_${tag.groupId}_${tag.name}`
                 const costKey = `tag_cost_${tag.groupId}_${tag.name}`
                 const realizedKey = `tag_realized_gain_${tag.groupId}_${tag.name}`
@@ -258,8 +266,7 @@ export function computeHistoryPoints(
         let totalCost = 0
         let totalRealizedGain = 0
 
-        for (const cat of categories) {
-            if (!cat.parentId) {
+        for (const cat of topLevelCategories) {
                 const res = getConsolidated(cat.id, latestValues, latestCostBasis)
                 const realized = getConsolidatedRealizedGain(cat.id, latestRealizedGain)
                 grossAssets += res.val
@@ -268,7 +275,6 @@ export function computeHistoryPoints(
                 point[`category_${cat.id}`] = res.val
                 point[`category_cost_${cat.id}`] = Math.max(0, res.cost)
                 point[`realized_gain_${cat.id}`] = realized
-            }
         }
 
         point.totalAssets = grossAssets

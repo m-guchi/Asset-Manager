@@ -4,9 +4,7 @@ import * as React from "react"
 import { SummaryCards } from "@/components/dashboard/summary-cards"
 import { AssetChartsCombined } from "@/components/dashboard/asset-charts-combined"
 import { CategoryList } from "@/components/dashboard/category-list"
-import { getCategories } from "@/app/actions/categories"
-import { getTagGroups } from "@/app/actions/tags"
-import { getHistoryData } from "@/app/actions/history"
+import { getDashboardData } from "@/app/actions/dashboard"
 import { Category, HistoryPoint, TagGroup } from "@/types/asset"
 import { computePortfolioPerformanceFromHistory } from "@/lib/summary-from-history"
 
@@ -31,14 +29,10 @@ export function DashboardContent({
     const fetchData = React.useCallback(async () => {
         setIsLoading(true)
         try {
-            const [catData, histData, tagData] = await Promise.all([
-                getCategories(),
-                getHistoryData(),
-                getTagGroups()
-            ])
-            setCategories(catData || [])
-            setHistoryData(histData || [])
-            setTagGroups(tagData || [])
+            const data = await getDashboardData()
+            setCategories(data.categories || [])
+            setHistoryData(data.history || [])
+            setTagGroups(data.tagGroups || [])
         } catch (err) {
             console.error("Fetch error:", err)
         } finally {

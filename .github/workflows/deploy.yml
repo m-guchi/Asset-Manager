@@ -218,14 +218,16 @@ jobs:
             npx -y tsx scripts/test-db-connection.ts
 
             echo "Restarting PM2..."
-            pm2 delete asset-manager || true
-
             export PORT=3102
             export AUTH_URL="$NEXTAUTH_URL"
             export TRUST_PROXY="1"
 
             echo "Starting PM2 with NEXTAUTH_URL: $NEXTAUTH_URL"
-            pm2 start npm --name asset-manager -- start -- -p 3102 -H 0.0.0.0
+            if pm2 describe asset-manager > /dev/null 2>&1; then
+              pm2 reload asset-manager --update-env
+            else
+              pm2 start npm --name asset-manager -- start -- -p 3102 -H 0.0.0.0
+            fi
 
             echo "Waiting for app to start..."
             sleep 20

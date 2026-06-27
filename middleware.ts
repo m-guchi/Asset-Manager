@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getToken } from "next-auth/jwt"
-import { getSessionCookieName } from "@/lib/auth-cookie"
+import {
+    clearAllAuthCookies,
+    getSessionCookieName,
+    hasAuthCookies,
+} from "@/lib/auth-cookie"
 import { isPublicPath } from "@/lib/public-paths"
 
 async function getTokenSafe(request: NextRequest) {
@@ -19,11 +23,15 @@ function attachPathHeader(response: NextResponse, pathname: string): NextRespons
     return response
 }
 
-function clearSessionCookie(response: NextResponse): void {
-    response.cookies.set(getSessionCookieName(), "", {
-        maxAge: 0,
-        path: "/",
-    })
+function redirectToLogin(request: NextRequest, reason?: "session_expired"): NextResponse {
+    const loginUrl = new URL("/login", request.url)
+    loginUrl.searchParams.set("callbackUrl", request.url)
+    if (reason) {
+        loginUrl.searchParams.set("session", reason)
+    }
+    const response = NextResponse.redirect(loginUrl)
+    clearAllAuthCookies(response)
+    return response
 }
 
 export default async function middleware(request: NextRequest) {
@@ -42,28 +50,20 @@ export default async function middleware(request: NextRequest) {
             }
 
             const response = attachPathHeader(NextResponse.next(), pathname)
-            if (sessionCookie?.value) {
-                clearSessionCookie(response)
-            }
+            clearAllAuthCookies(response)
             return response
         }
 
         return attachPathHeader(NextResponse.next(), pathname)
     }
 
-    if (!sessionCookie?.value) {
-        const loginUrl = new URL("/login", request.url)
-        loginUrl.searchParams.set("callbackUrl", request.url)
-        return NextResponse.redirect(loginUrl)
+    if (!sessionCookie?.value && !hasAuthCookies(request)) {
+        return redirectToLogin(request)
     }
 
     const token = await getTokenSafe(request)
     if (!token) {
-        const loginUrl = new URL("/login", request.url)
-        loginUrl.searchParams.set("callbackUrl", request.url)
-        const response = NextResponse.redirect(loginUrl)
-        clearSessionCookie(response)
-        return response
+        return redirectToLogin(request, "session_expired")
     }
 
     return attachPathHeader(NextResponse.next(), pathname)
