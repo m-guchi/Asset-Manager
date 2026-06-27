@@ -26,10 +26,8 @@ export async function getHistoryData() {
     try {
         const userId = await getCurrentUserId()
         if (!userId) {
-            console.warn("[getHistoryData] No user ID found, returning empty history");
             return [];
         }
-        console.log("[getHistoryData] Starting fetch... (v2-group-aware)");
 
         // 1. Fetch all data at once to minimize DB pressure
         const [historyRecords, categories] = await Promise.all([
@@ -42,8 +40,6 @@ export async function getHistoryData() {
                 }
             }) as unknown as Promise<CategoryWithRelations[]>
         ]);
-
-        console.log(`[getHistoryData] Data loaded: ${historyRecords.length} records, ${categories.length} categories`);
 
         if (!historyRecords || !historyRecords.length || !categories || !categories.length) return [];
 
@@ -252,7 +248,6 @@ export async function getHistoryData() {
             return point;
         });
 
-        console.log(`[getHistoryData] Finished. Points generated: ${points.length}`);
         return points;
     } catch (error) {
         console.error("[getHistoryData] CRITICAL ERROR:", error);
