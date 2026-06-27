@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { TransactionType } from "@prisma/client"
 import { getCurrentUserId } from "@/lib/auth"
+import { revalidateUserDashboard } from "@/lib/dashboard-cache"
 import { normalizeRecordDate } from "@/lib/valuation-day"
 import {
     findValuationChangeForDay,
@@ -54,6 +55,10 @@ export async function checkBulkValuationOverwrite(
     return conflicts
 }
 
+function invalidateDashboard(userId: string | null | undefined) {
+    if (userId) revalidateUserDashboard(userId)
+}
+
 export async function updateValuation(
     categoryId: number,
     value: number,
@@ -87,6 +92,7 @@ export async function updateValuation(
         revalidatePath("/assets")
         revalidatePath("/transactions")
         revalidatePath(`/assets/${categoryId}`)
+        invalidateDashboard(userId)
         return { success: true }
     } catch (error) {
         console.error("Failed to update valuation:", error)
@@ -179,6 +185,7 @@ export async function addTransaction(categoryId: number, data: {
         revalidatePath("/assets")
         revalidatePath("/transactions")
         revalidatePath(`/assets/${categoryId}`)
+        invalidateDashboard(userId)
         return { success: true }
     } catch (error) {
         console.error("Failed to add transaction:", error)
@@ -230,6 +237,7 @@ export async function getTransactions() {
 
 export async function deleteHistoryItem(type: 'tx' | 'as', id: number) {
     try {
+        const userId = await getCurrentUserId()
         if (type === 'tx') {
             const tx = await prisma.transaction.findUnique({ where: { id } })
             if (tx) {
@@ -255,6 +263,7 @@ export async function deleteHistoryItem(type: 'tx' | 'as', id: number) {
                 revalidatePath(`/assets/${asset.categoryId}`)
             }
         }
+        invalidateDashboard(userId)
         return { success: true }
     } catch (error) {
         console.error("Delete failed:", error)
@@ -380,6 +389,7 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: Upd
             revalidatePath(`/assets/${asset.categoryId}`)
         }
         revalidatePath("/")
+        invalidateDashboard(userId)
         return { success: true }
     } catch (error) {
         console.error("Update failed:", error)

@@ -1,59 +1,72 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getToken } from "next-auth/jwt"
+import {
+    clearAllAuthCookies,
+    getSessionCookieName,
+    hasAuthCookies,
+} from "@/lib/auth-cookie"
+import { isPublicPath } from "@/lib/public-paths"
 
-const PUBLIC_PATH_PREFIXES = [
-    "/api/auth",
-    "/auth/verify",
-    "/auth/reset-password",
-    "/auth/confirm-email-change",
-    "/auth/confirm-password-change",
-    "/terms",
-    "/privacy",
-]
+async function getTokenSafe(request: NextRequest) {
+    try {
+        return await getToken({
+            req: request,
+            secret: process.env.NEXTAUTH_SECRET,
+        })
+    } catch {
+        return null
+    }
+}
 
-const PUBLIC_PATHS = new Set([
-    "/login",
-    "/icon.svg",
-    "/favicon.ico",
-    "/manifest.json",
-    "/robots.txt",
-    "/sitemap.xml",
-])
+function attachPathHeader(response: NextResponse, pathname: string): NextResponse {
+    response.headers.set("x-pathname", pathname)
+    return response
+}
 
-function isPublicPath(pathname: string): boolean {
-    if (PUBLIC_PATHS.has(pathname)) return true
-    if (pathname.match(/\.(svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|eot)$/)) return true
-    return PUBLIC_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+function redirectToLogin(request: NextRequest, reason?: "session_expired"): NextResponse {
+    const loginUrl = new URL("/login", request.url)
+    loginUrl.searchParams.set("callbackUrl", request.url)
+    if (reason) {
+        loginUrl.searchParams.set("session", reason)
+    }
+    const response = NextResponse.redirect(loginUrl)
+    clearAllAuthCookies(response)
+    return response
 }
 
 export default async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl
+    const sessionCookie = request.cookies.get(getSessionCookieName())
 
     if (isPublicPath(pathname)) {
         if (pathname === "/login" || pathname === "/login/") {
-            const token = await getToken({
-                req: request,
-                secret: process.env.NEXTAUTH_SECRET,
-            })
+            if (!sessionCookie?.value) {
+                return attachPathHeader(NextResponse.next(), pathname)
+            }
+
+            const token = await getTokenSafe(request)
             if (token) {
                 return NextResponse.redirect(new URL("/", request.url))
             }
+
+            const response = attachPathHeader(NextResponse.next(), pathname)
+            clearAllAuthCookies(response)
+            return response
         }
-        return NextResponse.next()
+
+        return attachPathHeader(NextResponse.next(), pathname)
     }
 
-    const token = await getToken({
-        req: request,
-        secret: process.env.NEXTAUTH_SECRET,
-    })
+    if (!sessionCookie?.value && !hasAuthCookies(request)) {
+        return redirectToLogin(request)
+    }
 
+    const token = await getTokenSafe(request)
     if (!token) {
-        const loginUrl = new URL("/login", request.url)
-        loginUrl.searchParams.set("callbackUrl", request.url)
-        return NextResponse.redirect(loginUrl)
+        return redirectToLogin(request, "session_expired")
     }
 
-    return NextResponse.next()
+    return attachPathHeader(NextResponse.next(), pathname)
 }
 
 export const config = {

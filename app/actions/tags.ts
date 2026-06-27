@@ -3,6 +3,11 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { getCurrentUserId } from "@/lib/auth"
+import { revalidateUserDashboard } from "@/lib/dashboard-cache"
+
+function invalidateDashboard(userId: string | null | undefined) {
+    if (userId) revalidateUserDashboard(userId)
+}
 
 // --- Tags Legacy (Deprecated) ---
 // These are kept empty or simple to prevent build errors until fully removed
@@ -61,6 +66,7 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
     }
 
     try {
+        const userId = await getCurrentUserId()
         let savedGroup;
         if (data.id) {
             savedGroup = await prisma.$transaction(async (tx) => {
@@ -113,7 +119,6 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
             })
         } else {
             // Create New Group
-            const userId = await getCurrentUserId()
             if (!userId) {
                 throw new Error("User not authenticated")
             }
@@ -142,6 +147,7 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
         }
         revalidatePath("/assets")
         revalidatePath("/")
+        invalidateDashboard(userId)
         return { success: true, group: savedGroup }
     } catch (error) {
         console.error("Failed to save tag group:", error)
@@ -155,8 +161,10 @@ export async function saveTagGroup(data: { id?: number, name: string, options: {
 
 export async function deleteTagGroup(id: number) {
     try {
+        const userId = await getCurrentUserId()
         await prisma.tagGroup.delete({ where: { id } })
         revalidatePath("/assets")
+        invalidateDashboard(userId)
         return { success: true }
     } catch (error) {
         console.error("Failed to delete tag group:", error)
@@ -166,6 +174,7 @@ export async function deleteTagGroup(id: number) {
 
 export async function reorderTagGroupsAction(items: { id: number, order: number }[]) {
     try {
+        const userId = await getCurrentUserId()
         await prisma.$transaction(
             items.map(item =>
                 prisma.tagGroup.update({
@@ -175,6 +184,7 @@ export async function reorderTagGroupsAction(items: { id: number, order: number 
             )
         );
         revalidatePath("/assets");
+        invalidateDashboard(userId);
         return { success: true };
     } catch (error) {
         console.error("Failed to reorder tag groups", error)
@@ -189,12 +199,14 @@ export async function renameTagGroup(id: number, name: string) {
     }
 
     try {
+        const userId = await getCurrentUserId()
         await prisma.tagGroup.update({
             where: { id },
             data: { name }
         })
         revalidatePath("/assets")
         revalidatePath("/")
+        invalidateDashboard(userId)
         return { success: true }
     } catch (error) {
         console.error("Failed to rename tag group:", error)
@@ -257,6 +269,7 @@ export async function getAssetsForTagGroup(groupId: number) {
 
 export async function updateAssetTagMappings(groupId: number, mappings: { categoryId: number, optionId: number | null }[]) {
     try {
+        const userId = await getCurrentUserId()
         await prisma.$transaction(async (tx) => {
             for (const m of mappings) {
                 if (m.optionId === null) {
@@ -285,6 +298,7 @@ export async function updateAssetTagMappings(groupId: number, mappings: { catego
         })
         revalidatePath("/assets")
         revalidatePath("/")
+        invalidateDashboard(userId)
         return { success: true }
     } catch (e) {
         console.error("Failed to update mappings:", e)

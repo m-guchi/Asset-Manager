@@ -30,7 +30,7 @@ export default function SettingsPage() {
     const [defaultTimeRange, setDefaultTimeRange] = React.useState("1Y")
     // Add mounted state to prevent hydration mismatch
     const [mounted, setMounted] = React.useState(false)
-    const [isUpdating, setIsUpdating] = React.useState(false)
+    const [isReloading, setIsReloading] = React.useState(false)
 
     React.useEffect(() => {
         setMounted(true)
@@ -44,12 +44,9 @@ export default function SettingsPage() {
         localStorage.setItem("defaultTimeRange", value)
     }
     
-    const handleUpdate = () => {
-        setIsUpdating(true)
-        // Simulate an update check
-        setTimeout(() => {
-            setIsUpdating(false)
-        }, 2000)
+    const handleReload = () => {
+        setIsReloading(true)
+        window.location.reload()
     }
 
     // Prevent rendering theme-dependent UI until mounted
@@ -160,11 +157,13 @@ export default function SettingsPage() {
                         <Button
                             variant="ghost"
                             size="icon"
-                            onClick={handleUpdate}
-                            disabled={isUpdating}
+                            onClick={handleReload}
+                            disabled={isReloading}
                             className="h-8 w-8"
+                            title="最新版を取得"
+                            aria-label="最新版を取得"
                         >
-                            <RefreshCw className={`h-4 w-4 ${isUpdating ? "animate-spin" : ""}`} />
+                            <RefreshCw className={`h-4 w-4 ${isReloading ? "animate-spin" : ""}`} />
                         </Button>
                     </CardHeader>
                     <CardContent className="space-y-2">
@@ -177,8 +176,11 @@ export default function SettingsPage() {
                                 <ChangelogDialog />
                             </div>
                         </div>
+                        <p className="text-sm text-muted-foreground pt-1">
+                            右上のボタンでアプリを再読み込みし、最新版を取得できます。
+                        </p>
                         {process.env.NODE_ENV === "development" && (
-                            <div className="flex justify-between py-2 border-b">
+                            <div className="flex justify-between py-2 border-t">
                                 <span className="text-muted-foreground">Environment</span>
                                 <span className="font-mono">{process.env.NODE_ENV}</span>
                             </div>

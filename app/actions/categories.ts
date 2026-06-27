@@ -1,258 +1,24 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use server"
 
-import { prisma } from "@/lib/prisma"
+import { cache } from "react"
 import { revalidatePath } from "next/cache"
+import { prisma } from "@/lib/prisma"
 import { getCurrentUserId } from "@/lib/auth"
+import { revalidateUserDashboard } from "@/lib/dashboard-cache"
+import { getFinancialSnapshot } from "@/lib/user-financial-snapshot"
 import { getCalendarDayKey } from "@/lib/valuation-day"
-
-interface CategoryWithRelations {
-    id: number;
-    name: string;
-    color: string | null;
-    order: number;
-    valuationOrder: number | null;
-    isValuationTarget: boolean | null;
-    valuationAlias: string | null;
-    hidden: boolean;
-    parentId: number | null;
-    isCash: boolean | null;
-    isLiability: boolean | null;
-    assets: { id: number; currentValue: number; recordedAt: Date }[];
-    tags: {
-        tagGroupId: number;
-        tagGroup: { name: string };
-        tagOptionId: number | null;
-        tagOption: { name: string } | null;
-    }[];
-    transactions: { id: number; amount: number; type: string; memo: string | null; transactedAt: Date; realizedGain: number | null }[];
-}
 
 /**
  * Robustly fetch categories with fallback and type safety.
  */
-export async function getCategories() {
-    try {
-        const userId = await getCurrentUserId()
-        if (!userId) {
-            console.warn("[getCategories] No user ID found, returning empty list");
-            return [];
-        }
-        const allCategories = await prisma.category.findMany({
-            where: { userId },
-            include: {
-                tags: {
-                    include: {
-                        tagGroup: true,
-                        tagOption: true
-                    }
-                },
-                assets: {
-                    orderBy: { recordedAt: 'desc' },
-                    take: 100 // To find "1 month ago" record
-                },
-                transactions: true
-            }
-        }) as unknown as CategoryWithRelations[];
+export const getCategories = cache(async () => {
+    const { categories } = await getFinancialSnapshot()
+    return categories
+})
 
-        if (!allCategories || allCategories.length === 0) return [];
-
-        // Recursive function to flatten hierarchy with depth
-        const sorted: (CategoryWithRelations & { depth: number })[] = [];
-        const processLevel = (parentId: number | null, depth: number) => {
-            const levelItems = allCategories
-                .filter(c => c.parentId === parentId)
-                .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-
-            levelItems.forEach(item => {
-                sorted.push({ ...item, depth });
-                processLevel(item.id, depth + 1);
-            });
-        };
-
-        processLevel(null, 0);
-
-        // 1. First, calculate 'own' values for all categories
-        const mappedCategories = sorted.map(cat => {
-            const latestAsset = (cat.assets && cat.assets.length > 0) ? cat.assets[0] : null;
-            const prevAsset = (cat.assets && cat.assets.length > 1) ? cat.assets[1] : null;
-            const ownValue = Number(latestAsset?.currentValue || 0);
-
-            // Daily Performance calculation (Value Change - Net Flow)
-            const hasDailyComparison = !!latestAsset && !!prevAsset;
-            const ownDailyValueChange = hasDailyComparison ? Number(latestAsset.currentValue) - Number(prevAsset.currentValue) : 0;
-            const dailyNetFlow = hasDailyComparison ? (cat.transactions || [])
-                .filter(t => t.transactedAt > prevAsset.recordedAt && t.transactedAt <= latestAsset.recordedAt)
-                .reduce((acc, t) => {
-                    const amt = Number(t.amount);
-                    if (t.type === 'DEPOSIT') return acc + amt;
-                    if (t.type === 'WITHDRAW') return acc - amt;
-                    return acc;
-                }, 0) : 0;
-            const ownDailyChange = hasDailyComparison ? (ownDailyValueChange - dailyNetFlow) : undefined;
-
-            const ownDailyChangeDays = hasDailyComparison
-                ? Math.max(1, Math.round((latestAsset.recordedAt.getTime() - prevAsset.recordedAt.getTime()) / (1000 * 60 * 60 * 24))) 
-                : undefined;
-            const prevValue = Number(prevAsset?.currentValue || 0);
-            const ownDailyChangeRate = hasDailyComparison
-                ? (prevValue > 0 ? ((ownDailyChange ?? 0) / prevValue) * 100 : 0)
-                : undefined;
-
-            // Monthly Performance calculation (~30 days ago)
-            const thirtyDaysAgoLimit = latestAsset ? new Date(latestAsset.recordedAt.getTime() - (30 * 24 * 60 * 60 * 1000)) : null;
-            const monthAgoAsset = thirtyDaysAgoLimit ? (cat.assets || []).find(a => a.recordedAt <= thirtyDaysAgoLimit) : null;
-            
-            const hasMonthlyComparison = !!latestAsset && !!monthAgoAsset;
-            const ownMonthlyValueChange = hasMonthlyComparison ? Number(latestAsset.currentValue) - Number(monthAgoAsset.currentValue) : 0;
-            const monthlyNetFlow = hasMonthlyComparison ? (cat.transactions || [])
-                .filter(t => t.transactedAt > monthAgoAsset.recordedAt && t.transactedAt <= latestAsset.recordedAt)
-                .reduce((acc, t) => {
-                    const amt = Number(t.amount);
-                    if (t.type === 'DEPOSIT') return acc + amt;
-                    if (t.type === 'WITHDRAW') return acc - amt;
-                    return acc;
-                }, 0) : 0;
-            const ownMonthlyChange = hasMonthlyComparison ? (ownMonthlyValueChange - monthlyNetFlow) : undefined;
-
-            const ownMonthlyChangeDays = hasMonthlyComparison
-                ? Math.max(1, Math.round((latestAsset.recordedAt.getTime() - monthAgoAsset.recordedAt.getTime()) / (1000 * 60 * 60 * 24))) 
-                : undefined;
-            const monthAgoValue = Number(monthAgoAsset?.currentValue || 0);
-            const ownMonthlyChangeRate = hasMonthlyComparison
-                ? (monthAgoValue > 0 ? ((ownMonthlyChange ?? 0) / monthAgoValue) * 100 : 0)
-                : undefined;
-
-            // 1つ前の比較点が30日以上前なら30日前比は重複表示しない
-            const shouldHideMonthlyBecauseOverlap = (ownDailyChangeDays ?? 0) >= 30;
-            const finalMonthlyChange = shouldHideMonthlyBecauseOverlap ? undefined : ownMonthlyChange;
-            const finalMonthlyChangeDays = shouldHideMonthlyBecauseOverlap ? undefined : ownMonthlyChangeDays;
-            const finalMonthlyChangeRate = shouldHideMonthlyBecauseOverlap ? undefined : ownMonthlyChangeRate;
-
-            let ownCostBasis = 0;
-            const trxs = cat.transactions || [];
-            const ownRealizedGain = trxs.reduce((acc: number, t) => acc + Number(t.realizedGain || 0), 0);
-            if (cat.isCash) {
-                ownCostBasis = ownValue;
-            } else {
-                ownCostBasis = trxs.reduce((acc: number, t) => {
-                    const amt = Number(t.amount || 0);
-                    return t.type === 'DEPOSIT' ? acc + amt : (t.type === 'WITHDRAW' ? acc - amt : acc);
-                }, 0);
-            }
-
-            return {
-                ...cat,
-                ownValue,
-                ownCostBasis,
-                ownRealizedGain,
-                ownDailyChange: ownDailyChange ?? 0,
-                // Placeholders for consolidated values
-                currentValue: ownValue,
-                costBasis: ownCostBasis,
-                realizedGain: ownRealizedGain,
-                dailyChange: ownDailyChange ?? 0,
-                dailyChangeRate: ownDailyChangeRate ?? 0,
-                dailyChangeDays: ownDailyChangeDays,
-                monthlyChange: finalMonthlyChange ?? 0,
-                monthlyChangeRate: finalMonthlyChangeRate ?? 0,
-                monthlyChangeDays: finalMonthlyChangeDays,
-                lastUpdated: latestAsset?.recordedAt || undefined,
-            };
-        });
-
-        // Parent categories inherit child totals in this app.
-        // To avoid double counting, exclude parent's own valuation/performance
-        // from consolidated sums when it has children.
-        const parentIdsWithChildren = new Set(
-            mappedCategories
-                .filter((cat) => cat.parentId !== null && cat.parentId !== undefined)
-                .map((cat) => cat.parentId as number)
-        );
-
-        mappedCategories.forEach((cat) => {
-            if (parentIdsWithChildren.has(cat.id)) {
-                cat.ownValue = 0;
-                cat.ownCostBasis = 0;
-                cat.ownDailyChange = 0;
-                cat.currentValue = 0;
-                cat.costBasis = 0;
-                cat.ownRealizedGain = 0;
-                cat.realizedGain = 0;
-                cat.dailyChange = 0;
-                cat.monthlyChange = 0;
-            }
-        });
-
-        // 2. Aggregate bottom-up (from deepest to roots)
-        // Sort by depth descending
-        const depthSorted = [...mappedCategories].sort((a, b) => b.depth - a.depth);
-
-        depthSorted.forEach(item => {
-            if (item.parentId) {
-                const parent = mappedCategories.find(p => p.id === item.parentId);
-                if (parent) {
-                    parent.currentValue += item.currentValue;
-                    parent.dailyChange += item.dailyChange;
-                    parent.monthlyChange += item.monthlyChange;
-                    parent.costBasis += item.costBasis;
-                    parent.realizedGain += item.realizedGain;
-                    if (item.lastUpdated && (!parent.lastUpdated || item.lastUpdated > parent.lastUpdated)) {
-                        parent.lastUpdated = item.lastUpdated;
-                    }
-                }
-            }
-        });
-
-        // 2.5 Recalculate rates for parents (consolidated)
-        mappedCategories.forEach(cat => {
-            const prevDayVal = cat.currentValue - cat.dailyChange;
-            cat.dailyChangeRate = prevDayVal > 0 ? (cat.dailyChange / prevDayVal) * 100 : 0;
-
-            const prevMonthVal = cat.currentValue - cat.monthlyChange;
-            cat.monthlyChangeRate = prevMonthVal > 0 ? (cat.monthlyChange / prevMonthVal) * 100 : 0;
-        });
-
-        // 3. Return final objects in the original sorted order (hierarchical)
-        return mappedCategories.map((cat) => {
-            return {
-                id: cat.id,
-                name: cat.name || "名称なし",
-                color: cat.color || "#cccccc",
-                order: cat.order || 0,
-                valuationOrder: cat.valuationOrder ?? 0,
-                isValuationTarget: cat.isValuationTarget ?? true,
-                valuationAlias: cat.valuationAlias ?? null,
-                parentId: cat.parentId,
-                currentValue: cat.currentValue,
-                costBasis: cat.costBasis,
-                ownValue: cat.ownValue,
-                ownCostBasis: cat.ownCostBasis,
-                realizedGain: cat.realizedGain,
-                dailyChange: cat.dailyChange,
-                dailyChangeRate: cat.dailyChangeRate,
-                dailyChangeDays: cat.dailyChangeDays,
-                monthlyChange: cat.monthlyChange,
-                monthlyChangeRate: cat.monthlyChangeRate,
-                monthlyChangeDays: cat.monthlyChangeDays,
-                lastUpdated: cat.lastUpdated,
-                hidden: !!cat.hidden,
-                isCash: !!cat.isCash,
-                isLiability: false,
-                depth: cat.depth,
-                tags: (cat.tags || []).map((t) => t.tagOption?.name || ""),
-                tagSettings: (cat.tags || []).map((t) => ({
-                    groupId: t.tagGroupId,
-                    groupName: t.tagGroup?.name || "",
-                    optionId: t.tagOptionId,
-                    optionName: t.tagOption?.name || ""
-                }))
-            };
-        });
-    } catch (error) {
-        console.error("[getCategories] Critical fail", error);
-        return [];
-    }
+function invalidateDashboard(userId: string | null | undefined) {
+    if (userId) revalidateUserDashboard(userId)
 }
 
 interface SaveCategoryData {
@@ -316,6 +82,7 @@ export async function saveCategory(data: SaveCategoryData) {
         }
 
         revalidatePath("/");
+        invalidateDashboard(userId);
         return { success: true };
     } catch (error) {
         console.error("Save error", error);
@@ -325,11 +92,13 @@ export async function saveCategory(data: SaveCategoryData) {
 
 export async function deleteCategory(id: number) {
     try {
+        const userId = await getCurrentUserId()
         await prisma.category.updateMany({ where: { parentId: id }, data: { parentId: null } });
         await prisma.asset.deleteMany({ where: { categoryId: id } });
         await prisma.transaction.deleteMany({ where: { categoryId: id } });
         await prisma.category.delete({ where: { id } });
         revalidatePath("/");
+        invalidateDashboard(userId);
         return { success: true };
     } catch (error) {
         console.error("Delete error", error);
@@ -338,13 +107,15 @@ export async function deleteCategory(id: number) {
 }
 
 export async function updateCategoryOrder() {
-    // Basic implementation to satisfy types
+    const userId = await getCurrentUserId()
     revalidatePath("/");
+    invalidateDashboard(userId);
     return { success: true };
 }
 
 export async function reorderCategoriesAction(items: { id: number, order: number }[]) {
     try {
+        const userId = await getCurrentUserId()
         await prisma.$transaction(
             items.map((item) =>
                 prisma.category.update({
@@ -354,6 +125,7 @@ export async function reorderCategoriesAction(items: { id: number, order: number
             )
         );
         revalidatePath("/");
+        invalidateDashboard(userId);
         return { success: true };
     } catch (error) {
         console.error("Reorder failed", error);
@@ -836,6 +608,7 @@ export async function updateValuationSettingsAction(settings: {
     valuationAlias?: string | null
 }[]) {
     try {
+        const userId = await getCurrentUserId()
         await prisma.$transaction(
             settings.map(s =>
                 prisma.category.update({
@@ -850,6 +623,7 @@ export async function updateValuationSettingsAction(settings: {
         );
         revalidatePath("/");
         revalidatePath("/assets/valuation");
+        invalidateDashboard(userId);
         return { success: true };
     } catch (e) {
         console.error("Failed to update valuation settings", e);
@@ -859,11 +633,13 @@ export async function updateValuationSettingsAction(settings: {
 
 export async function toggleCategoryVisibility(id: number, hidden: boolean) {
     try {
+        const userId = await getCurrentUserId()
         await prisma.category.update({
             where: { id },
             data: { hidden }
         });
         revalidatePath("/");
+        invalidateDashboard(userId);
         return { success: true };
     } catch (error) {
         console.error("Toggle visibility error", error);
