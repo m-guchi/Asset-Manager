@@ -39,8 +39,8 @@ jobs:
       - name: Lint check
         run: npm run lint
 
-      - name: Database Migration Test
-        run: npx prisma migrate deploy
+      - name: Database schema sync
+        run: npx prisma db push --accept-data-loss
         env:
           DATABASE_URL: mysql://root@127.0.0.1:3306/test_db
 

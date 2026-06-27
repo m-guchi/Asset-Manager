@@ -30,32 +30,140 @@
 
 ## 開発環境のセットアップ
 
+### 構成の概要
+
+| 環境 | DB | 用途 |
+|------|-----|------|
+| ローカル（WSL） | `127.0.0.1:3306` / `asset_manager_dev` | 日常開発 |
+| 本番（VPS） | 1Password の `db-host` / `db-name` | 本番運用 |
+| 本番（ローカル接続） | SSH トンネル `127.0.0.1:3307` | デバッグ用（`prod:tunnel`） |
+
+VPS 上の dev DB は使いません。ローカル開発は WSL 内の MySQL のみで完結します。
+
+### 前提条件
+
+- Node.js 20 系
+- WSL 内の MySQL 8.0（`sudo apt install mysql-server`）
+- [1Password CLI](https://developer.1password.com/docs/cli/)（`npm run dev` など OAuth / SMTP 注入用）
+
+> Docker Desktop は不要です。WSL 連携が使える環境では `npm run db:up:docker` で Docker 版も利用できます。
+
+### 1Password CLI のインストール（WSL）
+
+`npm run dev` を動かすには `op` コマンドが必要です。DB 操作（`db:setup` など）は `op` なしで実行できます。
+
+```bash
+curl -sS https://downloads.1password.com/linux/keys/1password.asc \
+  | sudo gpg --dearmor -o /usr/share/keyrings/1password-archive-keyring.gpg
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://downloads.1password.com/linux/debian/$(dpkg --print-architecture) stable main" \
+  | sudo tee /etc/apt/sources.list.d/1password.list
+
+sudo apt update && sudo apt install -y 1password-cli
+
+# サインイン（デスクトップアプリ連携を有効にすると簡単）
+eval "$(op signin)"
+npm run verify:op
+```
+
+### 初回セットアップ
+
 ```bash
 # パッケージのインストール
 npm install
 
-# 開発サーバーの起動（1Password から秘密情報を注入）
+# MySQL が未インストールの場合（初回のみ）
+sudo apt update && sudo apt install -y mysql-server
+
+# ローカル MySQL 起動 + スキーマ適用（初回のみ、sudo パスワード入力あり）
+npm run db:setup
+
+# 開発サーバーの起動（1Password から OAuth / SMTP 等を注入）
 npm run dev
+```
 
-# SSH トンネル経由で開発 DB に接続する場合
-npm run dev:tunnel
+日常の開発では `npm run db:up` で MySQL を起動してから `npm run dev` を実行します（`db:setup` は初回または DB を作り直したときのみ）。
 
-# 本番 DB を SSH トンネル経由でローカル接続する場合
+### ローカル DB コマンド
+
+| コマンド | 1Password | 内容 |
+|---------|-----------|------|
+| `npm run db:up` | 不要 | WSL MySQL を起動（`127.0.0.1:3306`） |
+| `npm run db:up:docker` | 不要 | Docker で MySQL 8.0 を起動（`127.0.0.1:3308`） |
+| `npm run db:down` | 不要 | ローカル MySQL を停止 |
+| `npm run db:status` | 不要 | MySQL の状態確認 |
+| `npm run db:setup` | 不要 | 起動 + `prisma db push`（初回用） |
+| `npm run db:deploy:local` | 不要 | `schema.prisma` をローカル DB に反映 |
+| `npm run db:reset` | 不要 | DB を初期化してスキーマを再適用 |
+| `npm run db:dev` | 不要 | マイグレーションファイルの作成（スキーマ変更時） |
+| `npm run dev` | **必要** | 開発サーバー起動 |
+
+ローカル DB の接続情報（`.env.1password.tpl` に記載、秘密情報ではない）:
+
+| 項目 | 値 |
+|------|-----|
+| ホスト | `127.0.0.1` |
+| ポート | `3306` |
+| DB 名 | `asset_manager_dev` |
+| ユーザー | `asset_manager` |
+| パスワード | `devpassword` |
+
+### スキーマ同期について
+
+ローカル・CI・本番デプロイはいずれも **`prisma db push`** で `schema.prisma` を DB に反映します（本番は `deploy.yml` 内で実行）。
+
+`prisma/migrations` 内のファイルは古い状態のため、**`migrate deploy` だけでは `Account` など認証用テーブルが作られません**。初回セットアップやスキーマ更新後は必ず `npm run db:setup` または `npm run db:deploy:local` を使ってください。
+
+```bash
+# スキーマを変更したあと
+npm run db:deploy:local
+npm run dev   # 再起動
+```
+
+### Google ログイン（ローカル開発）
+
+ローカルでも Google OAuth ログインが使えます。初回ログイン時にダミーデータが自動投入されます。
+
+**必要な設定:**
+
+1. 1Password に `auth-google-id` / `auth-google-secret` / `nextauth-secret` / `nextauth-url-dev`（`http://localhost:3000`）を登録
+2. [Google Cloud Console](https://console.cloud.google.com/) の OAuth 2.0 クライアントにリダイレクト URI を追加:
+
+```
+http://localhost:3000/api/auth/callback/google
+```
+
+3. `npm run db:setup` 済みであること（`Account` テーブルなどが存在する状態）
+4. `npm run dev` で `http://localhost:3000/login` を開く
+
+**よくあるエラー:**
+
+| 症状 | 対処 |
+|------|------|
+| `The table Account does not exist` | `npm run db:deploy:local` を実行してスキーマを同期 |
+| `redirect_uri_mismatch` | Google Cloud に上記リダイレクト URI を追加 |
+| `op: not found` | 1Password CLI をインストール（上記手順） |
+| `Callback` エラーでログイン画面に戻る | DB スキーマ未同期の可能性 → `npm run db:deploy:local` |
+
+### 本番 DB のローカル接続（デバッグ用）
+
+本番データの確認が必要な場合のみ、SSH トンネル経由で接続します。
+
+```bash
 npm run prod:tunnel
 ```
 
 ### 環境変数の管理 (1Password)
 
-秘密情報は 1Password の `apps` 保管庫で一元管理します。`.env` には値を書きません（README 用のコメントのみ）。
+OAuth・SMTP・NextAuth などの秘密情報は 1Password の `apps` 保管庫で管理します。DB 接続情報は WSL ローカル MySQL 用の固定値を `.env.1password.tpl` に直接記載します。
 
-| 用途 | テンプレート | コマンド |
-|------|-------------|----------|
-| 開発 DB | `.env.1password.tpl` | `npm run dev` / `npm run dev:tunnel` |
-| 本番 DB（ローカル接続） | `.env.1password.prod.tpl` | `npm run prod` / `npm run prod:tunnel` |
-| GitHub Actions デプロイ | `.github/deploy.env.tpl` | `main` への push で自動実行 |
+| 用途 | テンプレート | コマンド | 1Password |
+|------|-------------|----------|-----------|
+| ローカル開発 | `.env.1password.tpl` | `npm run dev` | OAuth / SMTP 等のみ |
+| 本番 DB（ローカル接続） | `.env.1password.prod.tpl` | `npm run prod:tunnel` | DB 認証情報含む |
+| GitHub Actions デプロイ | `.github/deploy.env.tpl` | `main` への push で自動実行 | 本番用一式 |
 
 ```bash
-# 1Password CLI にサインイン済みであること
 eval "$(op signin)"   # または export OP_SERVICE_ACCOUNT_TOKEN=...
 npm run verify:op     # 参照確認
 ```
@@ -68,7 +176,7 @@ npm run verify:op     # 参照確認
 
 ### 一括実行（推奨）
 
-lint・型チェック・本番ビルドを順番に実行します。
+lint・型チェック・本番ビルドを順番に実行します（`build:local` は 1Password サインインが必要）。
 
 ```bash
 npm run check
@@ -85,8 +193,8 @@ npm run lint
 # 2. TypeScriptの型チェック（型エラーの検知）
 npm run typecheck
 
-# 3. ローカルでの本番ビルドテスト
-npm run build
+# 3. ローカルでの本番ビルドテスト（ローカル DB 接続情報を使用）
+npm run build:local
 ```
 
 すべてのコマンドがエラーなく（`✓ Compiled successfully` など）完了すれば、デプロイやPushの準備は完了です。
@@ -116,7 +224,6 @@ npm run build
 | フィールド名 | 内容 | 環境変数 |
 |-------------|------|----------|
 | `db-name` | 本番用データベース名 | `DB_NAME`（デプロイ時に `DATABASE_URL` を組み立て） |
-| `db-name-dev` | 開発用データベース名 | ローカル `op run` 用（例: `dev.app_asset_manager`） |
 | `nextauth-url` | 本番環境のベース URL | `NEXTAUTH_URL` |
 | `nextauth-url-dev` | 開発用ベース URL | 通常 `http://localhost:3000` |
 | `nextauth-secret` | NextAuth セッション暗号化キー | `NEXTAUTH_SECRET` |
@@ -133,8 +240,6 @@ npm run build
 | `db-password` | MySQL パスワード | `DB_PASSWORD` |
 | `db-host` | 本番用 MySQL ホスト | `DB_HOST`（デプロイ時） |
 | `db-port` | 本番用 MySQL ポート | `DB_PORT`（デプロイ時） |
-| `db-host-dev` | 開発用 DB ホスト | ローカル `op run` 用（SSH トンネル時は `127.0.0.1`） |
-| `db-port-dev` | 開発用 DB ポート | ローカル `op run` 用（SSH トンネル時は `3307`） |
 
 **アイテム `Mail`**（共有可）
 
@@ -207,5 +312,5 @@ op read "op://apps/githubaction-sshkey/private_key?ssh-format=openssh"
 1. 1Password から秘密情報を読み込み、GitHub 側でビルド (`npm run build`) およびアーカイブの作成が行われます。
 2. 作成されたパッケージ (`deploy.tar.gz`) が `scp` でサーバーへ転送されます。
 3. サーバー上でアーカイブが展開され、`.env` が 1Password の値で同期されます。
-4. 本番用パッケージ (`npm install --omit=dev`) のインストール、Prisma の DB マイグレーションが走ります。
+4. 本番用パッケージ (`npm install --omit=dev`) のインストール、`prisma db push` による DB スキーマ同期が走ります。
 5. `pm2` を利用して Node.js アプリケーションがポート `3102` で再起動されます。

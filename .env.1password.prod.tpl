@@ -1,9 +1,9 @@
 # 本番 DB を SSH トンネル経由でローカル接続する場合:
-#   npm run prod:tunnel:op
+#   npm run prod:tunnel
 DB_USER=op://apps/DB/db-user
 DB_PASSWORD=op://apps/DB/db-password
-DB_HOST=op://apps/DB/db-host-dev
-DB_PORT=op://apps/DB/db-port-dev
+DB_HOST=127.0.0.1
+DB_PORT=3307
 DB_NAME=op://apps/AssetManager/db-name
 NEXTAUTH_SECRET=op://apps/AssetManager/nextauth-secret
 NEXTAUTH_URL=op://apps/AssetManager/nextauth-url-dev
