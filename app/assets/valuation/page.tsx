@@ -14,7 +14,7 @@ import { getCategories, updateValuationSettingsAction } from "@/app/actions/cate
 import { ValuationOverwriteDialog, type ValuationOverwriteItem } from "@/components/valuation-overwrite-dialog"
 import { checkBulkValuationOverwrite, updateValuation } from "@/app/actions/assets"
 import { isValuationFailure, isValuationNeedsConfirmation } from "@/lib/valuation-result"
-import { parseValuationDateInput } from "@/lib/valuation-day"
+import { parseValuationDateInput, getDefaultValuationDateInput } from "@/lib/valuation-day"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
     DndContext,
@@ -49,7 +49,7 @@ export default function BulkValuationPage() {
     const [categories, setCategories] = useState<ValuationCategory[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [valuations, setValuations] = useState<Record<number, number>>({})
-    const [recordedAt, setRecordedAt] = useState(new Date().toISOString().slice(0, 10))
+    const [recordedAt, setRecordedAt] = useState(getDefaultValuationDateInput())
     const [isSaving, setIsSaving] = useState(false)
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
     const [overwriteDialogOpen, setOverwriteDialogOpen] = useState(false)

@@ -1,8 +1,6 @@
 "use client"
 
-import { format } from "date-fns"
-import { ja } from "date-fns/locale"
-
+import { formatCalendarDayKey } from "@/lib/valuation-day"
 import { Button } from "@/components/ui/button"
 import {
     Dialog,
@@ -29,8 +27,7 @@ type ValuationOverwriteDialogProps = {
 }
 
 function formatDayLabel(dayKey: string): string {
-    const date = new Date(`${dayKey}T12:00:00.000Z`)
-    return format(date, "yyyy年M月d日", { locale: ja })
+    return formatCalendarDayKey(dayKey)
 }
 
 export function ValuationOverwriteDialog({

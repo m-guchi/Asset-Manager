@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { getCurrentUserId } from "@/lib/auth"
+import { getCalendarDayKey, parseValuationDateInput } from "@/lib/valuation-day"
 
 // Helper to escape CSV fields
 function escapeCsv(field: string | number | null | undefined): string {
@@ -13,11 +14,9 @@ function escapeCsv(field: string | number | null | undefined): string {
     return str;
 }
 
-// Helper to format date in JST (UTC+9) for CSV
+// Helper to format date in JST for CSV
 function formatDateJst(date: Date): string {
-    const jstOffset = 9 * 60 * 60 * 1000;
-    const jstDate = new Date(date.getTime() + jstOffset);
-    return jstDate.toISOString().split('T')[0];
+    return getCalendarDayKey(date);
 }
 
 export async function exportAllData() {
@@ -341,7 +340,7 @@ export async function importData(csvContent: string, targetAssetId: number) {
                 normalizedDateStr = `${y}-${m}-${d}`;
             }
 
-            const date = new Date(normalizedDateStr + "T12:00:00Z");
+            const date = parseValuationDateInput(normalizedDateStr);
             if (isNaN(date.getTime())) {
                 errorCount++;
                 errors.push(`${i + 1}行目: 無効な日付フォーマットです (${dateStr})`);

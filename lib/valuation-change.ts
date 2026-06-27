@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { TransactionType } from "@prisma/client"
-import { getCalendarDayKey, getUtcDayBounds, normalizeRecordDate } from "@/lib/valuation-day"
+import { getCalendarDayKey, getJstDayBounds, normalizeRecordDate } from "@/lib/valuation-day"
 import type { ValuationWriteResult } from "@/lib/valuation-result"
 
 export type { ValuationWriteResult } from "@/lib/valuation-result"
@@ -16,7 +16,7 @@ export type ExistingValuationChange = {
 
 async function findAssetsOnDay(categoryId: number, date: Date, userId: string) {
     const dayKey = getCalendarDayKey(date)
-    const { start, end } = getUtcDayBounds(dayKey)
+    const { start, end } = getJstDayBounds(dayKey)
     return prisma.asset.findMany({
         where: {
             categoryId,
@@ -33,7 +33,7 @@ export async function findValuationChangeForDay(
     userId: string
 ): Promise<ExistingValuationChange | null> {
     const dayKey = getCalendarDayKey(date)
-    const { start, end } = getUtcDayBounds(dayKey)
+    const { start, end } = getJstDayBounds(dayKey)
 
     const [valuationTxs, assetsOnDay] = await Promise.all([
         prisma.transaction.findMany({

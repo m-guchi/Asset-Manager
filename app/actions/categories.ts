@@ -4,6 +4,7 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { getCurrentUserId } from "@/lib/auth"
+import { getCalendarDayKey } from "@/lib/valuation-day"
 
 interface CategoryWithRelations {
     id: number;
@@ -429,7 +430,7 @@ export async function getCategoryDetails(id: number) {
                     flow = -amt;
                 }
 
-                const dateStr = t.transactedAt.toISOString().split('T')[0];
+                const dateStr = getCalendarDayKey(t.transactedAt);
                 if (historyMap.has(dateStr)) {
                     const exist = historyMap.get(dateStr)!;
                     exist.cost = runningCost; // Update to latest running cost of the day
@@ -446,7 +447,7 @@ export async function getCategoryDetails(id: number) {
 
             // 2. Assets
             (c.assets || []).forEach((a) => {
-                const dateStr = a.recordedAt.toISOString().split('T')[0];
+                const dateStr = getCalendarDayKey(a.recordedAt);
                 const existing = historyMap.get(dateStr);
 
                 if (existing) {
@@ -568,7 +569,7 @@ export async function getCategoryDetails(id: number) {
             // Collect all unique dates
             const allDates = new Set<string>();
             allHistories.forEach((ch: any) => {
-                ch.items.forEach((i: { date: Date }) => allDates.add(i.date.toISOString().split('T')[0]));
+                ch.items.forEach((i: { date: Date }) => allDates.add(getCalendarDayKey(i.date)));
             });
             const sortedDates = Array.from(allDates).sort();
 
@@ -580,7 +581,7 @@ export async function getCategoryDetails(id: number) {
                 const point: Record<string, number | string> = { date: dateStr, value: 0, cost: 0, childrenValue: 0, realizedGain: 0 };
 
                 allHistories.forEach((ch: any) => {
-                    const entry = ch.items.find((i: { date: Date }) => i.date.toISOString().split('T')[0] === dateStr);
+                    const entry = ch.items.find((i: { date: Date }) => getCalendarDayKey(i.date) === dateStr);
                     if (entry) {
                         runningValues[ch.id] = (entry as { value: number }).value;
                         runningCosts[ch.id] = (entry as { cost: number }).cost;

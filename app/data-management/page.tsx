@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label"
 import { exportAllData, getTemplateCsv, importData } from "../actions/data-management"
 import { getCategories } from "../actions/categories"
 import { Category } from "@/types/asset"
+import { getTodayDateInput } from "@/lib/valuation-day"
 
 export default function DataManagementPage() {
     const [isLoading, setIsLoading] = React.useState(false)
@@ -55,7 +56,7 @@ export default function DataManagementPage() {
                 const url = URL.createObjectURL(blob)
                 const link = document.createElement('a')
                 link.href = url
-                link.setAttribute('download', `asset_manager_export_${new Date().toISOString().slice(0, 10)}.csv`)
+                link.setAttribute('download', `asset_manager_export_${getTodayDateInput()}.csv`)
                 document.body.appendChild(link)
                 link.click()
                 document.body.removeChild(link)
