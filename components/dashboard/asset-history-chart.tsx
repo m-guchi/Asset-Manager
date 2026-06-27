@@ -96,7 +96,6 @@ export function AssetHistoryChart({
     const isLineChartMode = isAnyPnlMode || isRealizedGainMode
     const isStackedAreaMode = !isLineChartMode
     const isValueMode = viewMode === "value"
-    const [isAnimating, setIsAnimating] = React.useState(false)
     const [viewModeOpen, setViewModeOpen] = React.useState(false)
     const [showCostOverlay, setShowCostOverlay] = React.useState(true)
 
@@ -105,12 +104,16 @@ export function AssetHistoryChart({
     const [domainOffset, setDomainOffset] = React.useState<number>(0)
     const chartRef = React.useRef<HTMLDivElement>(null);
     const selectedTimestampRef = React.useRef<number | null>(null)
+    const dragRafRef = React.useRef<number | null>(null)
+    const dragShiftRef = React.useRef(0)
 
     React.useEffect(() => {
-        setIsAnimating(true)
-        const timer = setTimeout(() => setIsAnimating(false), 1500)
-        return () => clearTimeout(timer)
-    }, [mode, selectedTagGroup, viewMode, timeRange])
+        return () => {
+            if (dragRafRef.current !== null) {
+                cancelAnimationFrame(dragRafRef.current)
+            }
+        }
+    }, [])
 
     React.useEffect(() => {
         setIsMounted(true);
@@ -474,12 +477,42 @@ export function AssetHistoryChart({
         return config
     }, [activeKeys, selectedTagGroup])
 
+    const shouldHighlightOnlySelected = viewMode === "value" || viewMode === "cost"
+    const isDimmedKey = (key: string) => !shouldHighlightOnlySelected && !!selectedAssetKey && selectedAssetKey !== key
+
+    const topLevelCategories = React.useMemo(
+        () => categories.filter((c) => !c.parentId),
+        [categories],
+    )
+
+    const stackedTotalCategories = React.useMemo(() => {
+        return [...categories].reverse().filter((cat: Category) => {
+            if (cat.isLiability) return false
+            if (!shouldHighlightOnlySelected) return true
+            return !selectedAssetKey || selectedAssetKey === `category_${cat.id}`
+        })
+    }, [categories, selectedAssetKey, shouldHighlightOnlySelected])
+
+    const lineTotalCategories = React.useMemo(
+        () => categories.filter((c) => !c.parentId && !c.isLiability),
+        [categories],
+    )
+
     const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
         const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
         setDragStartX(clientX);
-        // ドラッグ開始時にアニメーションをオフにする（カクつき防止）
-        setIsAnimating(false);
     };
+
+    const scheduleDomainOffset = React.useCallback((timeShift: number, dataMinTime: number, dataMaxTime: number) => {
+        dragShiftRef.current += timeShift
+        if (dragRafRef.current !== null) return
+        dragRafRef.current = requestAnimationFrame(() => {
+            const shift = dragShiftRef.current
+            dragShiftRef.current = 0
+            dragRafRef.current = null
+            setDomainOffset((prev) => clampDomainOffset(prev + shift, dataMinTime, dataMaxTime))
+        })
+    }, [])
 
     const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
         if (dragStartX === null || !allProcessedData.length) return;
@@ -490,13 +523,11 @@ export function AssetHistoryChart({
             const width = chartRef.current.clientWidth;
             const [minT, maxT] = currentDomain as [number, number];
             const timePerPixel = (maxT - minT) / width;
-            
             const timeShift = -dx * timePerPixel;
-            
             const dataMinTime = allProcessedData[0].timestamp;
             const dataMaxTime = allProcessedData[allProcessedData.length - 1].timestamp;
 
-            setDomainOffset(prev => clampDomainOffset(prev + timeShift, dataMinTime, dataMaxTime));
+            scheduleDomainOffset(timeShift, dataMinTime, dataMaxTime);
             setDragStartX(clientX);
         }
     };
@@ -518,9 +549,6 @@ export function AssetHistoryChart({
         if (isNaN(date.getTime())) return ""
         return `${date.getFullYear()}/${date.getMonth() + 1}`
     }
-
-    const shouldHighlightOnlySelected = viewMode === "value" || viewMode === "cost"
-    const isDimmedKey = (key: string) => !shouldHighlightOnlySelected && !!selectedAssetKey && selectedAssetKey !== key
 
     return (
         <div className="flex flex-col w-full pt-1">
@@ -598,12 +626,7 @@ export function AssetHistoryChart({
                                     )}
 
                                     {/* 評価額・取得額・構成比モード時の面グラフ */}
-                                    {isStackedAreaMode && mode === "total" && [...categories].reverse().filter((cat: Category) => {
-                                        if (cat.isLiability) return false
-                                        if (!shouldHighlightOnlySelected) return true
-                                        return !selectedAssetKey || selectedAssetKey === `category_${cat.id}`
-                                    }).map((cat: Category) => {
-                                        const topLevelCategories = categories.filter(c => !c.parentId);
+                                    {isStackedAreaMode && mode === "total" && stackedTotalCategories.map((cat: Category) => {
                                         const colorIndex = topLevelCategories.findIndex(tc => tc.id === cat.id);
                                         const color = cat.color || `var(--chart-${((colorIndex >= 0 ? colorIndex : 0) % 12) + 1})`;
                                         const key = `category_${cat.id}`
@@ -618,8 +641,7 @@ export function AssetHistoryChart({
                                                 fill={color}
                                                 fillOpacity={isDimmed ? 0.15 : 0.4}
                                                 strokeOpacity={isDimmed ? 0.35 : 1}
-                                                isAnimationActive={isAnimating}
-                                                animationDuration={1200}
+                                                isAnimationActive={false}
                                             />
                                         );
                                     })}
@@ -644,8 +666,7 @@ export function AssetHistoryChart({
                                                 fill={color}
                                                 fillOpacity={isDimmed ? 0.15 : 0.4}
                                                 strokeOpacity={isDimmed ? 0.35 : 1}
-                                                isAnimationActive={isAnimating}
-                                                animationDuration={1200}
+                                                isAnimationActive={false}
                                             />
                                         );
                                     })}
@@ -659,15 +680,13 @@ export function AssetHistoryChart({
                                             strokeDasharray="6 4"
                                             strokeOpacity={0.85}
                                             dot={false}
-                                            isAnimationActive={isAnimating}
-                                            animationDuration={1200}
+                                            isAnimationActive={false}
                                         />
                                     )}
 
                                     {/* 損益率・損益額・実現益モード時の折れ線グラフ */}
-                                    {isLineChartMode && mode === "total" && categories.filter(c => !c.parentId && !c.isLiability).map(cat => {
-                                        const topLevel = categories.filter(c => !c.parentId && !c.isLiability)
-                                        const colorIndex = topLevel.findIndex(c => c.id === cat.id)
+                                    {isLineChartMode && mode === "total" && lineTotalCategories.map(cat => {
+                                        const colorIndex = lineTotalCategories.findIndex(c => c.id === cat.id)
                                         const color = cat.color || `var(--chart-${(colorIndex % 12) + 1})`
                                         const key = `category_${cat.id}`
                                         const isDimmed = isDimmedKey(key)
@@ -687,7 +706,7 @@ export function AssetHistoryChart({
                                                 strokeOpacity={isDimmed ? 0.35 : 1}
                                                 dot={false}
                                                 connectNulls={isRealizedGainMode}
-                                                isAnimationActive={isAnimating}
+                                                isAnimationActive={false}
                                             />
                                         )
                                     })}
@@ -715,7 +734,7 @@ export function AssetHistoryChart({
                                                 strokeOpacity={isDimmed ? 0.35 : 1}
                                                 dot={false}
                                                 connectNulls={isRealizedGainMode}
-                                                isAnimationActive={isAnimating}
+                                                isAnimationActive={false}
                                             />
                                         )
                                     })}

@@ -1,9 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use server"
 
+import { cache } from "react"
+import { revalidatePath, unstable_cache } from "next/cache"
 import { prisma } from "@/lib/prisma"
-import { revalidatePath } from "next/cache"
 import { getCurrentUserId } from "@/lib/auth"
+import { dashboardCacheTag, revalidateUserDashboard } from "@/lib/dashboard-cache"
+import {
+    findAssetOnOrBefore,
+    sumCostBasis,
+    sumNetFlowInRange,
+    sumRealizedGain,
+} from "@/lib/category-metrics"
 import { getCalendarDayKey } from "@/lib/valuation-day"
 
 interface CategoryWithRelations {
@@ -28,16 +36,27 @@ interface CategoryWithRelations {
     transactions: { id: number; amount: number; type: string; memo: string | null; transactedAt: Date; realizedGain: number | null }[];
 }
 
+function getCachedCategories(userId: string) {
+    return unstable_cache(
+        () => loadCategoriesForUser(userId),
+        ["categories-data", userId],
+        { revalidate: 300, tags: [dashboardCacheTag(userId)] },
+    )
+}
+
 /**
  * Robustly fetch categories with fallback and type safety.
  */
-export async function getCategories() {
+export const getCategories = cache(async () => {
+    const userId = await getCurrentUserId()
+    if (!userId) {
+        return []
+    }
+    return getCachedCategories(userId)()
+})
+
+async function loadCategoriesForUser(userId: string) {
     try {
-        const userId = await getCurrentUserId()
-        if (!userId) {
-            console.warn("[getCategories] No user ID found, returning empty list");
-            return [];
-        }
         const allCategories = await prisma.category.findMany({
             where: { userId },
             include: {
@@ -48,10 +67,21 @@ export async function getCategories() {
                     }
                 },
                 assets: {
-                    orderBy: { recordedAt: 'desc' },
-                    take: 100 // To find "1 month ago" record
+                    orderBy: { recordedAt: "desc" },
+                    take: 40,
+                    select: {
+                        recordedAt: true,
+                        currentValue: true,
+                    },
                 },
-                transactions: true
+                transactions: {
+                    select: {
+                        transactedAt: true,
+                        amount: true,
+                        type: true,
+                        realizedGain: true,
+                    },
+                },
             }
         }) as unknown as CategoryWithRelations[];
 
@@ -81,14 +111,9 @@ export async function getCategories() {
             // Daily Performance calculation (Value Change - Net Flow)
             const hasDailyComparison = !!latestAsset && !!prevAsset;
             const ownDailyValueChange = hasDailyComparison ? Number(latestAsset.currentValue) - Number(prevAsset.currentValue) : 0;
-            const dailyNetFlow = hasDailyComparison ? (cat.transactions || [])
-                .filter(t => t.transactedAt > prevAsset.recordedAt && t.transactedAt <= latestAsset.recordedAt)
-                .reduce((acc, t) => {
-                    const amt = Number(t.amount);
-                    if (t.type === 'DEPOSIT') return acc + amt;
-                    if (t.type === 'WITHDRAW') return acc - amt;
-                    return acc;
-                }, 0) : 0;
+            const dailyNetFlow = hasDailyComparison
+                ? sumNetFlowInRange(cat.transactions || [], prevAsset.recordedAt, latestAsset.recordedAt)
+                : 0;
             const ownDailyChange = hasDailyComparison ? (ownDailyValueChange - dailyNetFlow) : undefined;
 
             const ownDailyChangeDays = hasDailyComparison
@@ -101,18 +126,13 @@ export async function getCategories() {
 
             // Monthly Performance calculation (~30 days ago)
             const thirtyDaysAgoLimit = latestAsset ? new Date(latestAsset.recordedAt.getTime() - (30 * 24 * 60 * 60 * 1000)) : null;
-            const monthAgoAsset = thirtyDaysAgoLimit ? (cat.assets || []).find(a => a.recordedAt <= thirtyDaysAgoLimit) : null;
+            const monthAgoAsset = thirtyDaysAgoLimit ? findAssetOnOrBefore(cat.assets || [], thirtyDaysAgoLimit) : null;
             
             const hasMonthlyComparison = !!latestAsset && !!monthAgoAsset;
             const ownMonthlyValueChange = hasMonthlyComparison ? Number(latestAsset.currentValue) - Number(monthAgoAsset.currentValue) : 0;
-            const monthlyNetFlow = hasMonthlyComparison ? (cat.transactions || [])
-                .filter(t => t.transactedAt > monthAgoAsset.recordedAt && t.transactedAt <= latestAsset.recordedAt)
-                .reduce((acc, t) => {
-                    const amt = Number(t.amount);
-                    if (t.type === 'DEPOSIT') return acc + amt;
-                    if (t.type === 'WITHDRAW') return acc - amt;
-                    return acc;
-                }, 0) : 0;
+            const monthlyNetFlow = hasMonthlyComparison
+                ? sumNetFlowInRange(cat.transactions || [], monthAgoAsset.recordedAt, latestAsset.recordedAt)
+                : 0;
             const ownMonthlyChange = hasMonthlyComparison ? (ownMonthlyValueChange - monthlyNetFlow) : undefined;
 
             const ownMonthlyChangeDays = hasMonthlyComparison
@@ -131,15 +151,8 @@ export async function getCategories() {
 
             let ownCostBasis = 0;
             const trxs = cat.transactions || [];
-            const ownRealizedGain = trxs.reduce((acc: number, t) => acc + Number(t.realizedGain || 0), 0);
-            if (cat.isCash) {
-                ownCostBasis = ownValue;
-            } else {
-                ownCostBasis = trxs.reduce((acc: number, t) => {
-                    const amt = Number(t.amount || 0);
-                    return t.type === 'DEPOSIT' ? acc + amt : (t.type === 'WITHDRAW' ? acc - amt : acc);
-                }, 0);
-            }
+            const ownRealizedGain = sumRealizedGain(trxs);
+            ownCostBasis = sumCostBasis(trxs, !!cat.isCash, ownValue);
 
             return {
                 ...cat,
@@ -255,6 +268,10 @@ export async function getCategories() {
     }
 }
 
+function invalidateDashboard(userId: string | null | undefined) {
+    if (userId) revalidateUserDashboard(userId)
+}
+
 interface SaveCategoryData {
     id?: number;
     name: string;
@@ -316,6 +333,7 @@ export async function saveCategory(data: SaveCategoryData) {
         }
 
         revalidatePath("/");
+        invalidateDashboard(userId);
         return { success: true };
     } catch (error) {
         console.error("Save error", error);
@@ -325,11 +343,13 @@ export async function saveCategory(data: SaveCategoryData) {
 
 export async function deleteCategory(id: number) {
     try {
+        const userId = await getCurrentUserId()
         await prisma.category.updateMany({ where: { parentId: id }, data: { parentId: null } });
         await prisma.asset.deleteMany({ where: { categoryId: id } });
         await prisma.transaction.deleteMany({ where: { categoryId: id } });
         await prisma.category.delete({ where: { id } });
         revalidatePath("/");
+        invalidateDashboard(userId);
         return { success: true };
     } catch (error) {
         console.error("Delete error", error);
@@ -338,13 +358,15 @@ export async function deleteCategory(id: number) {
 }
 
 export async function updateCategoryOrder() {
-    // Basic implementation to satisfy types
+    const userId = await getCurrentUserId()
     revalidatePath("/");
+    invalidateDashboard(userId);
     return { success: true };
 }
 
 export async function reorderCategoriesAction(items: { id: number, order: number }[]) {
     try {
+        const userId = await getCurrentUserId()
         await prisma.$transaction(
             items.map((item) =>
                 prisma.category.update({
@@ -354,6 +376,7 @@ export async function reorderCategoriesAction(items: { id: number, order: number
             )
         );
         revalidatePath("/");
+        invalidateDashboard(userId);
         return { success: true };
     } catch (error) {
         console.error("Reorder failed", error);
@@ -836,6 +859,7 @@ export async function updateValuationSettingsAction(settings: {
     valuationAlias?: string | null
 }[]) {
     try {
+        const userId = await getCurrentUserId()
         await prisma.$transaction(
             settings.map(s =>
                 prisma.category.update({
@@ -850,6 +874,7 @@ export async function updateValuationSettingsAction(settings: {
         );
         revalidatePath("/");
         revalidatePath("/assets/valuation");
+        invalidateDashboard(userId);
         return { success: true };
     } catch (e) {
         console.error("Failed to update valuation settings", e);
@@ -859,11 +884,13 @@ export async function updateValuationSettingsAction(settings: {
 
 export async function toggleCategoryVisibility(id: number, hidden: boolean) {
     try {
+        const userId = await getCurrentUserId()
         await prisma.category.update({
             where: { id },
             data: { hidden }
         });
         revalidatePath("/");
+        invalidateDashboard(userId);
         return { success: true };
     } catch (error) {
         console.error("Toggle visibility error", error);

@@ -28,8 +28,8 @@ export const metadata: Metadata = {
 };
 
 import { Toaster } from "@/components/ui/sonner";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/auth";
+import { headers } from "next/headers";
+import { shouldSkipServerSession } from "@/lib/public-paths";
 import { TutorialDialog } from "@/components/TutorialDialog";
 import { GoogleAnalytics } from "@next/third-parties/google";
 
@@ -38,7 +38,15 @@ export default async function RootLayout({
 }: Readonly<{
     children: React.ReactNode;
 }>) {
-    const session = await getServerSession(authOptions);
+    const pathname = (await headers()).get("x-pathname") ?? "";
+    const skipSession = shouldSkipServerSession(pathname);
+    const session = skipSession
+        ? null
+        : await (async () => {
+            const { getServerSession } = await import("next-auth");
+            const { authOptions } = await import("@/auth");
+            return getServerSession(authOptions);
+        })();
     const gaId = process.env.NEXT_PUBLIC_GA_ID;
 
     return (
