@@ -1,11 +1,11 @@
 # Local development — inject secrets from 1Password:
+#   npm run db:setup   # 初回のみ（WSL MySQL 起動 + マイグレーション）
 #   npm run dev
-#   npm run dev:tunnel
-DB_USER=op://apps/DB/db-user
-DB_PASSWORD=op://apps/DB/db-password
-DB_HOST=op://apps/DB/db-host-dev
-DB_PORT=op://apps/DB/db-port-dev
-DB_NAME=op://apps/AssetManager/db-name-dev
+DB_USER=asset_manager
+DB_PASSWORD=devpassword
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=asset_manager_dev
 NEXTAUTH_SECRET=op://apps/AssetManager/nextauth-secret
 NEXTAUTH_URL=op://apps/AssetManager/nextauth-url-dev
 AUTH_GOOGLE_ID=op://apps/AssetManager/auth-google-id

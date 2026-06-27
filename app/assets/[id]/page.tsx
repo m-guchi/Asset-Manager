@@ -40,6 +40,7 @@ import { ValuationOverwriteDialog, type ValuationOverwriteItem } from "@/compone
 import { getCategoryDetails } from "../../actions/categories"
 import { updateValuation, addTransaction, deleteHistoryItem, updateHistoryItem } from "../../actions/assets"
 import { isValuationFailure, isValuationNeedsConfirmation, isValuationSuccess } from "@/lib/valuation-result"
+import { getCalendarDayKey, getTodayDateInput } from "@/lib/valuation-day"
 
 interface TransactionItem {
     id: string;
@@ -124,7 +125,7 @@ export default function AssetDetailPage() {
     }, [category, historyFilter])
 
     const [newTrx, setNewTrx] = React.useState({
-        date: new Date().toISOString().split('T')[0],
+        date: getTodayDateInput(),
         type: "VALUATION",
         amount: "",
         valuation: "",
@@ -252,7 +253,7 @@ export default function AssetDetailPage() {
         setBaseValuation(currentVal - signedAmount);
 
         setNewTrx({
-            date: new Date(item.date).toISOString().split('T')[0],
+            date: getCalendarDayKey(new Date(item.date)),
             type: item.type,
             amount: Math.abs(item.amount || 0).toString(), // Always set amount as positive for editing
             valuation: item.pointInTimeValuation?.toString() || "",
@@ -567,7 +568,7 @@ export default function AssetDetailPage() {
                             setEditingItem(null)
                             setBaseValuation(category.currentValue)
                             setNewTrx({
-                                date: new Date().toISOString().split('T')[0],
+                                date: getTodayDateInput(),
                                 type: "VALUATION",
                                 amount: "",
                                 valuation: category.currentValue.toString(),
@@ -609,7 +610,7 @@ export default function AssetDetailPage() {
                                 filteredTransactions.map((item) => (
                                     <TableRow key={item.id}>
                                         <TableCell className="text-xs font-medium text-muted-foreground">
-                                            <div>{new Date(item.date).toISOString().slice(0, 10)}</div>
+                                            <div>{getCalendarDayKey(new Date(item.date))}</div>
                                             {item.categoryName && (
                                                 <div className="flex items-center gap-1.5 mt-1">
                                                     <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: item.categoryColor || '#888' }} />
@@ -680,7 +681,7 @@ export default function AssetDetailPage() {
                     setShowZeroWarning(false)
                     setBaseValuation(category.currentValue);
                     setNewTrx({
-                        date: new Date().toISOString().split('T')[0],
+                        date: getTodayDateInput(),
                         type: "VALUATION",
                         amount: "",
                         valuation: category.currentValue.toString(),

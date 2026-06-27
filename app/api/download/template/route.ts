@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { getCalendarDayKey } from "@/lib/valuation-day";
 
 export const dynamic = 'force-dynamic';
 
@@ -88,7 +89,7 @@ export async function GET(req: NextRequest) {
 
                     history.forEach(h => {
                         rows.push([
-                            h.date.toISOString().split('T')[0],
+                            getCalendarDayKey(h.date),
                             h.deposit,
                             h.withdraw,
                             h.sell,

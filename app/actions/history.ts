@@ -3,6 +3,7 @@
 // Updated History Action with GroupID support
 import { prisma } from "@/lib/prisma"
 import { getCurrentUserId } from "@/lib/auth"
+import { getCalendarDayKey, getJstDayBounds } from "@/lib/valuation-day"
 
 interface HistoryPoint {
     date: string
@@ -48,10 +49,10 @@ export async function getHistoryData() {
 
         // 2. Normalize and sort dates
         const dateSet = new Set<string>();
-        historyRecords.forEach((r) => dateSet.add(r.recordedAt.toISOString().slice(0, 10)));
+        historyRecords.forEach((r) => dateSet.add(getCalendarDayKey(r.recordedAt)));
         categories.forEach((cat) => {
             (cat.transactions || []).forEach((t) => {
-                dateSet.add(new Date(t.transactedAt).toISOString().slice(0, 10));
+                dateSet.add(getCalendarDayKey(new Date(t.transactedAt)));
             });
         });
         const sortedDates = Array.from(dateSet).sort();
@@ -137,13 +138,13 @@ export async function getHistoryData() {
 
         // 5. Generate points
         const points: HistoryPoint[] = sortedDates.map(dateStr => {
-            const dateObj = new Date(dateStr);
+            const { end: dayEnd } = getJstDayBounds(dateStr);
             const dateStrNormalized = dateStr;
 
             // Updated logic: First, apply net flow of transactions for this specific date to current values
             categories.forEach((cat) => {
                 const txsToday = (cat.transactions || [])
-                    .filter((t) => new Date(t.transactedAt).toISOString().slice(0, 10) === dateStrNormalized);
+                    .filter((t) => getCalendarDayKey(new Date(t.transactedAt)) === dateStrNormalized);
 
                 if (txsToday.length > 0) {
                     const netFlow = txsToday.reduce((sum, t) => {
@@ -157,7 +158,7 @@ export async function getHistoryData() {
 
             // Second, if there's an EXPLICIT valuation record for today, it takes precedence
             historyRecords
-                .filter((r) => r.recordedAt.toISOString().slice(0, 10) === dateStrNormalized)
+                .filter((r) => getCalendarDayKey(r.recordedAt) === dateStrNormalized)
                 .forEach((r) => latestValues.set(r.categoryId, Number(r.currentValue)));
 
             // Update cost basis (cumulative transactions)
@@ -166,7 +167,7 @@ export async function getHistoryData() {
                     latestCostBasis.set(cat.id, latestValues.get(cat.id) || 0);
                 } else {
                     const cost = (cat.transactions || [])
-                        .filter((t) => new Date(t.transactedAt) <= dateObj)
+                        .filter((t) => new Date(t.transactedAt) <= dayEnd)
                         .reduce((sum: number, t) => {
                             const amt = Number(t.amount);
                             return t.type === 'DEPOSIT' ? sum + amt : (t.type === 'WITHDRAW' ? sum - amt : sum);
@@ -175,7 +176,7 @@ export async function getHistoryData() {
                 }
 
                 const realizedGain = (cat.transactions || [])
-                    .filter((t) => new Date(t.transactedAt) <= dateObj)
+                    .filter((t) => new Date(t.transactedAt) <= dayEnd)
                     .reduce((sum: number, t) => sum + Number(t.realizedGain || 0), 0);
                 latestRealizedGain.set(cat.id, realizedGain);
             });
@@ -185,7 +186,7 @@ export async function getHistoryData() {
                 date: dateStr,
                 totalAssets: 0,
                 totalCost: 0,
-                timestamp: dateObj.getTime()
+                timestamp: dayEnd.getTime()
             };
             allTagKeys.forEach(k => point[k] = 0);
 

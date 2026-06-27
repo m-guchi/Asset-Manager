@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main, develop]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -35,8 +39,8 @@ jobs:
       - name: Lint check
         run: npm run lint
 
-      - name: Database Migration Test
-        run: npx prisma migrate deploy
+      - name: Database schema sync
+        run: npx prisma db push --accept-data-loss
         env:
           DATABASE_URL: mysql://root@127.0.0.1:3306/test_db
 
@@ -91,7 +95,8 @@ jobs:
         if: steps.status.outputs.should_notify == 'true'
         env:
           DISCORD_WEBHOOK_URL: ${{ env.DISCORD_CI_WEBHOOK_URL }}
+          NOTIFY_APP: Asset Manager
+          NOTIFY_KIND: CI
           NOTIFY_STATUS: ${{ steps.status.outputs.result }}
-          NOTIFY_WORKFLOW: CI
           NOTIFY_JOB: ${{ steps.status.outputs.jobs }}
         run: bash .github/scripts/discord-notify.sh

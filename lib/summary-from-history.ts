@@ -1,4 +1,5 @@
 import type { HistoryPoint } from "@/types/asset"
+import { addCalendarDays, getCalendarDayKey } from "@/lib/valuation-day"
 
 export interface PortfolioHistoryPerformance {
     dailyChange: number
@@ -19,17 +20,11 @@ function pointDateKey(p: HistoryPoint): string {
     }
     const ts = typeof p.timestamp === "number" ? p.timestamp : NaN
     if (Number.isFinite(ts)) {
-        return new Date(ts).toISOString().slice(0, 10)
+        return getCalendarDayKey(new Date(ts))
     }
     return ""
 }
 
-/** UTC 暦の YYYY-MM-DD に delta 日を加算（履歴の date と同じ基準） */
-function addCalendarDaysUtc(isoDate: string, deltaDays: number): string {
-    const [y, m, d] = isoDate.slice(0, 10).split("-").map(Number)
-    const utc = Date.UTC(y, m - 1, d) + deltaDays * 86400000
-    return new Date(utc).toISOString().slice(0, 10)
-}
 
 function sortHistoryPoints(points: HistoryPoint[]): HistoryPoint[] {
     return [...points].sort((a, b) => {
@@ -83,7 +78,7 @@ export function computePortfolioPerformanceFromHistory(
 
     const latestProfit = pointProfitAmount(latest)
 
-    const dayThreshold = addCalendarDaysUtc(latestDate, -1)
+    const dayThreshold = addCalendarDays(latestDate, -1)
     let dailyRefIdx = findLastIndexOnOrBeforeDate(sorted, dayThreshold)
     if (dailyRefIdx < 0 || dailyRefIdx >= lastIdx) {
         dailyRefIdx = lastIdx >= 1 ? lastIdx - 1 : -1
@@ -93,7 +88,7 @@ export function computePortfolioPerformanceFromHistory(
     const dailyChangeRate =
         dailyRefIdx >= 0 && dailyRefProfit !== 0 ? (dailyChange / Math.abs(dailyRefProfit)) * 100 : 0
 
-    const monthThreshold = addCalendarDaysUtc(latestDate, -30)
+    const monthThreshold = addCalendarDays(latestDate, -30)
     const monthRefIdx = findLastIndexOnOrBeforeDate(sorted, monthThreshold)
     let monthlyChange = 0
     let monthlyChangeRate = 0
