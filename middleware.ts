@@ -1,59 +1,63 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getToken } from "next-auth/jwt"
 
+const PUBLIC_PATH_PREFIXES = [
+    "/api/auth",
+    "/auth/verify",
+    "/auth/reset-password",
+    "/auth/confirm-email-change",
+    "/auth/confirm-password-change",
+    "/terms",
+    "/privacy",
+]
+
+const PUBLIC_PATHS = new Set([
+    "/login",
+    "/icon.svg",
+    "/favicon.ico",
+    "/manifest.json",
+    "/robots.txt",
+    "/sitemap.xml",
+])
+
+function isPublicPath(pathname: string): boolean {
+    if (PUBLIC_PATHS.has(pathname)) return true
+    if (pathname.match(/\.(svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|eot)$/)) return true
+    return PUBLIC_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+}
+
 export default async function middleware(request: NextRequest) {
+    const { pathname } = request.nextUrl
+
+    if (isPublicPath(pathname)) {
+        if (pathname === "/login" || pathname === "/login/") {
+            const token = await getToken({
+                req: request,
+                secret: process.env.NEXTAUTH_SECRET,
+            })
+            if (token) {
+                return NextResponse.redirect(new URL("/", request.url))
+            }
+        }
+        return NextResponse.next()
+    }
+
     const token = await getToken({
         req: request,
         secret: process.env.NEXTAUTH_SECRET,
     })
 
-    const { pathname } = request.nextUrl
-
-    console.log(`[Middleware Debug] pathname: ${pathname}, hasToken: ${!!token}`);
-
-    // Auth 関連、静的ファイル、PWA/SEO 関連のファイルは認証をスキップ
-    if (
-        pathname.includes("/api/auth") ||
-        pathname.startsWith("/auth/verify") ||
-        pathname.startsWith("/auth/reset-password") ||
-        pathname.startsWith("/auth/confirm-email-change") ||
-        pathname.startsWith("/auth/confirm-password-change") ||
-        pathname.includes("_next") ||
-        pathname.startsWith("/icon.svg") ||
-        pathname.startsWith("/favicon.ico") ||
-        pathname.startsWith("/manifest.json") ||
-        pathname.startsWith("/robots.txt") ||
-        pathname.startsWith("/sitemap.xml") ||
-        pathname.match(/\.(svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|eot)$/) ||
-        pathname.includes("/terms") ||
-        pathname.includes("/privacy")
-    ) {
-        return NextResponse.next()
-    }
-
-    // ログインページへのアクセス
-    if (pathname === "/login" || pathname === "/login/") {
-        if (token) {
-            return NextResponse.redirect(new URL("/", request.url))
-        }
-        return NextResponse.next()
-    }
-
-    // 未ログイン時の保護
     if (!token) {
-        console.log(`[Middleware] Redirecting to login from: ${pathname}`);
         const loginUrl = new URL("/login", request.url)
-        // 無限ループ防止のため、現在のパスがすでに /login でないことを確認
-        if (pathname !== "/login") {
-            loginUrl.searchParams.set("callbackUrl", request.url)
-            return NextResponse.redirect(loginUrl)
-        }
+        loginUrl.searchParams.set("callbackUrl", request.url)
+        return NextResponse.redirect(loginUrl)
     }
 
     return NextResponse.next()
 }
 
 export const config = {
-    // すべてのリクエストに対して実行し、内部で除外パスを判定する方式に変更
-    matcher: ["/:path*"],
+    matcher: [
+        "/((?!_next/static|_next/image|_next/webpack-hmr).*)",
+    ],
 }

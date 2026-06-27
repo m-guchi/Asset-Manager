@@ -1,7 +1,8 @@
+import { cache } from "react"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
 
-export async function getCurrentUserId(): Promise<string | null> {
+export const getCurrentUserId = cache(async (): Promise<string | null> => {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
@@ -9,9 +10,9 @@ export async function getCurrentUserId(): Promise<string | null> {
     }
 
     return session.user.id
-}
+})
 
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async () => {
     const session = await getServerSession(authOptions)
     return session?.user ?? null
-}
+})
