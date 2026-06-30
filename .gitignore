@@ -47,3 +47,6 @@ next-env.d.ts
 deploy.tar.gz
 deploy_package/
 .env.prod-local
+
+# claude code (個人/セッション固有の設定)
+.claude/settings.local.json

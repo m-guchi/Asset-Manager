@@ -4,7 +4,7 @@ import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { NextAuthOptions } from "next-auth"
 import { seedDummyData } from "@/lib/db/seed"
-import { sendLoginNotification, sendRegisterNotification } from "@/lib/discord"
+import { sendLoginNotification, sendRegisterNotification } from "@/lib/signaly"
 import bcrypt from "bcryptjs"
 
 export const authOptions: NextAuthOptions = {

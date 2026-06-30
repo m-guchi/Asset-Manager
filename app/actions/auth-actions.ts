@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs"
 import { seedDummyData } from "@/lib/db/seed"
 import { generateVerificationToken, generatePasswordResetToken } from "@/lib/tokens"
 import { sendVerificationEmail, sendPasswordResetEmail } from "@/lib/mail"
-import { sendRegisterNotification } from "@/lib/discord"
+import { sendRegisterNotification } from "@/lib/signaly"
 
 export async function signUp(formData: FormData) {
     const email = formData.get("email") as string
