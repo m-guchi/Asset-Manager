@@ -25,10 +25,10 @@ jobs:
         options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -54,7 +54,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Determine workflow status
         id: status
@@ -91,12 +91,12 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           OP_ENV_FILE: ".github/ci.env.tpl"
 
-      - name: Notify Discord
+      - name: Signaly に通知
         if: steps.status.outputs.should_notify == 'true'
         env:
-          DISCORD_WEBHOOK_URL: ${{ env.DISCORD_CI_WEBHOOK_URL }}
+          SIGNALY_WEBHOOK_URL: ${{ env.SIGNALY_WEBHOOK_URL }}
           NOTIFY_APP: Asset Manager
           NOTIFY_KIND: CI
           NOTIFY_STATUS: ${{ steps.status.outputs.result }}
           NOTIFY_JOB: ${{ steps.status.outputs.jobs }}
-        run: bash .github/scripts/discord-notify.sh
+        run: bash .github/scripts/signaly-notify.sh

@@ -30,7 +30,7 @@ export const metadata: Metadata = {
 import { Toaster } from "@/components/ui/sonner";
 import { headers } from "next/headers";
 import { shouldSkipServerSession } from "@/lib/public-paths";
-import { TutorialDialog } from "@/components/TutorialDialog";
+import { TutorialDialogLazy as TutorialDialog } from "@/components/TutorialDialogLazy";
 import { GoogleAnalytics } from "@next/third-parties/google";
 
 export default async function RootLayout({

@@ -1,10 +1,19 @@
 "use client"
 
 import * as React from "react"
+import dynamic from "next/dynamic"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import { HistoryPoint, Category, TagGroup, ChartViewMode } from "@/types/asset"
-import { AssetHistoryChart } from "@/components/dashboard/asset-history-chart"
-import { AssetAllocationChart } from "@/components/dashboard/asset-allocation-chart"
+
+const AssetHistoryChart = dynamic(
+    () => import("@/components/dashboard/asset-history-chart").then(m => m.AssetHistoryChart),
+    { ssr: false, loading: () => <Skeleton className="h-full w-full min-h-64" /> }
+)
+const AssetAllocationChart = dynamic(
+    () => import("@/components/dashboard/asset-allocation-chart").then(m => m.AssetAllocationChart),
+    { ssr: false, loading: () => <Skeleton className="h-full w-full min-h-64" /> }
+)
 
 interface AssetChartsCombinedProps {
     historyData: HistoryPoint[];

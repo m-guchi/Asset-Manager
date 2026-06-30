@@ -110,9 +110,9 @@ npm run dev
 
 ### スキーマ同期について
 
-ローカル・CI・本番デプロイはいずれも **`prisma db push`** で `schema.prisma` を DB に反映します（本番は `deploy.yml` 内で実行）。
+ローカル開発では **`prisma db push`**（`npm run db:setup` / `npm run db:deploy:local`）で素早くスキーマを反映します。本番デプロイは `deploy.yml` 内で `prisma migrate deploy` を実行し、`prisma/migrations` のマイグレーション履歴を適用します。
 
-`prisma/migrations` 内のファイルは古い状態のため、**`migrate deploy` だけでは `Account` など認証用テーブルが作られません**。初回セットアップやスキーマ更新後は必ず `npm run db:setup` または `npm run db:deploy:local` を使ってください。
+スキーマを変更した場合は `npm run db:dev` でマイグレーションファイルを生成し、`prisma/migrations` にコミットしてください。
 
 ```bash
 # スキーマを変更したあと
@@ -126,7 +126,7 @@ npm run dev   # 再起動
 
 **必要な設定:**
 
-1. 1Password に `auth-google-id` / `auth-google-secret` / `nextauth-secret` / `nextauth-url-dev`（`http://localhost:3000`）を登録
+1. 1Password に `auth-google-id` / `auth-google-secret` / `nextauth-secret` を登録（開発用 `NEXTAUTH_URL` は `.env.1password.tpl` に `http://localhost:3000` を直書き済み）
 2. [Google Cloud Console](https://console.cloud.google.com/) の OAuth 2.0 クライアントにリダイレクト URI を追加:
 
 ```
@@ -155,7 +155,7 @@ npm run prod:tunnel
 
 ### 環境変数の管理 (1Password)
 
-OAuth・SMTP・NextAuth などの秘密情報は 1Password の `apps` 保管庫で管理します。DB 接続情報は WSL ローカル MySQL 用の固定値を `.env.1password.tpl` に直接記載します。
+OAuth・SMTP・NextAuth などの秘密情報は 1Password の `apps` 保管庫で管理します。DB 接続情報（ローカル）や開発用 `NEXTAUTH_URL`（`http://localhost:3000`）など、秘密ではなく環境固有でもない値は `.env.1password.tpl` に直接記載します。
 
 | 用途 | テンプレート | コマンド | 1Password |
 |------|-------------|----------|-----------|
@@ -225,11 +225,11 @@ npm run build:local
 |-------------|------|----------|
 | `db-name` | 本番用データベース名 | `DB_NAME`（デプロイ時に `DATABASE_URL` を組み立て） |
 | `nextauth-url` | 本番環境のベース URL | `NEXTAUTH_URL` |
-| `nextauth-url-dev` | 開発用ベース URL | 通常 `http://localhost:3000` |
 | `nextauth-secret` | NextAuth セッション暗号化キー | `NEXTAUTH_SECRET` |
 | `auth-google-id` | Google OAuth クライアント ID | `AUTH_GOOGLE_ID` |
 | `auth-google-secret` | Google OAuth クライアントシークレット | `AUTH_GOOGLE_SECRET` |
 | `ga-id` | Google Analytics 測定 ID | `NEXT_PUBLIC_GA_ID` |
+| `ci-webhook-url` | CI/デプロイ結果を通知する Signaly の Webhook URL | `SIGNALY_WEBHOOK_URL` |
 | `target-dir` | デプロイ先ディレクトリ | 例: `/home/github-user/asset.gucchii.com` |
 
 **アイテム `DB`**（MyRoom と共有可）
@@ -312,5 +312,5 @@ op read "op://apps/githubaction-sshkey/private_key?ssh-format=openssh"
 1. 1Password から秘密情報を読み込み、GitHub 側でビルド (`npm run build`) およびアーカイブの作成が行われます。
 2. 作成されたパッケージ (`deploy.tar.gz`) が `scp` でサーバーへ転送されます。
 3. サーバー上でアーカイブが展開され、`.env` が 1Password の値で同期されます。
-4. 本番用パッケージ (`npm install --omit=dev`) のインストール、`prisma db push` による DB スキーマ同期が走ります。
+4. 本番用パッケージ (`npm install --omit=dev`) のインストール、`prisma migrate deploy` による DB スキーマ同期が走ります。
 5. `pm2` を利用して Node.js アプリケーションがポート `3102` で再起動されます。
