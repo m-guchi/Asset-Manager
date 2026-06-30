@@ -20,6 +20,13 @@ export type ChangelogEntry = {
  */
 export const CHANGELOG: ChangelogEntry[] = [
     {
+        version: "3.3.4",
+        date: "2026-07-01",
+        changes: [
+            "アプリの起動時に、データの読み込み中であることがわかる表示を追加",
+        ],
+    },
+    {
         version: "3.3.0",
         date: "2026-06-07",
         changes: [
