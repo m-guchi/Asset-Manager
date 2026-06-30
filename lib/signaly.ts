@@ -24,9 +24,9 @@ function formatJstTimestamp(): string {
     })
 }
 
-async function postDiscordWebhook(webhookUrl: string | undefined, content: string) {
+async function postSignalyWebhook(webhookUrl: string | undefined, content: string) {
     if (!webhookUrl) {
-        console.warn("Discord webhook URL not set; skipping notification")
+        console.warn("Signaly webhook URL not set; skipping notification")
         return
     }
 
@@ -38,10 +38,10 @@ async function postDiscordWebhook(webhookUrl: string | undefined, content: strin
         })
 
         if (!response.ok) {
-            console.warn(`Discord webhook failed: ${response.status} ${response.statusText}`)
+            console.warn(`Signaly webhook failed: ${response.status} ${response.statusText}`)
         }
     } catch (error) {
-        console.warn("Failed to send Discord notification:", error)
+        console.warn("Failed to send Signaly notification:", error)
     }
 }
 
@@ -56,7 +56,7 @@ export async function sendLoginNotification(options: {
     name?: string | null
     provider?: string | null
 }) {
-    const webhookUrl = process.env.DISCORD_APPS_LOGIN_WEBHOOK_URL
+    const webhookUrl = process.env.SIGNALY_LOGIN_WEBHOOK_URL
     const { clientIp, userAgent } = await getClientInfo()
     const timestamp = formatJstTimestamp()
 
@@ -70,7 +70,7 @@ export async function sendLoginNotification(options: {
         `**User-Agent**: ${userAgent}`,
     ].join("\n")
 
-    await postDiscordWebhook(webhookUrl, content)
+    await postSignalyWebhook(webhookUrl, content)
 }
 
 export async function sendRegisterNotification(options: {
@@ -78,7 +78,7 @@ export async function sendRegisterNotification(options: {
     name?: string | null
     provider: string
 }) {
-    const webhookUrl = process.env.DISCORD_APPS_REGISTER_WEBHOOK_URL
+    const webhookUrl = process.env.SIGNALY_REGISTER_WEBHOOK_URL
     const { clientIp, userAgent } = await getClientInfo()
     const timestamp = formatJstTimestamp()
 
@@ -92,5 +92,5 @@ export async function sendRegisterNotification(options: {
         `**User-Agent**: ${userAgent}`,
     ].join("\n")
 
-    await postDiscordWebhook(webhookUrl, content)
+    await postSignalyWebhook(webhookUrl, content)
 }
