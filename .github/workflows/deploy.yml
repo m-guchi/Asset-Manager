@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -57,7 +57,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Load secrets from 1Password
         uses: 1password/load-secrets-action@v4
@@ -71,7 +71,7 @@ jobs:
         run: bash scripts/construct-database-url.sh
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -101,7 +101,7 @@ jobs:
           tar -czf deploy.tar.gz package.json package-lock.json public .next prisma next.config.ts scripts lib tsconfig.json
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: build-artifact
           path: deploy.tar.gz
@@ -113,10 +113,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Download artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           name: build-artifact
           path: ./
@@ -212,7 +212,7 @@ jobs:
 
             echo "Updating database schema..."
             npx prisma generate
-            npx prisma db push --accept-data-loss
+            npx prisma migrate deploy
 
             echo "Testing production DB data retrieval..."
             npx -y tsx scripts/test-db-connection.ts
@@ -242,7 +242,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -269,7 +269,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Determine workflow status
         id: status
@@ -293,13 +293,13 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           OP_ENV_FILE: ".github/deploy.env.tpl"
 
-      - name: Notify Discord
+      - name: Signaly に通知
         env:
-          DISCORD_WEBHOOK_URL: ${{ env.DISCORD_CI_WEBHOOK_URL }}
+          SIGNALY_WEBHOOK_URL: ${{ env.SIGNALY_WEBHOOK_URL }}
           NOTIFY_APP: Asset Manager
           NOTIFY_KIND: デプロイ
           NOTIFY_STATUS: ${{ steps.status.outputs.result }}
-        run: bash .github/scripts/discord-notify.sh
+        run: bash .github/scripts/signaly-notify.sh
 
   notify-release:
     runs-on: ubuntu-latest
@@ -307,7 +307,7 @@ jobs:
     if: always() && needs.release.result != 'skipped'
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Load secrets from 1Password
         uses: 1password/load-secrets-action@v4
@@ -317,11 +317,11 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           OP_ENV_FILE: ".github/deploy.env.tpl"
 
-      - name: Notify Discord
+      - name: Signaly に通知
         env:
-          DISCORD_WEBHOOK_URL: ${{ env.DISCORD_CI_WEBHOOK_URL }}
+          SIGNALY_WEBHOOK_URL: ${{ env.SIGNALY_WEBHOOK_URL }}
           NOTIFY_STATUS: ${{ needs.release.result }}
           NOTIFY_APP: Asset Manager
           NOTIFY_KIND: リリース
           NOTIFY_VERSION: ${{ needs.tag.outputs.tag }}
-        run: bash .github/scripts/discord-notify.sh
+        run: bash .github/scripts/signaly-notify.sh
