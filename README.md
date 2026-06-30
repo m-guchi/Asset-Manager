@@ -126,7 +126,7 @@ npm run dev   # 再起動
 
 **必要な設定:**
 
-1. 1Password に `auth-google-id` / `auth-google-secret` / `nextauth-secret` / `nextauth-url-dev`（`http://localhost:3000`）を登録
+1. 1Password に `auth-google-id` / `auth-google-secret` / `nextauth-secret` を登録（開発用 `NEXTAUTH_URL` は `.env.1password.tpl` に `http://localhost:3000` を直書き済み）
 2. [Google Cloud Console](https://console.cloud.google.com/) の OAuth 2.0 クライアントにリダイレクト URI を追加:
 
 ```
@@ -155,7 +155,7 @@ npm run prod:tunnel
 
 ### 環境変数の管理 (1Password)
 
-OAuth・SMTP・NextAuth などの秘密情報は 1Password の `apps` 保管庫で管理します。DB 接続情報は WSL ローカル MySQL 用の固定値を `.env.1password.tpl` に直接記載します。
+OAuth・SMTP・NextAuth などの秘密情報は 1Password の `apps` 保管庫で管理します。DB 接続情報（ローカル）や開発用 `NEXTAUTH_URL`（`http://localhost:3000`）など、秘密ではなく環境固有でもない値は `.env.1password.tpl` に直接記載します。
 
 | 用途 | テンプレート | コマンド | 1Password |
 |------|-------------|----------|-----------|
@@ -225,7 +225,6 @@ npm run build:local
 |-------------|------|----------|
 | `db-name` | 本番用データベース名 | `DB_NAME`（デプロイ時に `DATABASE_URL` を組み立て） |
 | `nextauth-url` | 本番環境のベース URL | `NEXTAUTH_URL` |
-| `nextauth-url-dev` | 開発用ベース URL | 通常 `http://localhost:3000` |
 | `nextauth-secret` | NextAuth セッション暗号化キー | `NEXTAUTH_SECRET` |
 | `auth-google-id` | Google OAuth クライアント ID | `AUTH_GOOGLE_ID` |
 | `auth-google-secret` | Google OAuth クライアントシークレット | `AUTH_GOOGLE_SECRET` |
