@@ -98,7 +98,7 @@ jobs:
 
       - name: Create archive
         run: |
-          tar -czf deploy.tar.gz package.json package-lock.json public .next prisma next.config.ts scripts lib tsconfig.json
+          tar -czf deploy.tar.gz package.json package-lock.json public .next prisma next.config.ts scripts lib tsconfig.json ecosystem.config.js
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -173,7 +173,7 @@ jobs:
             cd "${TARGET_DIR}"
 
             echo "Cleaning up old files..."
-            rm -rf .next public package.json package-lock.json prisma next.config.ts scripts lib tsconfig.json
+            rm -rf .next public package.json package-lock.json prisma next.config.ts scripts lib tsconfig.json ecosystem.config.js
 
             echo "Extracting archive..."
             tar -xzf deploy.tar.gz
@@ -225,10 +225,13 @@ jobs:
             export TRUST_PROXY="1"
 
             echo "Starting PM2 with NEXTAUTH_URL: $NEXTAUTH_URL"
-            if pm2 describe asset-manager > /dev/null 2>&1; then
-              pm2 reload asset-manager --update-env
+            if command -v pm2 >/dev/null 2>&1; then
+              pm2 delete asset-manager 2>/dev/null || true
+              PORT="$PORT" pm2 start ecosystem.config.js --env production
+              pm2 save
             else
-              pm2 start npm --name asset-manager -- start -- -p 3102 -H 0.0.0.0
+              echo "pm2 is required on the server. Install: npm install -g pm2"
+              exit 1
             fi
 
             echo "Waiting for app to start..."
