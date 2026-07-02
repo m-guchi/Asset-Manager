@@ -20,6 +20,14 @@ export type ChangelogEntry = {
  */
 export const CHANGELOG: ChangelogEntry[] = [
     {
+        version: "3.4.0",
+        date: "2026-07-03",
+        changes: [
+            "好きな日を基準にして資産の増減を確認できる「基準日比較」ページを追加",
+            "基準日比較ページでは、グラフごとに表示・非表示や、詳しい内訳の表示を切り替え可能",
+        ],
+    },
+    {
         version: "3.3.6",
         date: "2026-07-02",
         changes: [
