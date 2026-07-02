@@ -15,6 +15,7 @@ const PUBLIC_PATHS = new Set([
     "/manifest.json",
     "/robots.txt",
     "/sitemap.xml",
+    "/sw.js",
 ])
 
 /** サイドバー不要・セッション取得を省略してよいページ（表示速度優先） */
