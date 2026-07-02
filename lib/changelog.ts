@@ -20,6 +20,13 @@ export type ChangelogEntry = {
  */
 export const CHANGELOG: ChangelogEntry[] = [
     {
+        version: "3.3.6",
+        date: "2026-07-02",
+        changes: [
+            "アプリの起動時、読み込み中の表示がより早く出るように改善",
+        ],
+    },
+    {
         version: "3.3.4",
         date: "2026-07-01",
         changes: [

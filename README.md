@@ -84,6 +84,16 @@ npm run dev
 
 日常の開発では `npm run db:up` で MySQL を起動してから `npm run dev` を実行します（`db:setup` は初回または DB を作り直したときのみ）。
 
+#### Claude Code など非対話環境での初回セットアップ
+
+`npm run db:up` / `npm run db:setup` は内部で `sudo service mysql start` 等を実行するため、通常は sudo パスワードの入力を求められます。Claude Code のような非対話環境ではパスワード入力ができず失敗するので、事前に一度だけ以下を対話シェルで実行し、MySQL 起動系コマンドのみパスワードなしで sudo できるようにしておきます。
+
+```bash
+npm run db:setup:sudoers
+```
+
+これは `/etc/sudoers.d/mysql-dev-nopasswd` に `service mysql start/stop` と `mysqladmin ping` / `mysql`（DB・ユーザー作成用）に限定した NOPASSWD ルールを追加します（他のコマンドの sudo は従来どおりパスワードが必要です）。設定後は非対話環境からでも `npm run db:up` / `npm run db:setup` が動作します。
+
 ### ローカル DB コマンド
 
 | コマンド | 1Password | 内容 |
