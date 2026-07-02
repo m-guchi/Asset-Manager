@@ -11,6 +11,7 @@ import {
     Database,
     LogOut,
     User,
+    CalendarClock,
 } from "lucide-react"
 import { signOut } from "next-auth/react"
 import {
@@ -42,6 +43,11 @@ const data = {
             title: "取引履歴",
             url: "/transactions",
             icon: ArrowRightLeft,
+        },
+        {
+            title: "基準日比較",
+            url: "/base-date",
+            icon: CalendarClock,
         },
         {
             title: "評価額一括更新",
