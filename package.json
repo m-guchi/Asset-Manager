@@ -6,6 +6,7 @@
     "tunnel:start": "ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/shinvps-20260215 -L 3307:localhost:3306 -p 19622 -f -N guchi@162.43.74.7",
     "tunnel:kill": "fuser -k 3307/tcp || true",
     "tunnel:check": "lsof -i :3307 || echo 'No tunnel running'",
+    "db:setup:sudoers": "bash scripts/setup-mysql-dev-sudoers.sh",
     "db:up": "bash scripts/db-local.sh up",
     "db:up:docker": "DB_BACKEND=docker bash scripts/db-local.sh up",
     "db:down": "bash scripts/db-local.sh down",
