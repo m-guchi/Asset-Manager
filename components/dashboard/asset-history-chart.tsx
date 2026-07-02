@@ -202,6 +202,7 @@ export function AssetHistoryChart({
                     }))
 
         applyPnlWithZeroTransitions(points as unknown as Array<Record<string, number | null>>, pnlSeries)
+
         return points
     }, [data, activeKeys, mode, selectedTagGroup, categories, selectedAssetKey])
 
@@ -695,7 +696,7 @@ export function AssetHistoryChart({
                                             : isPnlRateMode
                                                 ? `pnl_${cat.id}`
                                                 : `pnl_value_${cat.id}`
-                                        
+
                                         return (
                                             <Line
                                                 key={cat.id}
@@ -723,7 +724,7 @@ export function AssetHistoryChart({
                                             : isPnlRateMode
                                                 ? `tag_pnl_${selectedTagGroup}_${key}`
                                                 : `tag_pnl_value_${selectedTagGroup}_${key}`
-                                        
+
                                         return (
                                             <Line
                                                 key={key}

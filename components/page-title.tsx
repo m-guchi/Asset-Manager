@@ -35,6 +35,8 @@ export function PageTitle() {
                 }
             } else if (pathname === "/transactions") {
                 setTitle("取引履歴")
+            } else if (pathname === "/base-date") {
+                setTitle("基準日比較")
             } else if (pathname === "/data-management") {
                 setTitle("データ管理")
             } else if (pathname === "/settings") {
