@@ -11,7 +11,6 @@ export async function SessionGatedShell({
 }: Readonly<{
     children: React.ReactNode;
 }>) {
-    await new Promise((r) => setTimeout(r, 3000));
     const pathname = (await headers()).get("x-pathname") ?? "";
     const skipSession = shouldSkipServerSession(pathname);
     const session = skipSession
