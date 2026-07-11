@@ -20,7 +20,7 @@ export type ChangelogEntry = {
  */
 export const CHANGELOG: ChangelogEntry[] = [
     {
-        version: "3.4.6",
+        version: "3.5.0",
         date: "2026-07-11",
         changes: [
             "取引の種別（入金・出金／評価額更新）を変更した際に、実現損益や評価額の記録が正しく引き継がれず、データが消えたり誤って残ったりすることがある不具合を修正",
