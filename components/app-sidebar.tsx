@@ -93,7 +93,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                 </div>
                                 <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                                     <span className="truncate font-semibold uppercase tracking-widest">
-                                        資産管理
+                                        Asset Manager
                                     </span>
                                     <span className="truncate text-xs text-muted-foreground">
                                         ポートフォリオ管理

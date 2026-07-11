@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { CurrencyInput } from "@/components/ui/currency-input"
 import { Label } from "@/components/ui/label"
 import {
     Table,
@@ -40,7 +41,7 @@ import { ValuationOverwriteDialog, type ValuationOverwriteItem } from "@/compone
 import { getCategoryDetails } from "../../actions/categories"
 import { updateValuation, addTransaction, deleteHistoryItem, updateHistoryItem } from "../../actions/assets"
 import { isValuationFailure, isValuationNeedsConfirmation, isValuationSuccess } from "@/lib/valuation-result"
-import { getCalendarDayKey, getTodayDateInput } from "@/lib/valuation-day"
+import { getCalendarDayKey, getDefaultValuationDateInput } from "@/lib/valuation-day"
 
 interface TransactionItem {
     id: string;
@@ -125,7 +126,7 @@ export default function AssetDetailPage() {
     }, [category, historyFilter])
 
     const [newTrx, setNewTrx] = React.useState({
-        date: getTodayDateInput(),
+        date: getDefaultValuationDateInput(),
         type: "VALUATION",
         amount: "",
         valuation: "",
@@ -167,7 +168,7 @@ export default function AssetDetailPage() {
             if (editingItem) {
                 const [typeStr, itemId] = editingItem.id.split('-')
                 const itemType = typeStr === 'tx' ? 'tx' : 'as'
-                res = await updateHistoryItem(itemType, Number(itemId), newTrx)
+                res = await updateHistoryItem(itemType, Number(itemId), { ...newTrx, confirmOverwrite })
             } else if (newTrx.type === 'VALUATION') {
                 res = await updateValuation(
                     id,
@@ -270,8 +271,7 @@ export default function AssetDetailPage() {
         setIsTrxModalOpen(true)
     }
 
-    const handleSaleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
+    const handleSaleAmountChange = (val: string) => {
         setSaleAmount(val);
 
         if (!val || isNaN(Number(val))) {
@@ -295,7 +295,6 @@ export default function AssetDetailPage() {
             ...prev,
             amount: reduction.toString(), // 元本減少分は正の値
             realizedGain: realized,
-            valuation: (baseValuation - saleNum).toString()
         }));
     };
 
@@ -568,7 +567,7 @@ export default function AssetDetailPage() {
                             setEditingItem(null)
                             setBaseValuation(category.currentValue)
                             setNewTrx({
-                                date: getTodayDateInput(),
+                                date: getDefaultValuationDateInput(),
                                 type: "VALUATION",
                                 amount: "",
                                 valuation: category.currentValue.toString(),
@@ -681,7 +680,7 @@ export default function AssetDetailPage() {
                     setShowZeroWarning(false)
                     setBaseValuation(category.currentValue);
                     setNewTrx({
-                        date: getTodayDateInput(),
+                        date: getDefaultValuationDateInput(),
                         type: "VALUATION",
                         amount: "",
                         valuation: category.currentValue.toString(),
@@ -720,7 +719,6 @@ export default function AssetDetailPage() {
                                     setNewTrx(prev => ({
                                         ...prev,
                                         date: val,
-                                        valuation: editingItem ? "" : prev.valuation
                                     }));
                                 }}
                             />
@@ -741,7 +739,7 @@ export default function AssetDetailPage() {
                                     setSaleAmount("")
                                     setShowZeroWarning(false)
                                 }}
-                                disabled={category.isCash || !!editingItem}
+                                disabled={!!category.isCash}
                             >
                                 <SelectTrigger>
                                     <SelectValue />
@@ -752,6 +750,11 @@ export default function AssetDetailPage() {
                                     <SelectItem value="VALUATION">評価額更新</SelectItem>
                                 </SelectContent>
                             </Select>
+                            {editingItem && editingItem.type !== newTrx.type && (
+                                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                                    種別を変更すると、取得額・実現損益の計算対象から外れる/加わります（金額・実現損益は入力し直してください）。
+                                </p>
+                            )}
                         </div>
 
                         {/* Sale Amount Input for Withdrawal */}
@@ -759,8 +762,7 @@ export default function AssetDetailPage() {
                             <div className="flex flex-col gap-2 mb-4">
                                 <Label className="text-xs font-semibold">売却金額 (手取り)</Label>
                                 <div className="flex items-center gap-2">
-                                    <Input
-                                        type="number"
+                                    <CurrencyInput
                                         placeholder="いくらで売れましたか？"
                                         value={saleAmount}
                                         onChange={handleSaleAmountChange}
@@ -786,12 +788,10 @@ export default function AssetDetailPage() {
                                         {newTrx.type === "WITHDRAW" ? "元本減少分 (自動計算可)" : "金額"}
                                     </Label>
                                     <div className="flex items-center gap-2">
-                                        <Input
-                                            type="number"
+                                        <CurrencyInput
                                             placeholder="金額"
                                             value={newTrx.amount}
-                                            onChange={(e) => {
-                                                const val = e.target.value;
+                                            onChange={(val) => {
                                                 const numVal = Number(val);
 
                                                 let updatedRealizedGain = newTrx.realizedGain;
@@ -803,11 +803,6 @@ export default function AssetDetailPage() {
                                                     ...newTrx,
                                                     amount: val,
                                                     realizedGain: updatedRealizedGain,
-                                                    valuation: !isNaN(numVal) && newTrx.type === "DEPOSIT"
-                                                        ? (baseValuation + numVal).toString()
-                                                        : (!isNaN(numVal) && newTrx.type === "WITHDRAW" // 出金の場合はvaluationを減らす
-                                                            ? (baseValuation - Number(saleAmount || 0)).toString() // 売却額分減るのが自然？それとも元本分？通常は売却額分資産価値が減る（現金化される）
-                                                            : newTrx.valuation)
                                                 });
                                             }}
                                         />
@@ -837,10 +832,9 @@ export default function AssetDetailPage() {
 
                         <div className="flex flex-col gap-2">
                             <Label className="text-xs font-semibold">取引後/更新後の評価額</Label>
-                            <Input
-                                type="number"
+                            <CurrencyInput
                                 value={newTrx.valuation}
-                                onChange={(e) => setNewTrx({ ...newTrx, valuation: e.target.value })}
+                                onChange={(val) => setNewTrx({ ...newTrx, valuation: val })}
                             />
                         </div>
 

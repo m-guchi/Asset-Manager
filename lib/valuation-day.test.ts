@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 import {
     addCalendarDays,
     getCalendarDayKey,
+    getDefaultTransactionDate,
     getDefaultValuationDateInput,
     getJstDayBounds,
     getTodayDateInput,
@@ -71,5 +72,21 @@ describe("addCalendarDays", () => {
 describe("getTodayDateInput", () => {
     it("returns JST today", () => {
         assert.equal(getTodayDateInput(new Date("2026-06-27T00:30:00.000Z")), "2026-06-27")
+    })
+})
+
+describe("getDefaultTransactionDate", () => {
+    it("returns the current instant when it's 9 AM JST or later", () => {
+        // 2026-06-27 10:00 JST
+        const now = new Date("2026-06-27T01:00:00.000Z")
+        assert.equal(getDefaultTransactionDate(now).getTime(), now.getTime())
+    })
+
+    it("shifts back exactly 24h before 9 AM JST, never landing in the future", () => {
+        // 2026-06-27 08:00 JST
+        const now = new Date("2026-06-26T23:00:00.000Z")
+        const result = getDefaultTransactionDate(now)
+        assert.equal(getCalendarDayKey(result), "2026-06-26")
+        assert.ok(result.getTime() <= now.getTime())
     })
 })

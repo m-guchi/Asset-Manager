@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { User, LogOut, Mail, ShieldCheck, Edit2, Lock, ChevronRight, AlertCircle, Trash2, Eye, EyeOff } from "lucide-react"
+import { User, LogOut, Mail, ShieldCheck, Edit2, AlertCircle, Trash2 } from "lucide-react"
 import { useSession, signOut } from "next-auth/react"
 import Image from "next/image"
 
@@ -23,51 +23,19 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { updateName, requestEmailChange, requestPasswordChange, getPendingEmailChange, cancelEmailChange, deleteAccount } from "@/app/actions/user-actions"
+import { updateName, deleteAccount } from "@/app/actions/user-actions"
 import { toast } from "sonner"
 
 export default function ProfilePage() {
-    const handleDeleteAccount = async () => {
-        setIsLoading("delete")
-        const res = await deleteAccount(confirmDeletionPassword)
-        if (res.success) {
-            toast.success(res.success)
-            signOut({ callbackUrl: "/login" })
-        } else {
-            toast.error(res.error)
-            setIsLoading(null)
-            setConfirmDeletionPassword("")
-            setIsDialogOpen(false)
-        }
-    }
-
     const { data: session, update } = useSession()
     const [isLoading, setIsLoading] = React.useState<string | null>(null)
     const [isEditingName, setIsEditingName] = React.useState(false)
-    const [isEditingEmail, setIsEditingEmail] = React.useState(false)
-    const [isEditingPassword, setIsEditingPassword] = React.useState(false)
-    const [pendingEmail, setPendingEmail] = React.useState<string | null>(null)
-
-    // Form states
     const [newName, setNewName] = React.useState("")
-    const [newEmail, setNewEmail] = React.useState("")
-    const [newPassword, setNewPassword] = React.useState("")
-    const [confirmPassword, setConfirmPassword] = React.useState("")
-    const [confirmDeletionPassword, setConfirmDeletionPassword] = React.useState("")
-    const [showDeletePassword, setShowDeletePassword] = React.useState(false)
     const [isDialogOpen, setIsDialogOpen] = React.useState(false)
-
-    const fetchPendingEmail = React.useCallback(async () => {
-        const pending = await getPendingEmailChange()
-        setPendingEmail(pending?.newEmail || null)
-    }, [setPendingEmail])
 
     React.useEffect(() => {
         if (session?.user?.name) setNewName(session.user.name)
-        if (session?.user?.email) setNewEmail(session.user.email)
-        fetchPendingEmail()
-    }, [session, fetchPendingEmail])
+    }, [session])
 
     const handleLogout = () => {
         signOut({ callbackUrl: "/login" })
@@ -90,51 +58,17 @@ export default function ProfilePage() {
         setIsLoading(null)
     }
 
-    const handleRequestEmailChange = async () => {
-        if (!newEmail || newEmail === session?.user?.email) {
-            setIsEditingEmail(false)
-            return
-        }
-        setIsLoading("email")
-        const res = await requestEmailChange(newEmail)
+    const handleDeleteAccount = async () => {
+        setIsLoading("delete")
+        const res = await deleteAccount()
         if (res.success) {
             toast.success(res.success)
-            setIsEditingEmail(false)
-            fetchPendingEmail()
+            signOut({ callbackUrl: "/login" })
         } else {
             toast.error(res.error)
+            setIsLoading(null)
+            setIsDialogOpen(false)
         }
-        setIsLoading(null)
-    }
-
-    const handleCancelEmailChange = async () => {
-        setIsLoading("cancel-email")
-        const res = await cancelEmailChange()
-        if (res.success) {
-            toast.success(res.success)
-            setPendingEmail(null)
-        } else {
-            toast.error(res.error)
-        }
-        setIsLoading(null)
-    }
-
-    const handleRequestPasswordChange = async () => {
-        if (!newPassword || newPassword !== confirmPassword) {
-            toast.error("パスワードが一致しません")
-            return
-        }
-        setIsLoading("password")
-        const res = await requestPasswordChange(newPassword)
-        if (res.success) {
-            toast.success(res.success)
-            setIsEditingPassword(false)
-            setNewPassword("")
-            setConfirmPassword("")
-        } else {
-            toast.error(res.error)
-        }
-        setIsLoading(null)
     }
 
     return (
@@ -225,154 +159,16 @@ export default function ProfilePage() {
                                 )}
                             </div>
 
-                            {!session?.user?.image ? (
-                                <>
-                                    {/* Email Edit */}
-                                    <div className="rounded-xl border border-border bg-background/50 p-6 space-y-4 transition-all hover:bg-muted/10">
-                                        <div className="flex items-center justify-between">
-                                            <div className="space-y-1">
-                                                <h4 className="font-semibold text-sm">メールアドレス</h4>
-                                                <p className="text-xs text-muted-foreground">ログインに使用するメールアドレスです。変更には認証が必要です。</p>
-                                            </div>
-                                            {!isEditingEmail && (
-                                                <Button variant="ghost" size="sm" onClick={() => setIsEditingEmail(true)} className="text-primary hover:text-primary hover:bg-primary/10">
-                                                    <Edit2 className="h-4 w-4 mr-2" /> 変更
-                                                </Button>
-                                            )}
-                                        </div>
-
-                                        {isEditingEmail ? (
-                                            <div className="space-y-3 animate-in slide-in-from-top-2 duration-300">
-                                                <div className="flex gap-2">
-                                                    <Input
-                                                        type="email"
-                                                        value={newEmail}
-                                                        onChange={(e) => setNewEmail(e.target.value)}
-                                                        className="max-w-md h-10"
-                                                        autoFocus
-                                                    />
-                                                    <Button size="sm" onClick={handleRequestEmailChange} disabled={isLoading === "email"} className="h-10">
-                                                        {isLoading === "email" ? "送信中..." : "確認メールを送信"}
-                                                    </Button>
-                                                    <Button variant="ghost" size="sm" onClick={() => {
-                                                        setIsEditingEmail(false)
-                                                        setNewEmail(session?.user?.email || "")
-                                                    }} className="h-10">
-                                                        キャンセル
-                                                    </Button>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-md border border-amber-500/20">
-                                                    <AlertCircle className="h-3 w-3" />
-                                                    <span>新しいメールアドレスで承認されるまで、現在のメールアドレスが維持されます。</span>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-3">
-                                                <p className="text-sm font-medium pl-1">{session?.user?.email}</p>
-                                                {pendingEmail && (
-                                                    <div className="flex flex-col gap-2 p-3 rounded-lg bg-primary/5 border border-primary/10 animate-in zoom-in-95 duration-300">
-                                                        <div className="flex items-center justify-between">
-                                                            <div className="flex items-center gap-2 text-xs font-semibold text-primary">
-                                                                <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                                                                変更保留中
-                                                            </div>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                onClick={handleCancelEmailChange}
-                                                                disabled={isLoading === "cancel-email"}
-                                                                className="h-7 text-[10px] px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                                            >
-                                                                {isLoading === "cancel-email" ? "キャンセル中..." : "リクエストを取り消す"}
-                                                            </Button>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                                                            <span className="text-xs font-medium">{pendingEmail}</span>
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <p className="text-[10px] text-muted-foreground">新しいメールアドレスに届いたリンクをクリックして、変更を完了してください。</p>
-                                                            <p className="text-[9px] text-muted-foreground/70 bg-muted/50 p-1.5 rounded border border-border/50">
-                                                                ※メールが届かない場合は、入力したメールアドレスが既に他のアカウントで登録されている可能性があります。その場合、セキュリティ保護のため確認メールは送信されません。
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Password Edit */}
-                                    <div className="rounded-xl border border-border bg-background/50 p-6 space-y-4 transition-all hover:bg-muted/10">
-                                        <div className="flex items-center justify-between">
-                                            <div className="space-y-1">
-                                                <h4 className="font-semibold text-sm">パスワード</h4>
-                                                <p className="text-xs text-muted-foreground">アカウントのセキュリティを強化します。変更にはメール認証が必要です。</p>
-                                            </div>
-                                            {!isEditingPassword && (
-                                                <Button variant="ghost" size="sm" onClick={() => setIsEditingPassword(true)} className="text-primary hover:text-primary hover:bg-primary/10">
-                                                    <Lock className="h-4 w-4 mr-2" /> 変更
-                                                </Button>
-                                            )}
-                                        </div>
-
-                                        {isEditingPassword ? (
-                                            <div className="space-y-4 animate-in slide-in-from-top-2 duration-300 max-w-md">
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="new-password">新しいパスワード</Label>
-                                                    <Input
-                                                        id="new-password"
-                                                        type="password"
-                                                        value={newPassword}
-                                                        onChange={(e) => setNewPassword(e.target.value)}
-                                                        placeholder="••••••••"
-                                                    />
-                                                    <p className="text-[10px] text-muted-foreground opacity-70">※最大72文字まで指定可能です</p>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="confirm-password">確認用パスワード</Label>
-                                                    <Input
-                                                        id="confirm-password"
-                                                        type="password"
-                                                        value={confirmPassword}
-                                                        onChange={(e) => setConfirmPassword(e.target.value)}
-                                                        placeholder="••••••••"
-                                                    />
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    <Button size="sm" onClick={handleRequestPasswordChange} disabled={isLoading === "password"} className="h-10">
-                                                        {isLoading === "password" ? "送信中..." : "変更をリクエスト"}
-                                                    </Button>
-                                                    <Button variant="ghost" size="sm" onClick={() => {
-                                                        setIsEditingPassword(false)
-                                                        setNewPassword("")
-                                                        setConfirmPassword("")
-                                                    }} className="h-10">
-                                                        キャンセル
-                                                    </Button>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-md border border-amber-500/20">
-                                                    <AlertCircle className="h-3 w-3" />
-                                                    <span>メールで届くリンクをクリックして承認するまで、パスワードは変更されません。</span>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <p className="text-sm font-medium pl-1 text-muted-foreground">••••••••••••</p>
-                                        )}
-                                    </div>
-                                </>
-                            ) : (
-                                <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 flex items-start gap-3">
-                                    <AlertCircle className="h-5 w-5 text-primary mt-0.5" />
-                                    <div className="space-y-1">
-                                        <p className="text-sm font-medium text-primary">ソーシャルログイン</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            このアカウントはGoogleなどの外部サービスで認証されています。
-                                            メールアドレスやパスワードの変更は、各サービスの管理画面から行ってください。
-                                        </p>
-                                    </div>
+                            <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 flex items-start gap-3">
+                                <AlertCircle className="h-5 w-5 text-primary mt-0.5" />
+                                <div className="space-y-1">
+                                    <p className="text-sm font-medium text-primary">ソーシャルログイン</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        このアカウントはGoogleで認証されています。
+                                        メールアドレスやパスワードの変更は、Googleの管理画面から行ってください。
+                                    </p>
                                 </div>
-                            )}
+                            </div>
                         </div>
                     </CardContent>
                     <CardFooter className="bg-muted/20 border-t border-border p-4 flex justify-center">
@@ -411,45 +207,17 @@ export default function ProfilePage() {
                                     </DialogDescription>
                                 </DialogHeader>
 
-                                {/* パスワード設定済みユーザー向けの入力欄（サーバー側で判定されるため、常に表示するか、ソーシャルログインなら隠す） */}
-                                {/* ここでは、セッション情報から画像があればソーシャルログインと推測し、画像がなければパスワード入力を表示する例 */}
-                                {!session?.user?.image && (
-                                    <div className="space-y-2 py-4">
-                                        <Label htmlFor="delete-password">確認のためパスワードを入力してください</Label>
-                                        <div className="relative">
-                                            <Input
-                                                id="delete-password"
-                                                type={showDeletePassword ? "text" : "password"}
-                                                value={confirmDeletionPassword}
-                                                onChange={(e) => setConfirmDeletionPassword(e.target.value)}
-                                                placeholder="パスワード"
-                                                className="pr-10"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowDeletePassword(!showDeletePassword)}
-                                                className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground transition-colors"
-                                            >
-                                                {showDeletePassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-
                                 <DialogFooter className="gap-2 sm:gap-0">
                                     <Button
                                         variant="destructive"
                                         onClick={handleDeleteAccount}
-                                        disabled={isLoading === "delete" || (!session?.user?.image && !confirmDeletionPassword)}
+                                        disabled={isLoading === "delete"}
                                     >
                                         {isLoading === "delete" ? "削除中..." : "すべてを削除して退会する"}
                                     </Button>
                                     <Button
                                         variant="ghost"
-                                        onClick={() => {
-                                            setIsDialogOpen(false)
-                                            setConfirmDeletionPassword("")
-                                        }}
+                                        onClick={() => setIsDialogOpen(false)}
                                         disabled={isLoading === "delete"}
                                     >
                                         キャンセル

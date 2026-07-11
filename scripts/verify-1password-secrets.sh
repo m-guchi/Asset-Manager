@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Verify all op:// references in 1Password env templates resolve correctly.
+# ローカル開発（npm run dev）は 1Password 不要（.env.local を使用）のため対象外。
+# 本番デプロイ・本番DB確認まわりのテンプレートのみ検証する。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -71,7 +73,6 @@ verify_tpl() {
   echo ""
 }
 
-verify_tpl ".env.1password.tpl"
 verify_tpl ".env.1password.prod.tpl"
 verify_tpl ".github/deploy.env.tpl"
 verify_tpl ".github/ci.env.tpl"
@@ -81,7 +82,7 @@ if [[ "$failed" -gt 0 ]]; then
   echo "結果: ${checked} 件成功, ${failed} 件失敗"
   echo ""
   echo "よくある原因:"
-  echo "  - 1Password に AssetManager / Mail アイテムが未作成"
+  echo "  - 1Password に AssetManager アイテムが未作成"
   echo "  - フィールド名がテンプレートと一致していない"
   echo "  - Service Account に apps Vault への読み取り権限がない"
   echo "  - テンプレートファイルが CRLF 改行（\\r）になっている"
@@ -91,8 +92,8 @@ if [[ "$failed" -gt 0 ]]; then
   exit 1
 fi
 
-echo "--- DATABASE_URL assembly test ---"
-if op run --env-file=.env.1password.tpl -- bash scripts/construct-database-url.sh bash -c '
+echo "--- DATABASE_URL assembly test (prod) ---"
+if op run --env-file=.env.1password.prod.tpl -- bash scripts/construct-database-url.sh bash -c '
   [[ -n "${DATABASE_URL:-}" ]] || exit 1
   [[ "$DATABASE_URL" == mysql://* ]] || exit 1
   [[ "$DATABASE_URL" != *"op://"* ]] || exit 1

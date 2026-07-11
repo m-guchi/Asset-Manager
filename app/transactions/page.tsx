@@ -27,6 +27,7 @@ import {
     FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { CurrencyInput } from "@/components/ui/currency-input"
 import {
     Popover,
     PopoverContent,
@@ -56,6 +57,7 @@ import { getCategories } from "../actions/categories"
 import { ValuationOverwriteDialog, type ValuationOverwriteItem } from "@/components/valuation-overwrite-dialog"
 import { getTransactions, addTransaction } from "../actions/assets"
 import { isValuationFailure, isValuationNeedsConfirmation, isValuationSuccess } from "@/lib/valuation-result"
+import { getDefaultTransactionDate } from "@/lib/valuation-day"
 
 // Schema
 const formSchema = z.object({
@@ -125,7 +127,7 @@ export default function TransactionsPage() {
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            date: new Date(),
+            date: getDefaultTransactionDate(),
             type: "TRANSACTION",
             memo: "",
             valuation: "",
@@ -152,20 +154,6 @@ export default function TransactionsPage() {
             }
         }
     }, [watchCategoryId, watchType, form, transactions, categories])
-
-    const watchAmount = form.watch("amount")
-
-    // Effect to auto-calculate valuation based on amount
-    React.useEffect(() => {
-        const cat = categories.find(c => c.id.toString() === watchCategoryId)
-        if (!cat || watchType !== "TRANSACTION") return
-
-        const lastTx = transactions.find(t => t.categoryId.toString() === watchCategoryId)
-        const lastVal = lastTx ? lastTx.valuation : 0
-        const amt = parseInt(watchAmount || "0")
-
-        form.setValue("valuation", (lastVal + amt).toString())
-    }, [watchAmount, watchCategoryId, watchType, transactions, form, categories])
 
     async function submitTransaction(values: z.infer<typeof formSchema>, confirmOverwrite = false) {
         const catId = parseInt(values.categoryId)
@@ -212,7 +200,7 @@ export default function TransactionsPage() {
                 setPendingSubmitValues(null)
                 fetchData()
                 form.reset({
-                    date: new Date(),
+                    date: getDefaultTransactionDate(),
                     type: "TRANSACTION",
                     memo: "",
                     valuation: "",
@@ -365,7 +353,7 @@ export default function TransactionsPage() {
                                             <FormItem>
                                                 <FormLabel>取引金額 (円)</FormLabel>
                                                 <FormControl>
-                                                    <Input type="number" placeholder="10000" {...field} className="font-bold" />
+                                                    <CurrencyInput placeholder="10000" {...field} className="font-bold" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -380,7 +368,7 @@ export default function TransactionsPage() {
                                         <FormItem>
                                             <FormLabel>{watchType === "VALUATION" ? "新しい評価額" : "取引後の評価額 (残高)"}</FormLabel>
                                             <FormControl>
-                                                <Input type="number" placeholder="履歴に記録する評価額" {...field} className="font-bold" />
+                                                <CurrencyInput placeholder="履歴に記録する評価額" {...field} className="font-bold" />
                                             </FormControl>
                                             <FormDescription className="text-[10px]">
                                                 {watchType === "VALUATION" ? "現在の時価総額を入力してください。" : "取引反映後の時価残高を入力してください。"}
