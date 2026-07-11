@@ -65,6 +65,71 @@ export async function findValuationChangeForDay(
     }
 }
 
+export type AssetSnapshotOperation =
+    | ReturnType<typeof prisma.asset.create>
+    | ReturnType<typeof prisma.asset.update>
+    | ReturnType<typeof prisma.asset.deleteMany>
+
+export type PlannedAssetSnapshotWrite =
+    | { needsConfirmation: true; existingValue: number; dayKey: string }
+    | { operations: AssetSnapshotOperation[] }
+
+type PlanAssetSnapshotWriteInput = {
+    categoryId: number
+    userId: string
+    date: Date
+    value: number
+    confirmOverwrite?: boolean
+}
+
+/**
+ * その日の評価額スナップショット（Asset行）を作成/更新する操作を計画する。
+ * 評価額変更(VALUATION)・入出金(DEPOSIT/WITHDRAW) いずれの取引タイプに紐づく
+ * スナップショット書き込みでも共通して使い、同日の重複作成を防ぐ。
+ */
+export async function planAssetSnapshotWrite(
+    input: PlanAssetSnapshotWriteInput
+): Promise<PlannedAssetSnapshotWrite> {
+    const { categoryId, userId, date, value, confirmOverwrite } = input
+    const recordedAt = normalizeRecordDate(date)
+    const existing = await findValuationChangeForDay(categoryId, date, userId)
+
+    if (existing?.assetId && !confirmOverwrite) {
+        return {
+            needsConfirmation: true,
+            existingValue: existing.value,
+            dayKey: existing.dayKey,
+        }
+    }
+
+    const operations: AssetSnapshotOperation[] = []
+
+    if (existing?.assetId) {
+        operations.push(
+            prisma.asset.update({
+                where: { id: existing.assetId },
+                data: { currentValue: value, recordedAt },
+            })
+        )
+    } else {
+        operations.push(
+            prisma.asset.create({
+                data: { categoryId, userId, currentValue: value, recordedAt },
+            })
+        )
+    }
+
+    if (existing?.duplicateAssetIds.length) {
+        operations.push(
+            prisma.asset.deleteMany({
+                where: { id: { in: existing.duplicateAssetIds } },
+            })
+        )
+    }
+
+    return { operations }
+}
+
 type UpsertValuationChangeInput = {
     categoryId: number
     userId: string

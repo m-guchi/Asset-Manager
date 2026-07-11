@@ -49,7 +49,7 @@ export default function BulkValuationPage() {
     const router = useRouter()
     const [categories, setCategories] = useState<ValuationCategory[]>([])
     const [isLoading, setIsLoading] = useState(true)
-    const [valuations, setValuations] = useState<Record<number, number>>({})
+    const [valuations, setValuations] = useState<Record<number, string>>({})
     const [recordedAt, setRecordedAt] = useState(getDefaultValuationDateInput())
     const [isSaving, setIsSaving] = useState(false)
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -77,10 +77,12 @@ export default function BulkValuationPage() {
         setIsSaving(true)
         try {
             const dateObj = parseValuationDateInput(recordedAt)
-            const entries = Object.entries(valuations).map(([id, val]) => ({
-                categoryId: parseInt(id),
-                value: val,
-            }))
+            const entries = Object.entries(valuations)
+                .map(([id, val]) => ({
+                    categoryId: parseInt(id),
+                    value: parseFloat(val),
+                }))
+                .filter((entry) => !Number.isNaN(entry.value))
 
             if (!confirmOverwrite) {
                 const conflicts = await checkBulkValuationOverwrite(entries, dateObj)
@@ -164,8 +166,8 @@ export default function BulkValuationPage() {
             const previous = Number(cat.currentValue)
             previousTotal += previous
 
-            const inputVal = valuations[cat.id]
-            const hasInput = inputVal !== undefined && !Number.isNaN(inputVal)
+            const inputVal = parseFloat(valuations[cat.id])
+            const hasInput = !Number.isNaN(inputVal)
             inputTotal += hasInput ? inputVal : previous
         }
 
@@ -197,7 +199,12 @@ export default function BulkValuationPage() {
                     }))}
                     zaimImportCount={zaimImportCategories.length}
                     onApply={(imported) =>
-                        setValuations((prev) => ({ ...prev, ...imported }))
+                        setValuations((prev) => ({
+                            ...prev,
+                            ...Object.fromEntries(
+                                Object.entries(imported).map(([catId, val]) => [catId, String(val)])
+                            ),
+                        }))
                     }
                 />
 
@@ -232,8 +239,8 @@ export default function BulkValuationPage() {
                         </TableHeader>
                         <TableBody>
                             {displayedCategories.map((cat) => {
-                                const inputVal = valuations[cat.id]
-                                const hasInput = inputVal !== undefined && !Number.isNaN(inputVal)
+                                const inputVal = parseFloat(valuations[cat.id])
+                                const hasInput = !Number.isNaN(inputVal)
                                 const diff = hasInput ? inputVal - Number(cat.currentValue) : null
 
                                 return (
@@ -243,8 +250,8 @@ export default function BulkValuationPage() {
                                         <CurrencyInput
                                             className={`text-right w-full h-10 text-base ${!valuations[cat.id] ? 'border-orange-300 dark:border-orange-800 bg-orange-50/30 dark:bg-orange-900/10' : ''}`}
                                             placeholder={cat.currentValue.toString()}
-                                            value={valuations[cat.id] || ""}
-                                            onChange={(val) => setValuations({ ...valuations, [cat.id]: parseFloat(val) })}
+                                            value={valuations[cat.id] ?? ""}
+                                            onChange={(val) => setValuations({ ...valuations, [cat.id]: val })}
                                         />
                                     </TableCell>
                                     <TableCell className="text-right px-1 py-1 w-20 h-10 align-middle">
@@ -252,7 +259,7 @@ export default function BulkValuationPage() {
                                             <button
                                                 type="button"
                                                 className="opacity-50 text-[10px] text-muted-foreground whitespace-nowrap cursor-pointer hover:opacity-100 hover:text-primary transition-all underline decoration-dotted tabular-nums leading-none"
-                                                onClick={() => setValuations({ ...valuations, [cat.id]: Number(cat.currentValue) })}
+                                                onClick={() => setValuations({ ...valuations, [cat.id]: String(cat.currentValue) })}
                                                 title="前回値をコピー"
                                             >
                                                 ¥{Number(cat.currentValue).toLocaleString()}

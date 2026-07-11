@@ -168,7 +168,7 @@ export default function AssetDetailPage() {
             if (editingItem) {
                 const [typeStr, itemId] = editingItem.id.split('-')
                 const itemType = typeStr === 'tx' ? 'tx' : 'as'
-                res = await updateHistoryItem(itemType, Number(itemId), newTrx)
+                res = await updateHistoryItem(itemType, Number(itemId), { ...newTrx, confirmOverwrite })
             } else if (newTrx.type === 'VALUATION') {
                 res = await updateValuation(
                     id,
@@ -719,7 +719,6 @@ export default function AssetDetailPage() {
                                     setNewTrx(prev => ({
                                         ...prev,
                                         date: val,
-                                        valuation: editingItem ? "" : prev.valuation
                                     }));
                                 }}
                             />

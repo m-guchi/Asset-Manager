@@ -876,13 +876,19 @@ export function ZaimScreenshotImportDialog({
                                                                                     null
                                                                                 )
                                                                                     return
+                                                                                const parsed =
+                                                                                    parseFloat(val)
+                                                                                if (
+                                                                                    Number.isNaN(
+                                                                                        parsed
+                                                                                    )
+                                                                                )
+                                                                                    return
                                                                                 updateResult(
                                                                                     resultIndex,
                                                                                     {
                                                                                         valuation:
-                                                                                            parseFloat(
-                                                                                                val
-                                                                                            ) || 0,
+                                                                                            parsed,
                                                                                         imageDismissedCandidate:
                                                                                             undefined,
                                                                                     }
