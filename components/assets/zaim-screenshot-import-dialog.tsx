@@ -11,7 +11,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
+import { CurrencyInput } from "@/components/ui/currency-input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -865,13 +865,12 @@ export function ZaimScreenshotImportDialog({
                                                                             未読取
                                                                         </span>
                                                                     ) : (
-                                                                        <Input
-                                                                            type="number"
+                                                                        <CurrencyInput
                                                                             className="h-8 text-right text-xs w-24 ml-auto"
                                                                             value={
                                                                                 result!.valuation
                                                                             }
-                                                                            onChange={(e) => {
+                                                                            onChange={(val) => {
                                                                                 if (
                                                                                     resultIndex ===
                                                                                     null
@@ -882,9 +881,7 @@ export function ZaimScreenshotImportDialog({
                                                                                     {
                                                                                         valuation:
                                                                                             parseFloat(
-                                                                                                e
-                                                                                                    .target
-                                                                                                    .value
+                                                                                                val
                                                                                             ) || 0,
                                                                                         imageDismissedCandidate:
                                                                                             undefined,

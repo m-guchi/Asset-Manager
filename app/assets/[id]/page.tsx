@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { CurrencyInput } from "@/components/ui/currency-input"
 import { Label } from "@/components/ui/label"
 import {
     Table,
@@ -270,8 +271,7 @@ export default function AssetDetailPage() {
         setIsTrxModalOpen(true)
     }
 
-    const handleSaleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
+    const handleSaleAmountChange = (val: string) => {
         setSaleAmount(val);
 
         if (!val || isNaN(Number(val))) {
@@ -763,8 +763,7 @@ export default function AssetDetailPage() {
                             <div className="flex flex-col gap-2 mb-4">
                                 <Label className="text-xs font-semibold">売却金額 (手取り)</Label>
                                 <div className="flex items-center gap-2">
-                                    <Input
-                                        type="number"
+                                    <CurrencyInput
                                         placeholder="いくらで売れましたか？"
                                         value={saleAmount}
                                         onChange={handleSaleAmountChange}
@@ -790,12 +789,10 @@ export default function AssetDetailPage() {
                                         {newTrx.type === "WITHDRAW" ? "元本減少分 (自動計算可)" : "金額"}
                                     </Label>
                                     <div className="flex items-center gap-2">
-                                        <Input
-                                            type="number"
+                                        <CurrencyInput
                                             placeholder="金額"
                                             value={newTrx.amount}
-                                            onChange={(e) => {
-                                                const val = e.target.value;
+                                            onChange={(val) => {
                                                 const numVal = Number(val);
 
                                                 let updatedRealizedGain = newTrx.realizedGain;
@@ -836,10 +833,9 @@ export default function AssetDetailPage() {
 
                         <div className="flex flex-col gap-2">
                             <Label className="text-xs font-semibold">取引後/更新後の評価額</Label>
-                            <Input
-                                type="number"
+                            <CurrencyInput
                                 value={newTrx.valuation}
-                                onChange={(e) => setNewTrx({ ...newTrx, valuation: e.target.value })}
+                                onChange={(val) => setNewTrx({ ...newTrx, valuation: val })}
                             />
                         </div>
 

@@ -7,6 +7,7 @@ import { ZaimScreenshotImportTrigger } from "@/components/assets/zaim-screenshot
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { CurrencyInput } from "@/components/ui/currency-input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
@@ -239,12 +240,11 @@ export default function BulkValuationPage() {
                                 <TableRow key={cat.id}>
                                     <TableCell className="font-medium text-xs break-words w-[80px] px-1 py-1 leading-tight">{cat.name}</TableCell>
                                     <TableCell className="px-1 py-1">
-                                        <Input
-                                            type="number"
+                                        <CurrencyInput
                                             className={`text-right w-full h-10 text-base ${!valuations[cat.id] ? 'border-orange-300 dark:border-orange-800 bg-orange-50/30 dark:bg-orange-900/10' : ''}`}
                                             placeholder={cat.currentValue.toString()}
                                             value={valuations[cat.id] || ""}
-                                            onChange={(e) => setValuations({ ...valuations, [cat.id]: parseFloat(e.target.value) })}
+                                            onChange={(val) => setValuations({ ...valuations, [cat.id]: parseFloat(val) })}
                                         />
                                     </TableCell>
                                     <TableCell className="text-right px-1 py-1 w-20 h-10 align-middle">

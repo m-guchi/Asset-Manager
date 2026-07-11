@@ -27,6 +27,7 @@ import {
     FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { CurrencyInput } from "@/components/ui/currency-input"
 import {
     Popover,
     PopoverContent,
@@ -352,7 +353,7 @@ export default function TransactionsPage() {
                                             <FormItem>
                                                 <FormLabel>取引金額 (円)</FormLabel>
                                                 <FormControl>
-                                                    <Input type="number" placeholder="10000" {...field} className="font-bold" />
+                                                    <CurrencyInput placeholder="10000" {...field} className="font-bold" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -367,7 +368,7 @@ export default function TransactionsPage() {
                                         <FormItem>
                                             <FormLabel>{watchType === "VALUATION" ? "新しい評価額" : "取引後の評価額 (残高)"}</FormLabel>
                                             <FormControl>
-                                                <Input type="number" placeholder="履歴に記録する評価額" {...field} className="font-bold" />
+                                                <CurrencyInput placeholder="履歴に記録する評価額" {...field} className="font-bold" />
                                             </FormControl>
                                             <FormDescription className="text-[10px]">
                                                 {watchType === "VALUATION" ? "現在の時価総額を入力してください。" : "取引反映後の時価残高を入力してください。"}
