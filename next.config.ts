@@ -11,6 +11,9 @@ const version = packageJson.version || '0.0.0';
 
 
 const nextConfig: NextConfig = {
+    // スマホ等 LAN 上の別端末から sslip.io 経由でアクセスした際に、開発サーバーが
+    // クロスオリジンリクエストとして弾かないようにするための許可設定（本番ビルドには影響しない）。
+    allowedDevOrigins: ['*.sslip.io'],
     env: {
         NEXT_PUBLIC_APP_VERSION: version,
         NEXTAUTH_URL: process.env.NEXTAUTH_URL,
