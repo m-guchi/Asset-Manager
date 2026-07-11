@@ -143,6 +143,29 @@ http://localhost:3000/api/auth/callback/google
 | Google ログインがエラーになる | `.env.local` の `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` が空でないか確認 |
 | `Callback` エラーでログイン画面に戻る | DB スキーマ未同期の可能性 → `npm run db:deploy:local` |
 
+### 別端末（スマホ等）からの動作確認
+
+`npm run dev` 起動時に、以下のアクセス経路がコンソールに表示されます。
+
+- **LAN 内**: `http://<LAN-IP>.sslip.io:3000`（同じ Wi-Fi 上のスマホ等から）
+- **外出先**: `https://asset-dev.minagu.work`（Cloudflare Tunnel + Cloudflare Access 経由。自分の Google アカウントのみ許可）
+
+いずれも `next.config.ts` の `allowedDevOrigins`（`*.sslip.io` / `*.minagu.work`）でクロスオリジンリクエストを許可しています。
+
+**LAN 内からのアクセス（Windows + WSL2 の場合）**
+
+WSL2 の IP は再起動のたびに変わるため、WSL 再起動後は管理者権限の PowerShell で以下を再実行して portproxy を張り直します。
+
+```powershell
+scripts\windows\expose-dev-server.ps1
+```
+
+Google OAuth のリダイレクト URI にも `http://<LAN-IP>.sslip.io:3000/api/auth/callback/google` の追加が必要です（[Google ログイン（ローカル開発）](#google-ログインローカル開発)参照）。
+
+**外出先からのアクセス（Cloudflare Tunnel）**
+
+`cloudflared tunnel run signaly-dev` を起動しておくと、`npm run dev` 実行時に表示される `https://asset-dev.minagu.work` からアクセスできます（Cloudflare 側のトンネル・Access 設定はこのリポジトリの管理外です）。
+
 ### 本番 DB のローカル接続（デバッグ用）
 
 本番データの確認が必要な場合のみ、SSH トンネル経由で接続します。
@@ -232,6 +255,8 @@ npm run build:local
 | `auth-google-secret` | Google OAuth クライアントシークレット | `AUTH_GOOGLE_SECRET` |
 | `ga-id` | Google Analytics 測定 ID | `NEXT_PUBLIC_GA_ID` |
 | `ci-webhook-url` | CI/デプロイ結果を通知する Signaly の Webhook URL | `SIGNALY_WEBHOOK_URL` |
+| `login-webhook-url` | ログイン通知用 Signaly の Webhook URL | `SIGNALY_LOGIN_WEBHOOK_URL` |
+| `register-webhook-url` | 新規登録通知用 Signaly の Webhook URL | `SIGNALY_REGISTER_WEBHOOK_URL` |
 | `target-dir` | デプロイ先ディレクトリ | 例: `/home/github-user/asset.gucchii.com` |
 
 **アイテム `DB`**（MyRoom と共有可）
@@ -294,6 +319,8 @@ op read "op://apps/githubaction-sshkey/private_key?ssh-format=openssh"
 | `AUTH_GOOGLE_ID` | AssetManager | `auth-google-id` |
 | `AUTH_GOOGLE_SECRET` | AssetManager | `auth-google-secret` |
 | `NEXT_PUBLIC_GA_ID` | AssetManager | `ga-id` |
+| `SIGNALY_LOGIN_WEBHOOK_URL` | AssetManager | `login-webhook-url` |
+| `SIGNALY_REGISTER_WEBHOOK_URL` | AssetManager | `register-webhook-url` |
 
 
 ### 3. デプロイの実行
