@@ -82,7 +82,7 @@ if [[ "$failed" -gt 0 ]]; then
   echo "結果: ${checked} 件成功, ${failed} 件失敗"
   echo ""
   echo "よくある原因:"
-  echo "  - 1Password に AssetManager / Mail アイテムが未作成"
+  echo "  - 1Password に AssetManager アイテムが未作成"
   echo "  - フィールド名がテンプレートと一致していない"
   echo "  - Service Account に apps Vault への読み取り権限がない"
   echo "  - テンプレートファイルが CRLF 改行（\\r）になっている"

@@ -19,8 +19,6 @@
 
 - 🔐 **認証・セキュリティ (NextAuth.js)**
   - Google OAuth ログイン対応
-  - メールアドレス＆パスワードによるログイン対応
-  - メール認証やパスワードリセット機能 (SMTP経由)
 
 - 🎨 **カスタマイズ可能なUI**
   - ダークモード / ライトモード対応
@@ -68,7 +66,7 @@ npm run db:setup
 npm run dev
 ```
 
-`.env.local` の Google OAuth / SMTP / Signaly 通知欄は空のままでも起動できます（メール＆パスワードでのログインのみ使う場合や、メール送信をコンソールログで代用する場合）。Google ログインを使う場合は [Google ログイン（ローカル開発）](#google-ログインローカル開発) を参照してください。
+`.env.local` の Signaly 通知欄は空のままでも起動できます（未設定なら通知をスキップします）。ただし Google OAuth はログインに必須のため、[Google ログイン（ローカル開発）](#google-ログインローカル開発) の手順で設定してください。
 
 日常の開発では `npm run db:up` で MySQL を起動してから `npm run dev` を実行します（`db:setup` は初回または DB を作り直したときのみ）。
 
@@ -120,7 +118,7 @@ npm run dev   # 再起動
 
 ### Google ログイン（ローカル開発）
 
-ローカルでも Google OAuth ログインが使えます。初回ログイン時にダミーデータが自動投入されます。
+ログインは Google OAuth のみです。ローカル開発でも設定が必要です。初回ログイン時にダミーデータが自動投入されます。
 
 本番用の OAuth クライアントとは別に、**開発用の OAuth クライアント**を使います（本番のリダイレクト URI 設定を汚さないため）。
 
@@ -155,7 +153,7 @@ npm run prod:tunnel
 
 ### 環境変数の管理
 
-ローカル開発の秘密情報（OAuth・SMTP・NextAuth 等）はすべて `.env.local` に平文で保存します（`.gitignore` 済みのためコミットされません）。1Password は本番デプロイと本番 DB 確認にのみ使用します。
+ローカル開発の秘密情報（OAuth・NextAuth 等）はすべて `.env.local` に平文で保存します（`.gitignore` 済みのためコミットされません）。1Password は本番デプロイと本番 DB 確認にのみ使用します。
 
 | 用途 | テンプレート | コマンド | 1Password |
 |------|-------------|----------|-----------|
@@ -245,16 +243,6 @@ npm run build:local
 | `db-host` | 本番用 MySQL ホスト | `DB_HOST`（デプロイ時） |
 | `db-port` | 本番用 MySQL ポート | `DB_PORT`（デプロイ時） |
 
-**アイテム `Mail`**（共有可）
-
-| フィールド名 | 内容 | 環境変数 |
-|-------------|------|----------|
-| `smtp-host` | SMTP サーバーホスト | `SMTP_HOST` |
-| `smtp-port` | SMTP ポート | `SMTP_PORT` |
-| `smtp-user` | SMTP 認証ユーザー | `SMTP_USER` |
-| `smtp-pass` | SMTP 認証パスワード | `SMTP_PASS` |
-| `smtp-from` | 送信元メールアドレス | `SMTP_FROM` |
-
 **アイテム `Server`**（MyRoom と共有可）
 
 | フィールド名 | 内容 |
@@ -305,7 +293,6 @@ op read "op://apps/githubaction-sshkey/private_key?ssh-format=openssh"
 | `NEXTAUTH_SECRET` | AssetManager | `nextauth-secret` |
 | `AUTH_GOOGLE_ID` | AssetManager | `auth-google-id` |
 | `AUTH_GOOGLE_SECRET` | AssetManager | `auth-google-secret` |
-| `SMTP_*` | Mail | `smtp-*` |
 | `NEXT_PUBLIC_GA_ID` | AssetManager | `ga-id` |
 
 

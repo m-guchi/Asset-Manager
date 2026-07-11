@@ -20,6 +20,13 @@ export type ChangelogEntry = {
  */
 export const CHANGELOG: ChangelogEntry[] = [
     {
+        version: "3.4.3",
+        date: "2026-07-11",
+        changes: [
+            "ログイン方法をGoogleログインのみに変更（メールアドレスとパスワードでの登録・ログインは廃止）",
+        ],
+    },
+    {
         version: "3.4.2",
         date: "2026-07-11",
         changes: [
