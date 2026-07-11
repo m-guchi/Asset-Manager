@@ -48,6 +48,20 @@ export function getDefaultValuationDateInput(now = new Date()): string {
     return today
 }
 
+/**
+ * 取引ダイアログ等、日付ピッカー（Date オブジェクト）の初期値。
+ * 一括評価額入力と同じ「早朝(JST 9時未満)は前日扱い」に揃えることで、同じ朝に
+ * 入金と評価額変更を行っても日付がズレて別レコードに分かれないようにする。
+ * 実時刻をそのまま前日にずらすだけで、「まだ来ていない時刻」に見えて
+ * 日付ピッカーで選択不可にならないようにする。
+ */
+export function getDefaultTransactionDate(now = new Date()): Date {
+    if (getDefaultValuationDateInput(now) === getTodayDateInput(now)) {
+        return now
+    }
+    return new Date(now.getTime() - 24 * 60 * 60 * 1000)
+}
+
 export function normalizeRecordDate(date: Date): Date {
     const dayKey = getCalendarDayKey(date)
     return new Date(`${dayKey}T12:00:00+09:00`)

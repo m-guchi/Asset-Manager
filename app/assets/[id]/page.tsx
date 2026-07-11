@@ -40,7 +40,7 @@ import { ValuationOverwriteDialog, type ValuationOverwriteItem } from "@/compone
 import { getCategoryDetails } from "../../actions/categories"
 import { updateValuation, addTransaction, deleteHistoryItem, updateHistoryItem } from "../../actions/assets"
 import { isValuationFailure, isValuationNeedsConfirmation, isValuationSuccess } from "@/lib/valuation-result"
-import { getCalendarDayKey, getTodayDateInput } from "@/lib/valuation-day"
+import { getCalendarDayKey, getDefaultValuationDateInput } from "@/lib/valuation-day"
 
 interface TransactionItem {
     id: string;
@@ -125,7 +125,7 @@ export default function AssetDetailPage() {
     }, [category, historyFilter])
 
     const [newTrx, setNewTrx] = React.useState({
-        date: getTodayDateInput(),
+        date: getDefaultValuationDateInput(),
         type: "VALUATION",
         amount: "",
         valuation: "",
@@ -568,7 +568,7 @@ export default function AssetDetailPage() {
                             setEditingItem(null)
                             setBaseValuation(category.currentValue)
                             setNewTrx({
-                                date: getTodayDateInput(),
+                                date: getDefaultValuationDateInput(),
                                 type: "VALUATION",
                                 amount: "",
                                 valuation: category.currentValue.toString(),
@@ -681,7 +681,7 @@ export default function AssetDetailPage() {
                     setShowZeroWarning(false)
                     setBaseValuation(category.currentValue);
                     setNewTrx({
-                        date: getTodayDateInput(),
+                        date: getDefaultValuationDateInput(),
                         type: "VALUATION",
                         amount: "",
                         valuation: category.currentValue.toString(),

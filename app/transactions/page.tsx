@@ -56,6 +56,7 @@ import { getCategories } from "../actions/categories"
 import { ValuationOverwriteDialog, type ValuationOverwriteItem } from "@/components/valuation-overwrite-dialog"
 import { getTransactions, addTransaction } from "../actions/assets"
 import { isValuationFailure, isValuationNeedsConfirmation, isValuationSuccess } from "@/lib/valuation-result"
+import { getDefaultTransactionDate } from "@/lib/valuation-day"
 
 // Schema
 const formSchema = z.object({
@@ -125,7 +126,7 @@ export default function TransactionsPage() {
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            date: new Date(),
+            date: getDefaultTransactionDate(),
             type: "TRANSACTION",
             memo: "",
             valuation: "",
@@ -212,7 +213,7 @@ export default function TransactionsPage() {
                 setPendingSubmitValues(null)
                 fetchData()
                 form.reset({
-                    date: new Date(),
+                    date: getDefaultTransactionDate(),
                     type: "TRANSACTION",
                     memo: "",
                     valuation: "",

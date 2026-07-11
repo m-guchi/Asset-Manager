@@ -20,6 +20,13 @@ export type ChangelogEntry = {
  */
 export const CHANGELOG: ChangelogEntry[] = [
     {
+        version: "3.4.2",
+        date: "2026-07-11",
+        changes: [
+            "同じ朝に入金と評価額の変更を両方行うと、日付がずれて履歴が2つに分かれてしまうことがある不具合を修正",
+        ],
+    },
+    {
         version: "3.4.1",
         date: "2026-07-11",
         changes: [
