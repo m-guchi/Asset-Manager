@@ -11,7 +11,7 @@ import { AppStartupFallback } from "@/components/app-startup-fallback";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-    title: "資産管理",
+    title: "Asset Manager",
     description: "資産の推移と構成を、美しく直感的に管理するポートフォリオ・トラッカー",
     manifest: "/manifest.json",
     icons: {
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     },
     appleWebApp: {
         capable: true,
-        title: "資産管理",
+        title: "Asset Manager",
         statusBarStyle: "black-translucent",
     },
 };

@@ -20,6 +20,13 @@ export type ChangelogEntry = {
  */
 export const CHANGELOG: ChangelogEntry[] = [
     {
+        version: "3.4.5",
+        date: "2026-07-11",
+        changes: [
+            "アプリ名の表記を「資産管理」から「Asset Manager」に変更",
+        ],
+    },
+    {
         version: "3.4.4",
         date: "2026-07-11",
         changes: [
