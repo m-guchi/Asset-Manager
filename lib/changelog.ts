@@ -20,6 +20,14 @@ export type ChangelogEntry = {
  */
 export const CHANGELOG: ChangelogEntry[] = [
     {
+        version: "3.4.4",
+        date: "2026-07-11",
+        changes: [
+            "入金・出金の金額を入力しても、評価額が自動で増減しないように変更（評価額は自分で入力する形に統一）",
+            "資産詳細ページの履歴編集で、あとから「入金・出金」と「評価額の変更」を相互に変更できるように改善",
+        ],
+    },
+    {
         version: "3.4.3",
         date: "2026-07-11",
         changes: [

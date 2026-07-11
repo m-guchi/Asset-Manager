@@ -154,20 +154,6 @@ export default function TransactionsPage() {
         }
     }, [watchCategoryId, watchType, form, transactions, categories])
 
-    const watchAmount = form.watch("amount")
-
-    // Effect to auto-calculate valuation based on amount
-    React.useEffect(() => {
-        const cat = categories.find(c => c.id.toString() === watchCategoryId)
-        if (!cat || watchType !== "TRANSACTION") return
-
-        const lastTx = transactions.find(t => t.categoryId.toString() === watchCategoryId)
-        const lastVal = lastTx ? lastTx.valuation : 0
-        const amt = parseInt(watchAmount || "0")
-
-        form.setValue("valuation", (lastVal + amt).toString())
-    }, [watchAmount, watchCategoryId, watchType, transactions, form, categories])
-
     async function submitTransaction(values: z.infer<typeof formSchema>, confirmOverwrite = false) {
         const catId = parseInt(values.categoryId)
         const amt = parseInt(values.amount || "0")

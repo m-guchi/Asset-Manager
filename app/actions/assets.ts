@@ -291,15 +291,16 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: Upd
         if (!userId) {
             throw new Error("User not authenticated")
         }
+
+        const amt = Number(data.amount) || 0
+        const txType = (data.type === 'DEPOSIT' || data.type === 'WITHDRAW')
+            ? data.type
+            : (data.type === 'VALUATION' ? 'VALUATION' : (amt >= 0 ? 'DEPOSIT' : 'WITHDRAW'))
+        const recordedAt = normalizeRecordDate(new Date(data.date))
+
         if (type === 'tx') {
             const oldTx = await prisma.transaction.findUnique({ where: { id } })
             if (!oldTx) return { success: false }
-
-            const amt = Number(data.amount) || 0
-            const txType = (data.type === 'DEPOSIT' || data.type === 'WITHDRAW')
-                ? data.type
-                : (data.type === 'VALUATION' ? 'VALUATION' : (amt >= 0 ? 'DEPOSIT' : 'WITHDRAW'))
-            const recordedAt = normalizeRecordDate(new Date(data.date))
 
             type Op = ReturnType<typeof prisma.transaction.update> | ReturnType<typeof prisma.asset.deleteMany> | ReturnType<typeof prisma.asset.create> | ReturnType<typeof prisma.asset.update>;
             const operations: Op[] = [
@@ -307,8 +308,11 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: Upd
                     where: { id },
                     data: {
                         type: txType as TransactionType,
-                        amount: Math.abs(amt),
-                        realizedGain: data.realizedGain !== undefined ? Number(data.realizedGain) : undefined,
+                        // 評価額更新に変えた場合は、取得額・実現益の計算を汚さないよう金額と実現損益をクリアする
+                        amount: txType === 'VALUATION' ? 0 : Math.abs(amt),
+                        realizedGain: txType === 'VALUATION'
+                            ? null
+                            : (data.realizedGain !== undefined ? Number(data.realizedGain) : undefined),
                         transactedAt: recordedAt,
                         memo: data.memo
                     }
@@ -379,14 +383,57 @@ export async function updateHistoryItem(type: 'tx' | 'as', id: number, data: Upd
             await prisma.$transaction(operations);
             revalidatePath(`/assets/${oldTx.categoryId}`)
         } else {
-            const asset = await prisma.asset.update({
-                where: { id },
-                data: {
-                    currentValue: Number(data.valuation),
-                    recordedAt: normalizeRecordDate(new Date(data.date))
+            const oldAsset = await prisma.asset.findUnique({ where: { id } })
+            if (!oldAsset) return { success: false }
+
+            if (txType === 'VALUATION') {
+                const asset = await prisma.asset.update({
+                    where: { id },
+                    data: {
+                        currentValue: Number(data.valuation),
+                        recordedAt,
+                    }
+                })
+                revalidatePath(`/assets/${asset.categoryId}`)
+            } else {
+                // 評価額変更 → 入金・出金への変換: Asset単体行を削除し、取引を新規作成する
+                type Op = ReturnType<typeof prisma.asset.delete> | ReturnType<typeof prisma.transaction.create> | ReturnType<typeof prisma.asset.create>;
+                const operations: Op[] = [
+                    prisma.asset.delete({ where: { id } }),
+                    prisma.transaction.create({
+                        data: {
+                            categoryId: oldAsset.categoryId,
+                            userId: userId!,
+                            type: txType as TransactionType,
+                            amount: Math.abs(amt),
+                            realizedGain: data.realizedGain !== undefined && data.realizedGain !== null
+                                ? Number(data.realizedGain)
+                                : undefined,
+                            transactedAt: recordedAt,
+                            memo: data.memo,
+                        }
+                    })
+                ]
+
+                if (data.valuation !== undefined && data.valuation !== null && data.valuation !== "") {
+                    const numVal = Number(data.valuation)
+                    if (!isNaN(numVal)) {
+                        operations.push(
+                            prisma.asset.create({
+                                data: {
+                                    categoryId: oldAsset.categoryId,
+                                    userId: userId!,
+                                    currentValue: numVal,
+                                    recordedAt,
+                                }
+                            })
+                        )
+                    }
                 }
-            })
-            revalidatePath(`/assets/${asset.categoryId}`)
+
+                await prisma.$transaction(operations)
+                revalidatePath(`/assets/${oldAsset.categoryId}`)
+            }
         }
         revalidatePath("/")
         invalidateDashboard(userId)

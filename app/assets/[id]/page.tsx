@@ -295,7 +295,6 @@ export default function AssetDetailPage() {
             ...prev,
             amount: reduction.toString(), // 元本減少分は正の値
             realizedGain: realized,
-            valuation: (baseValuation - saleNum).toString()
         }));
     };
 
@@ -741,7 +740,7 @@ export default function AssetDetailPage() {
                                     setSaleAmount("")
                                     setShowZeroWarning(false)
                                 }}
-                                disabled={category.isCash || !!editingItem}
+                                disabled={!!category.isCash}
                             >
                                 <SelectTrigger>
                                     <SelectValue />
@@ -752,6 +751,11 @@ export default function AssetDetailPage() {
                                     <SelectItem value="VALUATION">評価額更新</SelectItem>
                                 </SelectContent>
                             </Select>
+                            {editingItem && editingItem.type !== newTrx.type && (
+                                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                                    種別を変更すると、取得額・実現損益の計算対象から外れる/加わります（金額・実現損益は入力し直してください）。
+                                </p>
+                            )}
                         </div>
 
                         {/* Sale Amount Input for Withdrawal */}
@@ -803,11 +807,6 @@ export default function AssetDetailPage() {
                                                     ...newTrx,
                                                     amount: val,
                                                     realizedGain: updatedRealizedGain,
-                                                    valuation: !isNaN(numVal) && newTrx.type === "DEPOSIT"
-                                                        ? (baseValuation + numVal).toString()
-                                                        : (!isNaN(numVal) && newTrx.type === "WITHDRAW" // 出金の場合はvaluationを減らす
-                                                            ? (baseValuation - Number(saleAmount || 0)).toString() // 売却額分減るのが自然？それとも元本分？通常は売却額分資産価値が減る（現金化される）
-                                                            : newTrx.valuation)
                                                 });
                                             }}
                                         />
