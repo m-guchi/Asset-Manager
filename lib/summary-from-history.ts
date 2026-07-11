@@ -11,7 +11,10 @@ export interface PortfolioHistoryPerformance {
 function pointProfitAmount(p: HistoryPoint): number {
     const assets = Number((p.totalAssets ?? p.netWorth) ?? 0)
     const cost = Number(p.totalCost ?? 0)
-    return assets - cost
+    const realizedGain = Number(p.totalRealizedGain ?? 0)
+    // 売却により含み損益が実現益へ移る（cost・assets が同時に動く）だけでは
+    // 損益の実質的な増減ではないため、実現益を合算して打ち消す。
+    return assets - cost + realizedGain
 }
 
 function pointDateKey(p: HistoryPoint): string {

@@ -20,6 +20,13 @@ export type ChangelogEntry = {
  */
 export const CHANGELOG: ChangelogEntry[] = [
     {
+        version: "3.4.1",
+        date: "2026-07-11",
+        changes: [
+            "資産を売却した直後、ダッシュボードの「損益額推移」（1日前比・30日前比）に実際の変化とは異なる大きな増減が表示されることがある不具合を修正",
+        ],
+    },
+    {
         version: "3.4.0",
         date: "2026-07-03",
         changes: [
