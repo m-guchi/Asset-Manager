@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Send a test email via SMTP settings from 1Password.
+# Send a test email via SMTP settings from .env.local.
 # Usage: npm run test:smtp -- recipient@example.com
 set -euo pipefail
 
@@ -13,7 +13,7 @@ fi
 
 TO_EMAIL="$1"
 
-op run --env-file=.env.1password.tpl -- node -e "
+bash "$ROOT/scripts/with-local-env.sh" node -e "
 const nodemailer = require('nodemailer');
 
 const extractEmail = (value) => {

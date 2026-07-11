@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Verify all op:// references in 1Password env templates resolve correctly.
+# ローカル開発（npm run dev）は 1Password 不要（.env.local を使用）のため対象外。
+# 本番デプロイ・本番DB確認まわりのテンプレートのみ検証する。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -71,7 +73,6 @@ verify_tpl() {
   echo ""
 }
 
-verify_tpl ".env.1password.tpl"
 verify_tpl ".env.1password.prod.tpl"
 verify_tpl ".github/deploy.env.tpl"
 verify_tpl ".github/ci.env.tpl"
@@ -91,8 +92,8 @@ if [[ "$failed" -gt 0 ]]; then
   exit 1
 fi
 
-echo "--- DATABASE_URL assembly test ---"
-if op run --env-file=.env.1password.tpl -- bash scripts/construct-database-url.sh bash -c '
+echo "--- DATABASE_URL assembly test (prod) ---"
+if op run --env-file=.env.1password.prod.tpl -- bash scripts/construct-database-url.sh bash -c '
   [[ -n "${DATABASE_URL:-}" ]] || exit 1
   [[ "$DATABASE_URL" == mysql://* ]] || exit 1
   [[ "$DATABASE_URL" != *"op://"* ]] || exit 1
