@@ -20,6 +20,13 @@ export type ChangelogEntry = {
  */
 export const CHANGELOG: ChangelogEntry[] = [
     {
+        version: "3.6.2",
+        date: "2026-07-19",
+        changes: [
+            "Zaim画面の読み込みで、読み取れなかった項目があると以降の項目がずれて反映されてしまうことがあったため、一覧画面から見落とした項目を手動で追加してズレを解消できるように改善",
+        ],
+    },
+    {
         version: "3.6.0",
         date: "2026-07-18",
         changes: [

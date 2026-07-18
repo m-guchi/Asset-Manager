@@ -102,6 +102,7 @@ export function matchHoldingsToCategories(
                 source: holding.source,
                 amountCandidates: holding.amountCandidates,
                 unreadable: holding.unreadable,
+                manual: holding.manual,
             })
             continue
         }
@@ -120,6 +121,7 @@ export function matchHoldingsToCategories(
             source: holding.source,
             amountCandidates: holding.amountCandidates,
             unreadable: holding.unreadable,
+            manual: holding.manual,
         })
     }
 
@@ -134,6 +136,7 @@ function matchResultToHolding(result: MatchResult): ParsedHolding {
         amountCandidates: result.amountCandidates,
         valuationBbox: result.source?.valuationBbox,
         unreadable: result.unreadable,
+        manual: result.manual,
     }
 }
 

@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useCallback, useMemo, useRef, useState } from "react"
-import { ImagePlus, Loader2, AlertTriangle, ScanSearch, Trash2 } from "lucide-react"
+import { ImagePlus, Loader2, AlertTriangle, ScanSearch, Trash2, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
     Dialog,
@@ -79,6 +79,7 @@ interface ImportTableRow {
     current: number | null
     result: MatchResult | null
     resultIndex: number | null
+    categoryIndex: number | null
     isExtra: boolean
 }
 
@@ -104,7 +105,7 @@ function buildImportTableRows(
         }
     }
 
-    const rows: ImportTableRow[] = categories.map((category) => {
+    const rows: ImportTableRow[] = categories.map((category, categoryIndex) => {
         const matched = resultByCategoryId.get(category.id)
         return {
             key: `cat-${category.id}`,
@@ -112,6 +113,7 @@ function buildImportTableRows(
             current: category.currentValue ?? 0,
             result: matched?.result ?? null,
             resultIndex: matched?.index ?? null,
+            categoryIndex,
             isExtra: false,
         }
     })
@@ -127,6 +129,7 @@ function buildImportTableRows(
                 current: null,
                 result,
                 resultIndex: index,
+                categoryIndex: null,
                 isExtra: true,
             })
         }
@@ -170,6 +173,7 @@ function resultToHolding(result: MatchResult): ParsedHolding {
         amountCandidates: result.amountCandidates,
         valuationBbox: result.source?.valuationBbox,
         unreadable: result.unreadable,
+        manual: result.manual,
     }
 }
 
@@ -395,6 +399,19 @@ export function ZaimScreenshotImportDialog({
             if (prev > index) return prev - 1
             return prev
         })
+    }
+
+    const insertManualResult = (categoryIndex: number) => {
+        const holdings = results.map(resultToHolding)
+        const insertAt = Math.min(categoryIndex, holdings.length)
+        holdings.splice(insertAt, 0, {
+            name: "",
+            valuation: 0,
+            // 誤って0円で反映されないよう、既存の「評価額未読取」行と同じ未選択状態にする
+            unreadable: true,
+            manual: true,
+        })
+        setResults(matchHoldingsToCategories(holdings, categories))
     }
 
     const rematchFromResults = useCallback(
@@ -866,6 +883,14 @@ export function ZaimScreenshotImportDialog({
                                                                             余分
                                                                         </Badge>
                                                                     )}
+                                                                    {result?.manual && (
+                                                                        <Badge
+                                                                            variant="outline"
+                                                                            className="ml-1.5 text-[10px] align-middle"
+                                                                        >
+                                                                            手入力
+                                                                        </Badge>
+                                                                    )}
                                                                 </TableCell>
                                                                 <TableCell className="text-right">
                                                                     {isMissing ||
@@ -980,41 +1005,62 @@ export function ZaimScreenshotImportDialog({
                                                                     )}
                                                                 </TableCell>
                                                                 <TableCell>
-                                                                    {!isMissing &&
-                                                                    resultIndex !== null ? (
-                                                                        <div className="flex items-center justify-end gap-0.5">
-                                                                            {result!.source ? (
+                                                                    <div className="flex items-center justify-end gap-0.5">
+                                                                        {!isMissing &&
+                                                                        resultIndex !== null ? (
+                                                                            <>
+                                                                                {result!
+                                                                                    .source ? (
+                                                                                    <Button
+                                                                                        type="button"
+                                                                                        variant="ghost"
+                                                                                        size="icon"
+                                                                                        className="h-7 w-7"
+                                                                                        title="読取位置・金額候補"
+                                                                                        onClick={() =>
+                                                                                            setPreviewIndex(
+                                                                                                resultIndex
+                                                                                            )
+                                                                                        }
+                                                                                    >
+                                                                                        <ScanSearch className="h-3.5 w-3.5" />
+                                                                                    </Button>
+                                                                                ) : null}
                                                                                 <Button
                                                                                     type="button"
                                                                                     variant="ghost"
                                                                                     size="icon"
-                                                                                    className="h-7 w-7"
-                                                                                    title="読取位置・金額候補"
+                                                                                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                                                                    title="行を削除"
                                                                                     onClick={() =>
-                                                                                        setPreviewIndex(
+                                                                                        removeResult(
                                                                                             resultIndex
                                                                                         )
                                                                                     }
                                                                                 >
-                                                                                    <ScanSearch className="h-3.5 w-3.5" />
+                                                                                    <Trash2 className="h-3.5 w-3.5" />
                                                                                 </Button>
-                                                                            ) : null}
+                                                                            </>
+                                                                        ) : null}
+                                                                        {!isExtra &&
+                                                                        row.categoryIndex !==
+                                                                            null ? (
                                                                             <Button
                                                                                 type="button"
                                                                                 variant="ghost"
                                                                                 size="icon"
-                                                                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                                                                title="行を削除"
+                                                                                className="h-7 w-7 text-muted-foreground"
+                                                                                title="この位置に見落とした行を挿入"
                                                                                 onClick={() =>
-                                                                                    removeResult(
-                                                                                        resultIndex
+                                                                                    insertManualResult(
+                                                                                        row.categoryIndex!
                                                                                     )
                                                                                 }
                                                                             >
-                                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                                                <Plus className="h-3.5 w-3.5" />
                                                                             </Button>
-                                                                        </div>
-                                                                    ) : null}
+                                                                        ) : null}
+                                                                    </div>
                                                                 </TableCell>
                                                             </TableRow>
                                                         )

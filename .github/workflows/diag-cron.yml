@@ -1,0 +1,69 @@
+name: Diagnose Fetch Index Values Cron (temporary, read-only)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Load secrets from 1Password
+        uses: 1password/load-secrets-action@v4
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_ENV_FILE: ".github/deploy.env.tpl"
+
+      - name: Construct DATABASE_URL
+        run: bash scripts/construct-database-url.sh
+
+      - name: Install SSH Key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ env.SSH_PRIVATE_KEY }}
+          known_hosts: "just-a-placeholder-so-we-dont-get-errors"
+          if_key_exists: replace
+
+      - name: Adding Known Hosts
+        run: ssh-keyscan -p "${SSH_PORT}" -H "${HOST}" >> ~/.ssh/known_hosts
+
+      - name: Read-only diagnosis (no writes, no restart)
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          DB_USER: ${{ env.DB_USER }}
+          DB_PASSWORD: ${{ env.DB_PASSWORD }}
+          DB_HOST: ${{ env.DB_HOST }}
+          DB_PORT: ${{ env.DB_PORT }}
+          DB_NAME: ${{ env.DB_NAME }}
+          TARGET_DIR: ${{ env.TARGET_DIR }}
+        with:
+          host: ${{ env.HOST }}
+          username: ${{ env.USERNAME }}
+          key: ${{ env.SSH_PRIVATE_KEY }}
+          port: ${{ env.SSH_PORT }}
+          envs: DB_USER,DB_PASSWORD,DB_HOST,DB_PORT,DB_NAME,TARGET_DIR
+          script: |
+            echo "=== pm2 list ==="
+            pm2 list
+
+            echo ""
+            echo "=== pm2 describe asset-manager-fetch-index-values ==="
+            pm2 describe asset-manager-fetch-index-values
+
+            echo ""
+            echo "=== recent logs (last 100 lines) ==="
+            pm2 logs asset-manager-fetch-index-values --lines 100 --nostream || true
+
+            echo ""
+            echo "=== latest IndexValue per index ==="
+            mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" \
+              -e "SELECT i.id, i.name, i.symbol, COUNT(v.id) as valueCount, MAX(v.recordedAt) as latest FROM \`Index\` i LEFT JOIN IndexValue v ON v.indexId = i.id GROUP BY i.id;"
+
+            echo ""
+            echo "=== server current date/time ==="
+            date -u
