@@ -169,6 +169,7 @@ function resultToHolding(result: MatchResult): ParsedHolding {
         source: result.source,
         amountCandidates: result.amountCandidates,
         valuationBbox: result.source?.valuationBbox,
+        unreadable: result.unreadable,
     }
 }
 
@@ -489,7 +490,9 @@ export function ZaimScreenshotImportDialog({
         (r) => r.selected && hasAdoptedValuation(r)
     ).length
 
-    const adoptedCount = results.filter((r) => hasAdoptedValuation(r)).length
+    const adoptedCount = results.filter(
+        (r) => hasAdoptedValuation(r) && !r.unreadable
+    ).length
 
     const tableRows = useMemo(
         () => buildImportTableRows(categories, results),
@@ -526,7 +529,7 @@ export function ZaimScreenshotImportDialog({
     const readCountMatches = adoptedCount === expectedCategoryCount
     const hasExtraTableRows = tableRows.some((row) => row.isExtra)
     const hasMissingReads = tableRows.some(
-        (row) => !row.isExtra && row.result === null
+        (row) => !row.isExtra && (row.result === null || row.result?.unreadable)
     )
 
     const showInitialDescription =
@@ -780,8 +783,13 @@ export function ZaimScreenshotImportDialog({
                                                         } = row
                                                         const isMissing =
                                                             !isExtra && result === null
+                                                        const isUnreadable =
+                                                            !isExtra &&
+                                                            result !== null &&
+                                                            result.unreadable === true
                                                         const isConfidenceWarning =
                                                             !isMissing &&
+                                                            !isUnreadable &&
                                                             result !== null &&
                                                             (result.confidence === "low" ||
                                                                 result.confidence === "none")
@@ -803,6 +811,7 @@ export function ZaimScreenshotImportDialog({
                                                             )
                                                         const isWarning =
                                                             isMissing ||
+                                                            isUnreadable ||
                                                             isExtra ||
                                                             isConfidenceWarning ||
                                                             isDiffWarning
@@ -812,7 +821,7 @@ export function ZaimScreenshotImportDialog({
                                                                 key={key}
                                                                 className={
                                                                     isWarning
-                                                                        ? isMissing
+                                                                        ? isMissing || isUnreadable
                                                                             ? "bg-red-50/50 dark:bg-red-900/10"
                                                                             : "bg-amber-50/50 dark:bg-amber-900/10"
                                                                         : undefined
@@ -891,6 +900,8 @@ export function ZaimScreenshotImportDialog({
                                                                                             parsed,
                                                                                         imageDismissedCandidate:
                                                                                             undefined,
+                                                                                        unreadable:
+                                                                                            false,
                                                                                     }
                                                                                 )
                                                                             }}
@@ -941,6 +952,13 @@ export function ZaimScreenshotImportDialog({
                                                                             className="text-[10px]"
                                                                         >
                                                                             未読取
+                                                                        </Badge>
+                                                                    ) : isUnreadable ? (
+                                                                        <Badge
+                                                                            variant="destructive"
+                                                                            className="text-[10px]"
+                                                                        >
+                                                                            評価額未読取
                                                                         </Badge>
                                                                     ) : (
                                                                         <Badge

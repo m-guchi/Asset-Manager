@@ -22,6 +22,7 @@ model User {
   tagGroups           TagGroup[]
   assets              Asset[]
   transactions        Transaction[]
+  indices             Index[]
 }
 
 model Account {
@@ -145,4 +146,29 @@ enum TransactionType {
   DEPOSIT
   WITHDRAW
   VALUATION
+}
+
+model Index {
+  id       Int          @id @default(autoincrement())
+  name     String
+  symbol   String
+  color    String
+  order    Int          @default(0)
+  hidden   Boolean      @default(false)
+  userId   String
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  values   IndexValue[]
+
+  @@index([userId])
+}
+
+model IndexValue {
+  id         Int      @id @default(autoincrement())
+  indexId    Int
+  value      Float
+  recordedAt DateTime
+  index      Index    @relation(fields: [indexId], references: [id], onDelete: Cascade)
+
+  @@unique([indexId, recordedAt])
+  @@index([indexId])
 }

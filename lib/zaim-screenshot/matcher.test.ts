@@ -71,6 +71,22 @@ describe("matchHoldingsToCategories", () => {
 
         assert.equal(results[0].categoryName, "NTT株")
     })
+
+    it("keeps an unreadable placeholder unselected while preserving positional alignment", () => {
+        const holdings: ParsedHolding[] = [
+            { name: "NTT", valuation: 14950 },
+            { name: "三菱重工", valuation: 0, unreadable: true },
+            { name: "eMAXIS Slim 全世界", valuation: 84797 },
+        ]
+
+        const results = matchHoldingsToCategories(holdings, zaimCategories)
+
+        assert.equal(results[1].categoryId, 2)
+        assert.equal(results[1].unreadable, true)
+        assert.equal(results[1].selected, false)
+        assert.equal(results[2].categoryId, 3)
+        assert.equal(results[2].valuation, 84797)
+    })
 })
 
 describe("rematchResultsToCategories", () => {

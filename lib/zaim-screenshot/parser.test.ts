@@ -179,4 +179,55 @@ describe("parseZaimHoldings", () => {
         assert.equal(result[0].name, "")
         assert.equal(result[0].valuation, 14950)
     })
+
+    it("does not create a phantom holding from a wrapped fund name's profit/loss line even without a leading sign", () => {
+        // 2行名の投信: 1行目=評価額、2行目=名前の続き（括弧が閉じない省略形）+ 符号なしの損益額(+%)
+        const words: OcrWord[] = [
+            word("SBI証券A", 20, 300, 60, 16),
+            word("¥88,824", 280, 300),
+            word("(為替ヘッジ…", 20, 340, 60, 16),
+            word("¥33,813", 280, 340),
+            word("(+13.3%)", 360, 340),
+        ]
+
+        const result = parseZaimHoldings(words, imageWidth)
+
+        assert.equal(result.length, 1)
+        assert.equal(result[0].name, "SBI証券A")
+        assert.equal(result[0].valuation, 88824)
+    })
+
+    it("classifies an unsigned amount as profit-loss when the row contains a percent-in-parens", () => {
+        const words: OcrWord[] = [
+            word("eMAXIS", 20, 340, 60, 16),
+            word("¥21,927", 280, 340),
+            word("(+13.7%)", 360, 340),
+        ]
+
+        const result = parseZaimHoldings(words, imageWidth)
+
+        // 評価額として拾える候補が無いため行ごと破棄される
+        assert.equal(result.length, 0)
+    })
+
+    it("keeps a placeholder holding when a name row has no readable yen amount, preserving order", () => {
+        const words: OcrWord[] = [
+            word("NTT", 20, 100),
+            word("¥14,950", 280, 100),
+            word("ソニー生命", 20, 140),
+            word("三菱重", 20, 180),
+            word("¥38,060", 280, 180),
+        ]
+
+        const result = parseZaimHoldings(words, imageWidth)
+
+        assert.equal(result.length, 3)
+        assert.equal(result[0].name, "NTT")
+        assert.equal(result[0].unreadable, undefined)
+        assert.equal(result[1].name, "ソニー生命")
+        assert.equal(result[1].valuation, 0)
+        assert.equal(result[1].unreadable, true)
+        assert.equal(result[2].name, "三菱重")
+        assert.equal(result[2].valuation, 38060)
+    })
 })

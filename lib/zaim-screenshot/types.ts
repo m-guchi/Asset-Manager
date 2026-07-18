@@ -40,6 +40,8 @@ export interface ParsedHolding {
     valuationBbox?: OcrBoundingBox
     source?: OcrValuationSource
     amountCandidates?: YenAmountCandidate[]
+    /** 名前は読み取れたが評価額が読み取れなかった行（valuationは0のプレースホルダー） */
+    unreadable?: boolean
 }
 
 export type MatchConfidence = "high" | "medium" | "low" | "order" | "none"
@@ -63,4 +65,6 @@ export interface MatchResult {
     amountCandidates?: YenAmountCandidate[]
     /** 画像上で採用を外した金額（灰色枠で表示） */
     imageDismissedCandidate?: YenAmountCandidate
+    /** 名前は読み取れたが評価額が読み取れなかった行（valuationは0のプレースホルダー） */
+    unreadable?: boolean
 }

@@ -12,6 +12,7 @@ import {
     LogOut,
     User,
     CalendarClock,
+    TrendingUp,
 } from "lucide-react"
 import { signOut } from "next-auth/react"
 import {
@@ -48,6 +49,11 @@ const data = {
             title: "基準日比較",
             url: "/base-date",
             icon: CalendarClock,
+        },
+        {
+            title: "指数",
+            url: "/indices",
+            icon: TrendingUp,
         },
         {
             title: "評価額一括更新",

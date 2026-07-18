@@ -31,6 +31,14 @@ const HEADER_PATTERNS = [
 /** OCR が ¥ を \ や Y と誤認識することが多い */
 const YEN_PATTERN = /[¥￥\\Y]\s*-?\s*([\d,]+)/
 
+/**
+ * 損益率の括弧表記（例: (+13.7%) (-3.6%)）。
+ * Zaimでは評価額の行にこのパターンが現れることはなく、損益額の行にのみ現れる。
+ * 損益額は符号なし（プラス変動時）で表示されることがあり、符号だけでは評価額と区別できないため、
+ * この括弧の有無を行内の金額分類の主な手がかりとして使う。
+ */
+const PROFIT_LOSS_PERCENT_PATTERN = /\([+-]?\d+\.?\d*%\)/
+
 interface TextRow {
     words: OcrWord[]
     centerY: number
@@ -57,20 +65,30 @@ export function parseZaimHoldings(
         const rightWords = sortedWords.filter((w) => w.x >= nameThresholdX - 20)
 
         const name = nameWords.map((w) => w.text).join(" ")
-        const valuationResult = extractPrimaryValuation(rightWords.length > 0 ? rightWords : sortedWords)
-
-        if (valuationResult === null) continue
-
-        const { value: valuation, bbox: valuationBbox, candidates } = valuationResult
-
         const cleanedName = cleanAssetName(name)
         if (/^\([^)]+\)$/.test(cleanedName)) continue // 投信名の続き行 e.g. (TOPIX)
-        if (!cleanedName) {
-            holdings.push({ name: "", valuation, valuationBbox, amountCandidates: candidates })
+
+        const valuationResult = extractPrimaryValuation(rightWords.length > 0 ? rightWords : sortedWords)
+
+        if (valuationResult.value === null) {
+            if (valuationResult.candidates.length > 0) continue // 損益額のみで評価額が無い行（2行名の継続行など）
+            if (!cleanedName) continue // 金額も名前も読み取れない行
+
+            // 名前は読み取れたが評価額が読み取れなかった行。
+            // ここで行を捨てるとカテゴリとの並び順対応（order一致）が1つずれてしまうため、
+            // プレースホルダーとして残し、ユーザーが一覧画面で手入力できるようにする。
+            holdings.push({ name: cleanedName, valuation: 0, unreadable: true, amountCandidates: [] })
             continue
         }
 
-        holdings.push({ name: cleanedName, valuation, valuationBbox, amountCandidates: candidates })
+        const { value: valuation, bbox: valuationBbox, candidates } = valuationResult
+
+        holdings.push({
+            name: cleanedName,
+            valuation,
+            valuationBbox: valuationBbox ?? undefined,
+            amountCandidates: candidates,
+        })
     }
 
     return dedupeHoldings(holdings)
@@ -157,26 +175,42 @@ export function classifyYenAmountKind(ocrText: string): YenAmountKind {
     return "valuation"
 }
 
+/**
+ * words は x昇順を想定。損益率の括弧 (±N.N%) は常にその直前の金額に付随して現れる
+ * （Zaimの表示上、評価額の直後に%が来ることはない）ため、直前の金額だけを損益額として
+ * 再分類する。符号なしのプラス変動額（例: 21,927 (+13.7%)）を評価額と誤認しないための処理。
+ */
 export function extractYenAmountCandidates(words: OcrWord[]): YenAmountCandidate[] {
     const candidates: YenAmountCandidate[] = []
+    let lastCandidateIndex = -1
 
     for (const word of words) {
         const match = word.text.match(YEN_PATTERN)
-        if (!match) continue
-        const value = parseInt(match[1].replace(/,/g, ""), 10)
-        if (isNaN(value) || value <= 0) continue
+        if (match) {
+            const value = parseInt(match[1].replace(/,/g, ""), 10)
+            if (!isNaN(value) && value > 0) {
+                candidates.push({
+                    value,
+                    bbox: {
+                        x: word.x,
+                        y: word.y,
+                        width: word.width,
+                        height: word.height,
+                    },
+                    ocrText: word.text,
+                    kind: classifyYenAmountKind(word.text),
+                })
+                lastCandidateIndex = candidates.length - 1
+            }
+            continue
+        }
 
-        candidates.push({
-            value,
-            bbox: {
-                x: word.x,
-                y: word.y,
-                width: word.width,
-                height: word.height,
-            },
-            ocrText: word.text,
-            kind: classifyYenAmountKind(word.text),
-        })
+        if (
+            lastCandidateIndex >= 0 &&
+            PROFIT_LOSS_PERCENT_PATTERN.test(word.text.replace(/\s+/g, ""))
+        ) {
+            candidates[lastCandidateIndex].kind = "profit_loss"
+        }
     }
 
     return candidates.sort((a, b) => a.bbox.x - b.bbox.x)
@@ -193,9 +227,15 @@ function pickPrimaryValuation(candidates: YenAmountCandidate[]): YenAmountCandid
     return null
 }
 
-function extractPrimaryValuation(
-    words: OcrWord[]
-): { value: number; bbox: OcrBoundingBox; candidates: YenAmountCandidate[] } | null {
+interface ValuationExtractionResult {
+    value: number | null
+    bbox: OcrBoundingBox | null
+    candidates: YenAmountCandidate[]
+}
+
+function extractPrimaryValuation(words: OcrWord[]): ValuationExtractionResult {
+    const rowText = words.map((w) => w.text).join(" ")
+    const rowHasProfitLossPercent = PROFIT_LOSS_PERCENT_PATTERN.test(normalizeRowText(rowText))
     const candidates = extractYenAmountCandidates(words)
     const primary = pickPrimaryValuation(candidates)
 
@@ -208,24 +248,26 @@ function extractPrimaryValuation(
     }
 
     if (candidates.length > 0) {
-        return null
+        // 行内に金額はあるが、すべて損益額（評価額なし）
+        return { value: null, bbox: null, candidates }
     }
 
-    const combined = words.map((w) => w.text).join(" ")
-    const globalMatch = combined.match(YEN_PATTERN)
-    if (globalMatch) {
-        const value = parseInt(globalMatch[1].replace(/,/g, ""), 10)
-        if (!isNaN(value) && value > 0) {
-            const matchingWords = words.filter((w) => YEN_PATTERN.test(w.text))
-            return {
-                value,
-                bbox: mergeWordBboxes(matchingWords.length > 0 ? matchingWords : words),
-                candidates,
+    if (!rowHasProfitLossPercent) {
+        const globalMatch = rowText.match(YEN_PATTERN)
+        if (globalMatch) {
+            const value = parseInt(globalMatch[1].replace(/,/g, ""), 10)
+            if (!isNaN(value) && value > 0) {
+                const matchingWords = words.filter((w) => YEN_PATTERN.test(w.text))
+                return {
+                    value,
+                    bbox: mergeWordBboxes(matchingWords.length > 0 ? matchingWords : words),
+                    candidates,
+                }
             }
         }
     }
 
-    return null
+    return { value: null, bbox: null, candidates }
 }
 
 /** 複数画像から得た銘柄リストを統合（名前と評価額が両方一致する場合のみ重複除外） */
@@ -234,6 +276,12 @@ export function mergeParsedHoldings(holdings: ParsedHolding[]): ParsedHolding[] 
 }
 
 function holdingDedupeKey(holding: ParsedHolding, anonIndex: number): string {
+    // 評価額未読取行は valuation が 0 のプレースホルダーのため、
+    // 他の未読取行と同一キーにならないよう常に一意として扱う（誤って重複除外しない）。
+    if (holding.unreadable) {
+        return `__unreadable_${anonIndex}`
+    }
+
     const normalized = normalizeKey(holding.name)
     if (normalized) {
         return `${normalized}\0${holding.valuation}`

@@ -101,6 +101,7 @@ export function matchHoldingsToCategories(
                 selected: false,
                 source: holding.source,
                 amountCandidates: holding.amountCandidates,
+                unreadable: holding.unreadable,
             })
             continue
         }
@@ -114,9 +115,11 @@ export function matchHoldingsToCategories(
             ocrName: holding.name.trim() || `(${i + 1}行目)`,
             valuation: holding.valuation,
             confidence,
-            selected: true,
+            // 評価額が読み取れなかった行は、誤って0円で反映されないよう未選択にしておく
+            selected: !holding.unreadable,
             source: holding.source,
             amountCandidates: holding.amountCandidates,
+            unreadable: holding.unreadable,
         })
     }
 
@@ -130,6 +133,7 @@ function matchResultToHolding(result: MatchResult): ParsedHolding {
         source: result.source,
         amountCandidates: result.amountCandidates,
         valuationBbox: result.source?.valuationBbox,
+        unreadable: result.unreadable,
     }
 }
 
