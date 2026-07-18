@@ -42,6 +42,8 @@ export interface ParsedHolding {
     amountCandidates?: YenAmountCandidate[]
     /** 名前は読み取れたが評価額が読み取れなかった行（valuationは0のプレースホルダー） */
     unreadable?: boolean
+    /** OCRではなく一覧画面でユーザーが手動追加した行 */
+    manual?: boolean
 }
 
 export type MatchConfidence = "high" | "medium" | "low" | "order" | "none"
@@ -67,4 +69,6 @@ export interface MatchResult {
     imageDismissedCandidate?: YenAmountCandidate
     /** 名前は読み取れたが評価額が読み取れなかった行（valuationは0のプレースホルダー） */
     unreadable?: boolean
+    /** OCRではなく一覧画面でユーザーが手動追加した行 */
+    manual?: boolean
 }
