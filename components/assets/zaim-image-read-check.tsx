@@ -177,6 +177,8 @@ function ResultEntryEditor({
                 <span className="tabular-nums text-xs text-muted-foreground shrink-0">
                     {result.imageDismissedCandidate ? (
                         "未採用"
+                    ) : result.unreadable ? (
+                        <span className="text-red-600 dark:text-red-400">評価額未読取</span>
                     ) : (
                         <>¥{result.valuation.toLocaleString()}</>
                     )}
