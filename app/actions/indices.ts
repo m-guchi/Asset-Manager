@@ -75,7 +75,11 @@ export async function saveIndex(data: SaveIndexData) {
         }
 
         let indexId = data.id
+        let symbolChanged = false
         if (indexId) {
+            const existing = await prisma.index.findFirst({ where: { id: indexId, userId } })
+            if (!existing) return { success: false, error: "指数が見つかりません" }
+            symbolChanged = existing.symbol !== data.symbol
             await prisma.index.update({ where: { id: indexId }, data: baseData })
         } else {
             const max = await prisma.index.aggregate({ where: { userId }, _max: { order: true } })
@@ -86,6 +90,9 @@ export async function saveIndex(data: SaveIndexData) {
         }
 
         try {
+            if (symbolChanged) {
+                await prisma.indexValue.deleteMany({ where: { indexId } })
+            }
             await syncIndexValues(indexId, data.symbol, "max")
         } catch (syncError) {
             console.error("Initial index value sync failed", syncError)
@@ -101,6 +108,12 @@ export async function saveIndex(data: SaveIndexData) {
 
 export async function deleteIndex(id: number) {
     try {
+        const userId = await getCurrentUserId()
+        if (!userId) return { success: false, error: "ログインが必要です" }
+
+        const owned = await prisma.index.findFirst({ where: { id, userId }, select: { id: true } })
+        if (!owned) return { success: false, error: "指数が見つかりません" }
+
         await prisma.indexValue.deleteMany({ where: { indexId: id } })
         await prisma.index.delete({ where: { id } })
         revalidatePath("/indices")
@@ -113,6 +126,13 @@ export async function deleteIndex(id: number) {
 
 export async function reorderIndicesAction(items: { id: number; order: number }[]) {
     try {
+        const userId = await getCurrentUserId()
+        if (!userId) return { success: false, error: "ログインが必要です" }
+
+        const ids = items.map((item) => item.id)
+        const owned = await prisma.index.findMany({ where: { id: { in: ids }, userId }, select: { id: true } })
+        if (owned.length !== ids.length) return { success: false, error: "指数が見つかりません" }
+
         await prisma.$transaction(
             items.map((item) => prisma.index.update({ where: { id: item.id }, data: { order: item.order } }))
         )

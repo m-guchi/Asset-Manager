@@ -71,7 +71,7 @@ export function parseZaimHoldings(
         const valuationResult = extractPrimaryValuation(rightWords.length > 0 ? rightWords : sortedWords)
 
         if (valuationResult.value === null) {
-            if (valuationResult.candidates.length > 0) continue // 損益額のみで評価額が無い行
+            if (valuationResult.candidates.length > 0) continue // 損益額のみで評価額が無い行（2行名の継続行など）
             if (!cleanedName) continue // 金額も名前も読み取れない行
 
             // 名前は読み取れたが評価額が読み取れなかった行。
@@ -276,6 +276,12 @@ export function mergeParsedHoldings(holdings: ParsedHolding[]): ParsedHolding[] 
 }
 
 function holdingDedupeKey(holding: ParsedHolding, anonIndex: number): string {
+    // 評価額未読取行は valuation が 0 のプレースホルダーのため、
+    // 他の未読取行と同一キーにならないよう常に一意として扱う（誤って重複除外しない）。
+    if (holding.unreadable) {
+        return `__unreadable_${anonIndex}`
+    }
+
     const normalized = normalizeKey(holding.name)
     if (normalized) {
         return `${normalized}\0${holding.valuation}`

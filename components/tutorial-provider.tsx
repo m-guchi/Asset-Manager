@@ -66,13 +66,11 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
         setOpen(true)
     }, [])
 
+    // Escape・オーバーレイクリック・閉じるボタンでの離脱は、完了扱いにせず単に閉じるだけにする
+    // （完了扱いは「はじめる」「スキップ」など明示的な操作のみで行う）
     const onOpenChange = React.useCallback((nextOpen: boolean) => {
-        if (nextOpen) {
-            setOpen(true)
-        } else {
-            complete()
-        }
-    }, [complete])
+        setOpen(nextOpen)
+    }, [])
 
     const value = React.useMemo<TutorialContextValue>(() => ({
         open,

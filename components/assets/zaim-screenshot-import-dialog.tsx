@@ -169,6 +169,7 @@ function resultToHolding(result: MatchResult): ParsedHolding {
         source: result.source,
         amountCandidates: result.amountCandidates,
         valuationBbox: result.source?.valuationBbox,
+        unreadable: result.unreadable,
     }
 }
 
@@ -489,7 +490,9 @@ export function ZaimScreenshotImportDialog({
         (r) => r.selected && hasAdoptedValuation(r)
     ).length
 
-    const adoptedCount = results.filter((r) => hasAdoptedValuation(r)).length
+    const adoptedCount = results.filter(
+        (r) => hasAdoptedValuation(r) && !r.unreadable
+    ).length
 
     const tableRows = useMemo(
         () => buildImportTableRows(categories, results),
@@ -897,6 +900,8 @@ export function ZaimScreenshotImportDialog({
                                                                                             parsed,
                                                                                         imageDismissedCandidate:
                                                                                             undefined,
+                                                                                        unreadable:
+                                                                                            false,
                                                                                     }
                                                                                 )
                                                                             }}
