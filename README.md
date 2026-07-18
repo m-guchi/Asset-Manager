@@ -164,7 +164,7 @@ Google OAuth のリダイレクト URI にも `http://<LAN-IP>.sslip.io:3000/api
 
 **外出先からのアクセス（Cloudflare Tunnel）**
 
-`cloudflared tunnel run signaly-dev` を起動しておくと、`npm run dev` 実行時に表示される `https://asset-dev.minagu.work` からアクセスできます（Cloudflare 側のトンネル・Access 設定はこのリポジトリの管理外です）。
+`cloudflared tunnel run dev-tunnel` を起動しておくと、`npm run dev` 実行時に表示される `https://asset-dev.minagu.work` からアクセスできます（Cloudflare 側のトンネル・Access 設定はこのリポジトリの管理外です）。
 
 ### 本番 DB のローカル接続（デバッグ用）
 
