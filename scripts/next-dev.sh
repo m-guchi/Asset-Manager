@@ -6,6 +6,6 @@ export WATCHPACK_POLLING=true
 export CHOKIDAR_USEPOLLING=true
 export WATCHPACK_POLLING_INTERVAL=1000
 
-echo "- Tunnel:        https://asset-dev.minagu.work (要: cloudflared tunnel run signaly-dev)"
+echo "- Tunnel:        https://asset-dev.minagu.work (要: cloudflared tunnel run dev-tunnel)"
 
 exec next dev --webpack "$@"
