@@ -20,6 +20,13 @@ export type ChangelogEntry = {
  */
 export const CHANGELOG: ChangelogEntry[] = [
     {
+        version: "3.6.3",
+        date: "2026-07-19",
+        changes: [
+            "Zaim画面の読み込みで、除外された項目が番号にカウントされてしまい、選択中の項目の番号が本来よりずれることがある不具合を修正",
+        ],
+    },
+    {
         version: "3.6.2",
         date: "2026-07-19",
         changes: [
