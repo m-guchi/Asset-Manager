@@ -174,6 +174,8 @@ Google OAuth のリダイレクト URI にも `http://<LAN-IP>.sslip.io:3000/api
 npm run prod:tunnel
 ```
 
+スマホ等 LAN/Cloudflare Tunnel（`https://asset-dev.minagu.work`）経由でこのモードにアクセスする場合は、本番用 Google OAuth クライアントの承認済みリダイレクト URI に `https://asset-dev.minagu.work/api/auth/callback/google` を追加しておく必要があります（Google Cloud Console 側の設定のためこのリポジトリの管理外）。未追加のままだと `redirect_uri_mismatch` でログインできません。
+
 ### 環境変数の管理
 
 ローカル開発の秘密情報（OAuth・NextAuth 等）はすべて `.env.local` に平文で保存します（`.gitignore` 済みのためコミットされません）。1Password は本番デプロイと本番 DB 確認にのみ使用します。
