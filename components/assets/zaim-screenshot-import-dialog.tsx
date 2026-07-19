@@ -517,7 +517,7 @@ export function ZaimScreenshotImportDialog({
     )
 
     const hasLargeDiff = tableRows.some(({ current, result, isExtra }) => {
-        if (isExtra || !result || current === null) return false
+        if (isExtra || !result || current === null || result.unreadable) return false
         const active = getActiveValuation(result)
         if (active === null) return false
         return isLargeValuationDiff(current, active)
@@ -531,7 +531,7 @@ export function ZaimScreenshotImportDialog({
             if (!isExtra && current !== null) {
                 currentTotal += current
             }
-            if (!result) continue
+            if (!result || result.unreadable) continue
             const active = getActiveValuation(result)
             if (active === null) continue
             readTotal += active

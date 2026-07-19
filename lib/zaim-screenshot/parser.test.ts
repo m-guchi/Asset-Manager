@@ -46,6 +46,21 @@ describe("parseZaimHoldings", () => {
         assert.equal(result[0].name, "NTT")
     })
 
+    it("ignores a status bar row even when OCR noise merges into the same line as the time", () => {
+        const words: OcrWord[] = [
+            word("0:04", 20, 10),
+            word("43", 360, 12), // バッテリー残量表示等のOCRノイズが同じ行に混入
+            word("一覧", 20, 60),
+            word("NTT", 20, 100),
+            word("¥14,950", 280, 100),
+        ]
+
+        const result = parseZaimHoldings(words, imageWidth)
+
+        assert.equal(result.length, 1)
+        assert.equal(result[0].name, "NTT")
+    })
+
     it("ignores Zaim section headers", () => {
         const words: OcrWord[] = [
             word("投資信託", 20, 80),
@@ -210,7 +225,7 @@ describe("parseZaimHoldings", () => {
         assert.equal(result.length, 0)
     })
 
-    it("keeps a placeholder holding when a name row has no readable yen amount, preserving order", () => {
+    it("drops a name row with no readable yen amount instead of keeping a placeholder", () => {
         const words: OcrWord[] = [
             word("NTT", 20, 100),
             word("¥14,950", 280, 100),
@@ -221,13 +236,10 @@ describe("parseZaimHoldings", () => {
 
         const result = parseZaimHoldings(words, imageWidth)
 
-        assert.equal(result.length, 3)
+        assert.equal(result.length, 2)
         assert.equal(result[0].name, "NTT")
         assert.equal(result[0].unreadable, undefined)
-        assert.equal(result[1].name, "ソニー生命")
-        assert.equal(result[1].valuation, 0)
-        assert.equal(result[1].unreadable, true)
-        assert.equal(result[2].name, "三菱重")
-        assert.equal(result[2].valuation, 38060)
+        assert.equal(result[1].name, "三菱重")
+        assert.equal(result[1].valuation, 38060)
     })
 })

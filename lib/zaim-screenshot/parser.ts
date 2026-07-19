@@ -1,16 +1,21 @@
 import type { OcrWord, ParsedHolding, OcrBoundingBox, YenAmountCandidate, YenAmountKind } from "./types"
 
-/** Zaim 証券口座詳細画面の非銘柄行（ヘッダー・セクション・UI要素） */
+/**
+ * Zaim 証券口座詳細画面の非銘柄行（ヘッダー・セクション・UI要素）。
+ * ステータスバーの時刻やアイコン等がOCRノイズとして同じ行に混入すると完全一致しなくなり、
+ * ヘッダーが銘柄として誤読されて以降の行が全てずれる（順序対応が崩れる）ため、
+ * 銘柄名に含まれる可能性が実質ない語は前後の混入に強い「含む」判定にしている。
+ */
 const HEADER_PATTERNS = [
     /^.+証券$/,
-    /^戻る$/,
+    /戻る/,
     /^データを更新/,
     /^残高$/,
     /^資産$/,
     /^総残高$/,
     /^評価額合計$/,
     /^評価額$/,
-    /^一覧$/,
+    /一覧/,
     /^全体$/,
     /^株式$/,
     /^投資信託$/,
@@ -22,10 +27,10 @@ const HEADER_PATTERNS = [
     /^入力$/,
     /^レポート$/,
     /^設定$/,
-    /^\d{1,2}:\d{2}$/,
-    /^[<>›»…]+$/,
+    /\d{1,2}:\d{2}/,
+    /[<>›»…]/,
     /^%$/,
-    /^更新$/,
+    /更新/,
 ]
 
 /** OCR が ¥ を \ や Y と誤認識することが多い */
@@ -71,13 +76,9 @@ export function parseZaimHoldings(
         const valuationResult = extractPrimaryValuation(rightWords.length > 0 ? rightWords : sortedWords)
 
         if (valuationResult.value === null) {
-            if (valuationResult.candidates.length > 0) continue // 損益額のみで評価額が無い行（2行名の継続行など）
-            if (!cleanedName) continue // 金額も名前も読み取れない行
-
-            // 名前は読み取れたが評価額が読み取れなかった行。
-            // ここで行を捨てるとカテゴリとの並び順対応（order一致）が1つずれてしまうため、
-            // プレースホルダーとして残し、ユーザーが一覧画面で手入力できるようにする。
-            holdings.push({ name: cleanedName, valuation: 0, unreadable: true, amountCandidates: [] })
+            // 評価額を読み取れなかった行（損益額のみの行・2行名の継続行・名前しか読めない行）は、
+            // 読み取れた行だけを前から順にカテゴリへ詰める。位置がずれた場合は
+            // 一覧画面の「見落とした行を挿入」ボタンでユーザーが手動で正しい位置に補える。
             continue
         }
 

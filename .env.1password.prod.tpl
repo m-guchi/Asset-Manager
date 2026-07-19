@@ -7,6 +7,11 @@ DB_PORT=3307
 DB_NAME=op://apps/AssetManager/db-name
 NEXTAUTH_SECRET=op://apps/AssetManager/nextauth-secret
 NEXTAUTH_URL=http://localhost:3000
+# スマホ等 LAN/トンネル経由の別端末からアクセスした場合に、リクエストの Host ヘッダーから
+# 正しいコールバックURLを自動判定させるための設定（next-auth v4 の挙動）。
+# あわせて、本番用 Google OAuth クライアントの承認済みリダイレクト URI に
+# https://asset-dev.minagu.work/api/auth/callback/google を追加しておくこと。
+AUTH_TRUST_HOST=true
 AUTH_GOOGLE_ID=op://apps/AssetManager/auth-google-id
 AUTH_GOOGLE_SECRET=op://apps/AssetManager/auth-google-secret
 NEXT_PUBLIC_GA_ID=op://apps/AssetManager/ga-id
