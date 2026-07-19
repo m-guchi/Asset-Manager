@@ -69,6 +69,18 @@ describe("concatenateHoldingsInOrder", () => {
 
         assert.equal(merged.length, 2)
     })
+
+    it("deduplicates a multi-row overlap when scroll screenshots overlap by more than one row", () => {
+        const seq1 = [h("NTT", 14950), h("楽天", 74530), h("ゴールドファンド", 288822), h("J-REIT", 150273)]
+        const seq2 = [h("楽天", 74530), h("ゴールドファンド", 288822), h("J-REIT", 150273), h("日本高配当株", 272463)]
+
+        const merged = concatenateHoldingsInOrder([seq1, seq2])
+
+        assert.deepEqual(
+            merged.map((x) => x.name),
+            ["NTT", "楽天", "ゴールドファンド", "J-REIT", "日本高配当株"]
+        )
+    })
 })
 
 describe("findOverlapLength", () => {

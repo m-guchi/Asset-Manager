@@ -57,21 +57,21 @@ export function mergeTwoHoldingsSequences(
 }
 
 /**
- * 指定順に連結し、隣接する重複行（スクロール重なり）のみ除外する。
+ * 指定順に連結し、直前までの連結結果と次の画像との重複行（スクロール重なり）を除外する。
+ * 重なりが複数行にまたがる場合（前後の画像を数行分被らせて撮影した場合など）に、
+ * 直前の1行だけを見て重複判定すると2行目以降が残ってしまうため、
+ * findOverlapLength で末尾・先頭の一致行数をまとめて求めてから連結する。
  */
 export function concatenateHoldingsInOrder(sequences: ParsedHolding[][]): ParsedHolding[] {
-    const result: ParsedHolding[] = []
+    let result: ParsedHolding[] = []
 
     for (const seq of sequences) {
-        for (const holding of seq) {
-            if (
-                result.length > 0 &&
-                holdingsAreSameItem(result[result.length - 1], holding)
-            ) {
-                continue
-            }
-            result.push(holding)
+        if (result.length === 0) {
+            result = [...seq]
+            continue
         }
+        const overlap = findOverlapLength(result, seq)
+        result = [...result, ...seq.slice(overlap)]
     }
 
     return result
