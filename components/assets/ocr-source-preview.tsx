@@ -238,14 +238,14 @@ export function hasAdoptedValuation(result: {
     return !result.imageDismissedCandidate
 }
 
-/** 採用解除を除き、読取順の表示番号（1始まり）を globalIndex → 番号 で返す */
+/** 選択中（採用解除・未選択を除く）の項目だけを対象に、読取順の表示番号（1始まり）を globalIndex → 番号 で返す */
 export function buildActiveDisplayNumberByIndex(
-    results: Array<{ imageDismissedCandidate?: YenAmountCandidate }>
+    results: Array<{ imageDismissedCandidate?: YenAmountCandidate; selected: boolean }>
 ): Map<number, number> {
     const map = new Map<number, number>()
     let displayNumber = 0
     for (let index = 0; index < results.length; index++) {
-        if (!results[index].imageDismissedCandidate) {
+        if (!results[index].imageDismissedCandidate && results[index].selected) {
             displayNumber++
             map.set(index, displayNumber)
         }
